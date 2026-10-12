@@ -2,12 +2,21 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-
+from app.api.intent import router as intent_router
+from app.api.catalog import router as catalog_router
+from app.api.places import router as places_router
+from app.api.verification import router as verification_router
+from app.api.decisions import router as decisions_router
 app = FastAPI(
     title="NeedProof AI API",
     description="Evidence-driven commerce intelligence",
     version="0.1.0",
 )
+app.include_router(intent_router)
+app.include_router(catalog_router)
+app.include_router(places_router)
+app.include_router(verification_router)
+app.include_router(decisions_router)
 
 app.add_middleware(
     CORSMiddleware,

@@ -1,10 +1,46 @@
-.venv/
-node_modules/
-dist/
+
+# Environment variables and credentials
 .env
 .env.*
-!.env.example
-__pycache__/
-.pytest_cache/
+**/.env
+**/.env.*
+!**/.env.example
+
+# Python
+**/.venv/
+**/venv/
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.mypy_cache/
+
+# Node.js / React
+**/node_modules/
+frontend/dist/
+**/.vite/
+
+# Local databases
 *.db
+*.db-journal
+*.sqlite
 *.sqlite3
+
+# Firebase local cache
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+
+# Private credentials
+*service-account*.json
+*credentials*.json
+*.pem
+*.p12
+*.pfx
+
+# Local backups
+backup_*/
+*.log
+
+# Operating system
+.DS_Store
+Thumbs.db

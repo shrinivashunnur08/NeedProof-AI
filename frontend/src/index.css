@@ -1,9 +1,12 @@
 @import "tailwindcss";
 
+/* NeedProof AI — Global foundation */
+
 :root {
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   color: #f1f5f9;
   background: #080b12;
+
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -13,11 +16,23 @@
   box-sizing: border-box;
 }
 
+html {
+  min-height: 100%;
+  scroll-behavior: smooth;
+}
+
 body {
   margin: 0;
   min-width: 320px;
-  min-height: 100vh;
+  min-height: 100dvh;
 }
+
+#root {
+  width: 100%;
+  min-height: 100dvh;
+}
+
+/* Buttons */
 
 button {
   cursor: pointer;
@@ -25,4 +40,87 @@ button {
 
 button:disabled {
   cursor: not-allowed;
+}
+
+/* Main dashboard layout.
+   The page must grow naturally with its content. */
+
+.np-app {
+  width: 100%;
+  min-width: 0;
+  min-height: 100dvh;
+  overflow-x: clip;
+}
+
+.np-main {
+  min-width: 0;
+}
+
+.np-workspace {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.np-panels {
+  min-width: 0;
+  grid-auto-rows: max-content;
+  align-items: stretch;
+}
+
+.np-panels > section {
+  min-width: 0;
+}
+
+/* Prevent cramped two-column cards on smaller screens. */
+
+@media (max-width: 1279px) {
+  .np-panels {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Adaptive decision scrolling */
+
+#adaptive-decision {
+  min-width: 0;
+  scroll-margin-top: 6rem;
+  overflow-wrap: anywhere;
+}
+
+/* Dialog viewport protection */
+
+[role="dialog"][aria-modal="true"] {
+  max-width: calc(100vw - 1rem);
+}
+
+@media (max-height: 650px) {
+  [role="dialog"][aria-modal="true"] {
+    max-height: calc(100dvh - 1rem);
+  }
+}
+
+/* Expandable detail panels */
+
+details > summary {
+  -webkit-tap-highlight-color: transparent;
+}
+
+details > summary:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: -2px;
+}
+
+/* Accessibility */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .np-workspace *,
+  .np-workspace *::before,
+  .np-workspace *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

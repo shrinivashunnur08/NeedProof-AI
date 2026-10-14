@@ -1,0 +1,38 @@
+
+# Exclude local configuration and credentials
+.gcloudignore
+.git/
+.gitignore
+.env
+.env.*
+**/.env
+**/.env.*
+*credentials*.json
+*service-account*.json
+*.pem
+
+# Exclude Python environments and caches
+.venv/
+venv/
+**/__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+**/.pytest_cache/
+.mypy_cache/
+
+# Exclude local data and unnecessary test artifacts
+tests/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.log
+coverage/
+htmlcov/
+
+# Exclude editor and operating system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

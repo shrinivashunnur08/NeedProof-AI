@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from app.algorithms.adaptive_replanning import ReplanInput, evaluate_replan
 from app.api.decisions import demo_evidence_plan
+from app.public_places import DiscoveryInput, discover_stores
 
 
 FIREBASE_PROJECT_ID = os.environ.get("FIREBASE_PROJECT_ID", "").strip()
@@ -96,6 +97,12 @@ def require_firebase_client(
 
 
 Identity = Annotated[str, Depends(require_firebase_client)]
+
+
+@app.post("/api/v1/discovery/stores")
+async def candidate_store_discovery(payload: DiscoveryInput, user_id: Identity, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    return await discover_stores(payload, user_id)
 
 
 @app.get("/health")

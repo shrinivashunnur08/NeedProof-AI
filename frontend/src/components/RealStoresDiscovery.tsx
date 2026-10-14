@@ -1,0 +1,101 @@
+import { useEffect, useRef, useState } from "react";
+import { Building2, ExternalLink, MapPin, Search, ShieldAlert } from "lucide-react";
+import { cloudApiUrl } from "../lib/cloudDecisions";
+import { discoverRealStores, type DiscoveryResult } from "../lib/storeDiscovery";
+
+type Props = {
+  requestedProduct: string | null;
+  location: string | null;
+  onEvent: (kind: string, message: string, source: "CLOUD_RUN" | "USER") => void;
+};
+
+/** Live Google Places discovery: businesses only, no inferred merchant evidence. */
+export default function RealStoresDiscovery({ requestedProduct, location, onEvent }: Props) {
+  const [product, setProduct] = useState(requestedProduct ?? "65W USB-C laptop charger");
+  const [area, setArea] = useState(location ?? "Thane, Maharashtra");
+  const [result, setResult] = useState<DiscoveryResult | null>(null);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
+  const abort = useRef<AbortController | null>(null);
+
+  useEffect(() => () => abort.current?.abort(), []);
+
+  function importGemini() {
+    if (!requestedProduct) return;
+    abort.current?.abort();
+    setProduct(requestedProduct.slice(0, 120));
+    if (location) setArea(location.slice(0, 80));
+    setResult(null);
+    setError("");
+    onEvent("DISCOVERY_INPUTS", "Loaded Gemini-extracted product/location for candidate-business discovery.", "USER");
+  }
+
+  async function runSearch() {
+    if (pending || !cloudApiUrl) return;
+    const controller = new AbortController();
+    abort.current?.abort();
+    abort.current = controller;
+    setPending(true);
+    setError("");
+    setResult(null);
+    try {
+      const next = await discoverRealStores(product, area, controller.signal);
+      if (controller.signal.aborted) return;
+      setResult(next);
+      onEvent("STORE_DISCOVERY", `Google Places returned ${next.stores.length} candidate businesses; stock unverified.`, "CLOUD_RUN");
+    } catch (e) {
+      if (!controller.signal.aborted) setError(e instanceof Error ? e.message : "Store discovery failed.");
+    } finally {
+      if (!controller.signal.aborted) setPending(false);
+    }
+  }
+
+  return (
+    <section id="real-store-discovery" className="scroll-mt-20 rounded-2xl border border-[#30415B] bg-[#111827] p-4 sm:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-sky-400">Live merchant discovery</p>
+          <h2 className="mt-2 flex items-center gap-2 text-lg font-semibold"><Building2 size={18} /> Find candidate businesses</h2>
+        </div>
+        <span className="rounded-full border border-amber-500/25 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-200">STOCK NOT VERIFIED</span>
+      </div>
+      <p className="mt-2 max-w-3xl text-xs leading-6 text-slate-400">
+        Searches actual Google Maps business listings through authenticated Cloud Run. A business listing does not prove that a product is sold, in stock, compatible, or deliverable.
+      </p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+        <label className="text-xs text-slate-300">Product/category
+          <input value={product} maxLength={120} onChange={(e) => { setProduct(e.target.value); setResult(null); }} className="mt-2 w-full rounded-lg border border-slate-700 bg-[#080D17] p-3 text-sm text-white" />
+        </label>
+        <label className="text-xs text-slate-300">City or area
+          <input value={area} maxLength={80} onChange={(e) => { setArea(e.target.value); setResult(null); }} className="mt-2 w-full rounded-lg border border-slate-700 bg-[#080D17] p-3 text-sm text-white" />
+        </label>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button type="button" onClick={() => void runSearch()} disabled={pending || !cloudApiUrl || product.trim().length < 3 || area.trim().length < 2} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-sky-500 px-4 py-2.5 text-xs font-semibold text-slate-950 disabled:opacity-40"><Search size={15} />{pending ? "Searching businesses..." : "Discover real stores"}</button>
+        <button type="button" onClick={importGemini} disabled={!requestedProduct || pending} className="rounded-lg border border-slate-700 px-4 py-2.5 text-xs text-slate-200 disabled:opacity-40">Use Gemini request</button>
+      </div>
+      {!cloudApiUrl && <p className="mt-3 text-xs text-amber-300">Cloud Run URL not configured. Real discovery is disabled.</p>}
+      {error && <p role="alert" className="mt-4 rounded-lg border border-rose-500/25 p-3 text-xs text-rose-300">{error}</p>}
+      {result && (
+        <div className="mt-5 space-y-3" aria-live="polite">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-semibold text-slate-200">{result.stores.length} candidate businesses</p>
+            <span translate="no" className="whitespace-nowrap text-sm font-medium text-slate-300">Google Maps</span>
+          </div>
+          {!result.stores.length && <p className="text-sm text-slate-400">No matching business listings found. Try a broader category or a different area.</p>}
+          <div className="grid gap-3 sm:grid-cols-2">
+            {result.stores.map((store) => (
+              <article key={store.place_id} className="min-w-0 rounded-xl border border-[#304058] bg-[#0A101B] p-4">
+                <h3 className="break-words text-sm font-semibold">{store.name}</h3>
+                <p className="mt-2 flex items-start gap-2 break-words text-xs leading-5 text-slate-400"><MapPin size={13} className="mt-0.5 shrink-0" />{store.address || "Address not provided"}</p>
+                <p className="mt-3 flex items-center gap-2 text-[11px] text-amber-300"><ShieldAlert size={13}/> Inventory, compatibility and delivery: unknown</p>
+                {store.maps_url && <a className="mt-3 inline-flex items-center gap-2 text-xs font-medium text-sky-300 hover:text-sky-200" href={store.maps_url} target="_blank" rel="noopener noreferrer">View business on Google Maps <ExternalLink size={13}/></a>}
+              </article>
+            ))}
+          </div>
+          <p className="text-[11px] leading-5 text-slate-400">{result.disclaimer} Business results are displayed temporarily; this interface does not save Maps-sourced names or addresses to Firestore.</p>
+        </div>
+      )}
+    </section>
+  );
+}

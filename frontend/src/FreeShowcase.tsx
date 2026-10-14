@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import DecisionSpotlight from "./components/DecisionSpotlight";
 import EvidenceWorkbench from "./components/EvidenceWorkbench";
+import RealStoresDiscovery from "./components/RealStoresDiscovery";
 import {
   deleteJourney,
   loadJourney,
@@ -654,6 +655,7 @@ Customer request: ${JSON.stringify(submittedText)}
           Workspace
         </p>
         <nav aria-label="Showcase workspace" className="space-y-2">
+          <a href="#real-store-discovery" className="block rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-3 text-xs text-sky-300">Discover Real Stores</a>
           <a href="#evidence-workbench" className="flex items-center rounded-lg border border-sky-500/25 bg-sky-500/5 px-3 py-3 text-xs text-sky-200 hover:bg-sky-500/10">Evidence Intelligence</a>
           <a
             href="#customer-request"
@@ -723,6 +725,7 @@ Customer request: ${JSON.stringify(submittedText)}
             aria-label="Mobile showcase navigation"
             className="flex gap-2 lg:hidden"
           >
+            <a href="#real-store-discovery" className="shrink-0 rounded-lg border border-sky-500/25 px-3 py-2 text-xs text-sky-200">Real Stores</a>
             <a href="#evidence-workbench" className="shrink-0 rounded-lg border border-sky-500/30 bg-sky-500/5 px-3 py-2 text-xs text-sky-200">Evidence Lab</a>
             <a
               className="rounded-lg bg-sky-500/10 px-3 py-2 text-xs text-sky-300"
@@ -1104,6 +1107,12 @@ Customer request: ${JSON.stringify(submittedText)}
               )}
             </section>
           </div>
+
+          <RealStoresDiscovery
+            requestedProduct={isCurrent && intent ? intent.requested_product : null}
+            location={isCurrent && intent ? intent.delivery_location : null}
+            onEvent={recordEvent}
+          />
 
           <EvidenceWorkbench
             requestedProduct={isCurrent && intent ? intent.requested_product : null}

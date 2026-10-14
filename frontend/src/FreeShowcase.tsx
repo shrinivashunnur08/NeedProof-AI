@@ -29,6 +29,7 @@ import {
   Wallet,
 } from "lucide-react";
 import DecisionSpotlight from "./components/DecisionSpotlight";
+import EvidenceWorkbench from "./components/EvidenceWorkbench";
 import {
   deleteJourney,
   loadJourney,
@@ -653,6 +654,7 @@ Customer request: ${JSON.stringify(submittedText)}
           Workspace
         </p>
         <nav aria-label="Showcase workspace" className="space-y-2">
+          <a href="#evidence-workbench" className="flex items-center rounded-lg border border-sky-500/25 bg-sky-500/5 px-3 py-3 text-xs text-sky-200 hover:bg-sky-500/10">Evidence Intelligence</a>
           <a
             href="#customer-request"
             className="flex items-center gap-2 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-3 text-xs font-semibold text-sky-300"
@@ -721,6 +723,7 @@ Customer request: ${JSON.stringify(submittedText)}
             aria-label="Mobile showcase navigation"
             className="flex gap-2 lg:hidden"
           >
+            <a href="#evidence-workbench" className="shrink-0 rounded-lg border border-sky-500/30 bg-sky-500/5 px-3 py-2 text-xs text-sky-200">Evidence Lab</a>
             <a
               className="rounded-lg bg-sky-500/10 px-3 py-2 text-xs text-sky-300"
               href="#customer-request"
@@ -1101,6 +1104,12 @@ Customer request: ${JSON.stringify(submittedText)}
               )}
             </section>
           </div>
+
+          <EvidenceWorkbench
+            requestedProduct={isCurrent && intent ? intent.requested_product : null}
+            extractedBudget={isCurrent && intent ? intent.budget_amount : null}
+            onEvent={recordEvent}
+          />
 
           <section
             id="adaptive-demo"

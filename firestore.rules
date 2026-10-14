@@ -1,0 +1,65 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Only one personal showcase snapshot per anonymous (or signed-in) user.
+    match /showcase_users/{uid}/journeys/{journeyId} {
+      function owner() {
+        return request.auth != null && request.auth.uid == uid && journeyId == 'current';
+      }
+      function valid() {
+        let d = request.resource.data;
+        return d.keys().hasOnly([
+          'ownerUid', 'version', 'requestText', 'analyzedRequest',
+          'intent', 'scenario', 'lastDecision', 'events', 'savedAt'
+        ])
+        && d.keys().hasAll([
+          'ownerUid', 'version', 'requestText', 'analyzedRequest',
+          'intent', 'scenario', 'lastDecision', 'events', 'savedAt'
+        ])
+        && d.ownerUid == uid && d.version == 1
+        && d.requestText is string && d.requestText.size() <= 2000
+        && d.analyzedRequest is string && d.analyzedRequest.size() <= 2000
+        && (d.intent == null || (
+          d.intent is map
+          && d.intent.keys().hasOnly([
+            'requested_product', 'budget_amount', 'delivery_location',
+            'required_specifications', 'missing_information'
+          ])
+          && d.intent.requested_product is string
+          && d.intent.requested_product.size() <= 180
+          && (d.intent.budget_amount == null ||
+            (d.intent.budget_amount is number && d.intent.budget_amount >= 0 && d.intent.budget_amount <= 10000000))
+          && (d.intent.delivery_location == null ||
+            (d.intent.delivery_location is string && d.intent.delivery_location.size() <= 180))
+          && d.intent.required_specifications is list && d.intent.required_specifications.size() <= 20
+          && d.intent.missing_information is list && d.intent.missing_information.size() <= 20
+        ))
+        && d.scenario is map
+        && d.scenario.keys().hasOnly(['demoStarted', 'demoSource', 'quantity', 'stockOut'])
+        && d.scenario.demoStarted is bool && d.scenario.stockOut is bool
+        && d.scenario.demoSource in ['reference', 'customer']
+        && d.scenario.quantity is int
+        && d.scenario.quantity >= 1 && d.scenario.quantity <= 20
+        && (d.lastDecision == null || (
+          d.lastDecision is map
+          && d.lastDecision.keys().hasOnly(['source', 'selectedId', 'status', 'nextAction', 'evaluatedAt'])
+          && d.lastDecision.source in ['CLOUD_RUN', 'BROWSER_FIXTURE']
+          && (d.lastDecision.selectedId == null || d.lastDecision.selectedId is string)
+          && d.lastDecision.status is string && d.lastDecision.status.size() <= 90
+          && d.lastDecision.nextAction is string && d.lastDecision.nextAction.size() <= 100
+          && d.lastDecision.evaluatedAt is string && d.lastDecision.evaluatedAt.size() <= 40
+        ))
+        && d.events is list && d.events.size() <= 30
+        && d.savedAt == request.time;
+      }
+      allow get: if owner();
+      allow list: if false;
+      allow create, update: if owner() && valid();
+      allow delete: if owner();
+    }
+    // All other documents deny access by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

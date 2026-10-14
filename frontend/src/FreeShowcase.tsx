@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   cloudApiUrl,
   getShowcaseGeminiModel,
@@ -22,6 +29,14 @@ import {
   Wallet,
 } from "lucide-react";
 import DecisionSpotlight from "./components/DecisionSpotlight";
+import {
+  deleteJourney,
+  loadJourney,
+  saveJourney,
+  type HistoricalDecision,
+  type JourneyEvent,
+  type SavedJourney,
+} from "./lib/journeyStore";
 import type { DecisionResult } from "./components/AdaptiveDecisionPanel";
 
 type ExtractedIntent = {
@@ -129,6 +144,86 @@ export default function FreeShowcase() {
   const [planLoading, setPlanLoading] = useState(false);
   const [planError, setPlanError] = useState("");
   const [plan, setPlan] = useState<CloudVerificationPlan | null>(null);
+  const [journeyEvents, setJourneyEvents] = useState<JourneyEvent[]>([]);
+  const [savedDecision, setSavedDecision] = useState<HistoricalDecision | null>(
+    null,
+  );
+  const [savedAt, setSavedAt] = useState("");
+  const [storeBusy, setStoreBusy] = useState(false);
+  const [storeStatus, setStoreStatus] = useState("Checking saved journey...");
+  const [storeError, setStoreError] = useState("");
+  const userTouched = useRef(false);
+
+  const recordEvent = useCallback(
+    (kind: string, message: string, source: JourneyEvent["source"]) => {
+      const item: JourneyEvent = {
+        id: crypto.randomUUID(),
+        at: new Date().toISOString(),
+        kind,
+        message: message.slice(0, 180),
+        source,
+      };
+      setJourneyEvents((previous) => [...previous, item].slice(-30));
+    },
+    [],
+  );
+
+  function restoreSnapshot(saved: SavedJourney) {
+    ++sequence.current; // Invalidate any older in-flight Gemini request.
+    setRequest(saved.requestText);
+    setAnalyzedRequest(saved.analyzedRequest);
+    setIntent(saved.intent);
+    setDemoStarted(saved.scenario.demoStarted);
+    setDemoSource(saved.scenario.demoSource);
+    setStockOut(saved.scenario.stockOut);
+    setQuantity(saved.scenario.quantity);
+    setLoading(false);
+    setError("");
+    setPlan(null);
+    setPlanError("");
+    setJourneyEvents(saved.events);
+    setSavedDecision(saved.lastDecision);
+    setSavedAt(saved.savedAt ?? "");
+    // Active cloud decisions are deliberately not restored. The existing
+    // effect reevaluates the saved scenario using Cloud Run.
+    setRemoteDecision(null);
+    setRemoteSnapshotKey("");
+    setStoreError("");
+    setStoreStatus("Saved journey restored; decisions are being refreshed.");
+  }
+
+  // A previously saved journey is restored automatically in the same browser
+  // identity. Never overwrite a request the user started editing while loading.
+  useEffect(() => {
+    let alive = true;
+    loadJourney()
+      .then((saved) => {
+        if (!alive) return;
+        if (saved && !userTouched.current) restoreSnapshot(saved);
+        else
+          setStoreStatus(
+            saved
+              ? "Saved journey available; use Restore."
+              : "No saved journey yet.",
+          );
+      })
+      .catch((reason: unknown) => {
+        if (!alive) return;
+        setStoreStatus(
+          "Firestore unavailable; Gemini and decision demo remain usable.",
+        );
+        setStoreError(
+          reason instanceof Error
+            ? reason.message
+            : "Could not load saved journey.",
+        );
+      });
+    return () => {
+      alive = false;
+    };
+    // Only check once; restoreSnapshot is intentionally a local operation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!loading) return;
@@ -259,6 +354,11 @@ export default function FreeShowcase() {
         if (!controller.signal.aborted) {
           setRemoteSnapshotKey(snapshotKey);
           setRemoteDecision(result);
+          recordEvent(
+            "DECISION_EVALUATED",
+            `Backend decision: ${result.selected?.name ?? "no eligible offer"}. Next action: ${result.recommended_next_action}.`,
+            "CLOUD_RUN",
+          );
         }
       })
       .catch((reason: unknown) => {
@@ -278,6 +378,7 @@ export default function FreeShowcase() {
     demoStarted,
     quantity,
     remoteEnabled,
+    recordEvent,
     scenarioBudget,
     scenarioPriceA,
     scenarioPriceB,
@@ -333,6 +434,12 @@ export default function FreeShowcase() {
 
   function startDemo(mode: "reference" | "customer") {
     if (mode === "customer" && !isCurrent) return;
+    userTouched.current = true;
+    recordEvent(
+      "DEMO_STARTED",
+      `Started ${mode} scenario with fictional offers.`,
+      "USER",
+    );
     setPlan(null);
     setPlanError("");
     setDemoSource(mode);
@@ -357,6 +464,11 @@ export default function FreeShowcase() {
     try {
       const response = await requestCloudVerificationPlan(scenarioBudget);
       setPlan(response);
+      recordEvent(
+        "VERIFICATION_PLANNED",
+        `Synthetic EVSI recommended: ${response.recommended_action_id ?? response.stopping_reason ?? "none"}.`,
+        "CLOUD_RUN",
+      );
     } catch (reason) {
       setPlanError(
         reason instanceof Error
@@ -371,6 +483,7 @@ export default function FreeShowcase() {
   async function analyze() {
     const submittedText = request.trim();
     if (submittedText.length < 8 || loading) return;
+    userTouched.current = true;
     const current = ++sequence.current;
     setLoading(true);
     setError("");
@@ -402,6 +515,11 @@ Customer request: ${JSON.stringify(submittedText)}
       if (sequence.current !== current) return;
       setIntent(extracted);
       setAnalyzedRequest(submittedText);
+      recordEvent(
+        "INTENT_EXTRACTED",
+        `Gemini extracted: ${extracted.requested_product}.`,
+        "GEMINI",
+      );
     } catch (err) {
       if (sequence.current !== current) return;
       setError(
@@ -413,6 +531,7 @@ Customer request: ${JSON.stringify(submittedText)}
   }
 
   function resetRequest() {
+    userTouched.current = true;
     ++sequence.current;
     setRequest("");
     setIntent(null);
@@ -423,6 +542,95 @@ Customer request: ${JSON.stringify(submittedText)}
     setDemoSource("reference");
     setStockOut(false);
     setQuantity(1);
+    setJourneyEvents([]);
+    setSavedDecision(null);
+    setStoreStatus(
+      "New unsaved journey. Previous saved data remains until replaced or removed.",
+    );
+  }
+
+  async function saveCurrentJourney() {
+    if (storeBusy) return;
+    userTouched.current = true;
+    setStoreBusy(true);
+    setStoreError("");
+    setStoreStatus("Saving to Firestore...");
+    const decision: HistoricalDecision | null = activeDecision
+      ? {
+          source: remoteEnabled ? "CLOUD_RUN" : "BROWSER_FIXTURE",
+          selectedId: activeDecision.selected?.place_id ?? null,
+          status: activeDecision.decision_status,
+          nextAction: activeDecision.recommended_next_action,
+          evaluatedAt: activeDecision.evaluated_at,
+        }
+      : null;
+    const snapshot: SavedJourney = {
+      requestText: request,
+      analyzedRequest,
+      intent,
+      scenario: { demoStarted, demoSource, quantity, stockOut },
+      lastDecision: decision,
+      events: journeyEvents,
+    };
+    try {
+      await saveJourney(snapshot);
+      setSavedDecision(decision);
+      const at = new Date().toISOString();
+      setSavedAt(at);
+      setStoreStatus("Saved to Firestore. Reload this page to test restore.");
+    } catch (reason) {
+      setStoreStatus(
+        "Save failed; your current browser state is still available.",
+      );
+      setStoreError(
+        reason instanceof Error ? reason.message : "Firestore save failed.",
+      );
+    } finally {
+      setStoreBusy(false);
+    }
+  }
+
+  async function restoreSavedJourney() {
+    if (storeBusy) return;
+    setStoreBusy(true);
+    setStoreError("");
+    try {
+      const saved = await loadJourney();
+      if (saved) restoreSnapshot(saved);
+      else setStoreStatus("No saved Firestore journey found.");
+    } catch (reason) {
+      setStoreStatus("Restore failed.");
+      setStoreError(
+        reason instanceof Error ? reason.message : "Firestore load failed.",
+      );
+    } finally {
+      setStoreBusy(false);
+    }
+  }
+
+  async function removeSavedJourney() {
+    if (
+      storeBusy ||
+      !window.confirm("Remove your saved NeedProof journey from Firestore?")
+    )
+      return;
+    setStoreBusy(true);
+    setStoreError("");
+    try {
+      await deleteJourney();
+      setSavedAt("");
+      setSavedDecision(null);
+      setStoreStatus(
+        "Saved Firestore journey deleted. Current unsaved view remains on screen.",
+      );
+    } catch (reason) {
+      setStoreStatus("Could not remove saved journey.");
+      setStoreError(
+        reason instanceof Error ? reason.message : "Firestore delete failed.",
+      );
+    } finally {
+      setStoreBusy(false);
+    }
   }
 
   return (
@@ -456,6 +664,12 @@ Customer request: ${JSON.stringify(submittedText)}
             className="flex items-center gap-2 rounded-lg border border-slate-700 px-3 py-3 text-xs text-slate-300 hover:bg-slate-800"
           >
             <FlaskConical size={15} /> Scenario Lab
+          </a>
+          <a
+            href="#journey-history"
+            className="flex items-center gap-2 rounded-lg border border-slate-700 px-3 py-3 text-xs text-slate-300 hover:bg-slate-800"
+          >
+            <Clock3 size={15} /> Saved Journey
           </a>
         </nav>
         <div className="mt-7 border-t border-slate-800 pt-5">
@@ -519,6 +733,12 @@ Customer request: ${JSON.stringify(submittedText)}
             >
               Scenario Lab
             </a>
+            <a
+              className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300"
+              href="#journey-history"
+            >
+              Saved Journey
+            </a>
           </nav>
           <div>
             <p className="mb-2 inline-flex items-center gap-2 rounded-full border border-sky-500/25 bg-sky-500/10 px-3 py-1 text-[11px] text-sky-300">
@@ -558,6 +778,134 @@ Customer request: ${JSON.stringify(submittedText)}
             onLaunchDemo={resetDemo}
           />
 
+          <section
+            id="journey-history"
+            className="scroll-mt-20 rounded-2xl border border-[#30415B] bg-[#101A2A] p-4 sm:p-5"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="flex items-center gap-2 text-sm font-semibold">
+                  <Clock3 size={16} className="text-sky-400" /> Firestore
+                  Journey History
+                </h2>
+                <p className="mt-1 text-xs leading-5 text-slate-400">
+                  Private to this browser's Firebase anonymous account. Save
+                  only when you choose; no writing on every keystroke.
+                </p>
+                <p className="mt-2 text-[11px] text-sky-300" aria-live="polite">
+                  {storeStatus}
+                </p>
+                {storeError && (
+                  <p
+                    role="alert"
+                    className="mt-1 max-w-2xl break-words text-xs text-rose-300"
+                  >
+                    {storeError}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={storeBusy}
+                  onClick={() => void saveCurrentJourney()}
+                  className="rounded-lg bg-sky-500 px-3 py-2 text-xs font-semibold text-slate-950 disabled:opacity-50"
+                >
+                  {storeBusy ? "Working..." : "Save journey"}
+                </button>
+                <button
+                  type="button"
+                  disabled={storeBusy}
+                  onClick={() => void restoreSavedJourney()}
+                  className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-200 disabled:opacity-50"
+                >
+                  Restore saved
+                </button>
+                <button
+                  type="button"
+                  disabled={storeBusy}
+                  onClick={() => void removeSavedJourney()}
+                  className="rounded-lg border border-rose-500/25 px-3 py-2 text-xs text-rose-200 disabled:opacity-50"
+                >
+                  Delete saved
+                </button>
+              </div>
+            </div>
+            <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+              <div className="rounded-xl border border-slate-700/70 bg-[#080D17] p-3">
+                <p className="text-xs font-semibold">
+                  Event timeline{" "}
+                  <span className="font-normal text-slate-500">
+                    · {journeyEvents.length} captured locally
+                  </span>
+                </p>
+                {journeyEvents.length === 0 ? (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Extract with Gemini or start a demo; then Save journey to
+                    preserve the events in Firestore.
+                  </p>
+                ) : (
+                  <ol className="mt-3 max-h-48 space-y-2 overflow-y-auto pr-2">
+                    {[...journeyEvents].reverse().map((event) => (
+                      <li
+                        key={event.id}
+                        className="rounded-lg border border-slate-800 px-3 py-2"
+                      >
+                        <div className="flex flex-wrap justify-between gap-2 text-[10px] text-slate-500">
+                          <span>
+                            {event.kind.replaceAll("_", " ")} · {event.source}
+                          </span>
+                          <time dateTime={event.at}>
+                            {new Date(event.at).toLocaleTimeString()}
+                          </time>
+                        </div>
+                        <p className="mt-1 break-words text-xs text-slate-200">
+                          {event.message}
+                        </p>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </div>
+              <div className="rounded-xl border border-slate-700/70 bg-[#080D17] p-3">
+                <p className="text-xs font-semibold">
+                  Last stored decision{" "}
+                  <span className="font-normal text-amber-200">
+                    · historical only
+                  </span>
+                </p>
+                {savedDecision ? (
+                  <div className="mt-2 space-y-1 text-xs leading-5 text-slate-300">
+                    <p>Source: {savedDecision.source}</p>
+                    <p>Saved leader: {savedDecision.selectedId ?? "none"}</p>
+                    <p>Status: {savedDecision.status}</p>
+                    <p className="break-words">
+                      Next action: {savedDecision.nextAction}
+                    </p>
+                    <p className="text-slate-500">
+                      Evaluated: {savedDecision.evaluatedAt}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-slate-500">
+                    No historical decision saved yet.
+                  </p>
+                )}
+                {savedAt && (
+                  <p className="mt-3 text-[11px] text-slate-500">
+                    Saved at {new Date(savedAt).toLocaleString()}
+                  </p>
+                )}
+                <p className="mt-3 text-[11px] leading-5 text-amber-200/85">
+                  Restoring a saved scenario triggers fresh Cloud Run evaluation
+                  when configured. Firestore does not verify merchants or
+                  prices. Anonymous accounts may be lost if browser storage is
+                  cleared or another device is used.
+                </p>
+              </div>
+            </div>
+          </section>
+
           <div className="grid min-w-0 items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <section className="min-w-0 rounded-2xl border border-[#273449] bg-[#111827] p-4 sm:p-5">
               <div className="mb-4 flex items-center gap-3">
@@ -581,6 +929,7 @@ Customer request: ${JSON.stringify(submittedText)}
                 id="customer-request"
                 value={request}
                 onChange={(event) => {
+                  userTouched.current = true;
                   setRequest(event.target.value);
                   setDemoStarted(false);
                   setPlan(null);
@@ -593,7 +942,10 @@ Customer request: ${JSON.stringify(submittedText)}
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => setRequest(SAMPLE)}
+                    onClick={() => {
+                      userTouched.current = true;
+                      setRequest(SAMPLE);
+                    }}
                     className="rounded-lg border border-slate-700 px-3 py-2 text-xs hover:bg-slate-800"
                   >
                     Load sample
@@ -832,8 +1184,16 @@ Customer request: ${JSON.stringify(submittedText)}
                   value={quantity}
                   onChange={(event) => {
                     const value = Number(event.target.value);
-                    if (Number.isInteger(value))
-                      setQuantity(Math.max(1, Math.min(20, value)));
+                    if (Number.isInteger(value)) {
+                      const next = Math.max(1, Math.min(20, value));
+                      userTouched.current = true;
+                      setQuantity(next);
+                      recordEvent(
+                        "QUANTITY_CHANGED",
+                        `Scenario quantity changed to ${next}.`,
+                        "USER",
+                      );
+                    }
                   }}
                   className="mt-1 block w-24 rounded-lg border border-slate-700 bg-[#080D17] p-2.5 text-sm"
                 />
@@ -841,7 +1201,15 @@ Customer request: ${JSON.stringify(submittedText)}
               <button
                 type="button"
                 disabled={!demoStarted || stockOut}
-                onClick={() => setStockOut(true)}
+                onClick={() => {
+                  userTouched.current = true;
+                  setStockOut(true);
+                  recordEvent(
+                    "STOCK_CHANGED",
+                    "Synthetic Store A stock set to zero.",
+                    "BROWSER_FIXTURE",
+                  );
+                }}
                 className="min-h-11 rounded-lg bg-amber-500 px-4 py-2.5 text-xs font-semibold text-slate-950 disabled:opacity-40"
               >
                 Simulate Store A stock-out

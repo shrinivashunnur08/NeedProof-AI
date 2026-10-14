@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { initializeApp } from "firebase/app";
-import { getAI, getGenerativeModel, GoogleAIBackend } from "firebase/ai";
 import {
-  initializeAppCheck,
-  ReCaptchaEnterpriseProvider,
-} from "firebase/app-check";
+  cloudApiUrl,
+  getShowcaseGeminiModel,
+  requestCloudReplan,
+  requestCloudVerificationPlan,
+  type CloudReplanInput,
+  type CloudVerificationPlan,
+} from "./lib/cloudDecisions";
 import {
   ArrowRight,
   BrainCircuit,
@@ -37,43 +39,6 @@ const SAMPLE =
 
 const REFERENCE_PRODUCT = "65W USB-C PD laptop charger";
 const REFERENCE_BUDGET = 1000;
-
-let cachedModel: ReturnType<typeof getGenerativeModel> | null = null;
-
-function getFreeGeminiModel() {
-  if (cachedModel) return cachedModel;
-
-  const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
-  const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
-  const appId = import.meta.env.VITE_FIREBASE_APP_ID;
-  const siteKey = import.meta.env.VITE_APPCHECK_SITE_KEY;
-
-  if (!projectId || !apiKey || !appId || !siteKey) {
-    throw new Error(
-      "Firebase configuration is incomplete. Check .env.production.local.",
-    );
-  }
-
-  const firebaseApp = initializeApp({
-    apiKey,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId,
-    appId,
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  });
-
-  initializeAppCheck(firebaseApp, {
-    provider: new ReCaptchaEnterpriseProvider(siteKey),
-    isTokenAutoRefreshEnabled: true,
-  });
-
-  const ai = getAI(firebaseApp, { backend: new GoogleAIBackend() });
-  // Preserve the model that works in the current Firebase showcase.
-  cachedModel = getGenerativeModel(ai, {
-    model: "gemini-3.5-flash-lite",
-  });
-  return cachedModel;
-}
 
 function parseIntent(text: string): ExtractedIntent {
   const clean = text
@@ -154,6 +119,16 @@ export default function FreeShowcase() {
     "reference",
   );
   const sequence = useRef(0);
+  const remoteEnabled = cloudApiUrl.length > 0;
+  const [remoteDecision, setRemoteDecision] = useState<DecisionResult | null>(
+    null,
+  );
+  const [remoteSnapshotKey, setRemoteSnapshotKey] = useState("");
+  const [remotePending, setRemotePending] = useState(false);
+  const [remoteError, setRemoteError] = useState("");
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planError, setPlanError] = useState("");
+  const [plan, setPlan] = useState<CloudVerificationPlan | null>(null);
 
   useEffect(() => {
     if (!loading) return;
@@ -216,6 +191,101 @@ export default function FreeShowcase() {
     });
   }, [quantity, stockOut, scenarioBudget, scenarioPriceA, scenarioPriceB]);
 
+  const snapshotKey = JSON.stringify([
+    scenarioProduct,
+    scenarioBudget,
+    scenarioPriceA,
+    scenarioPriceB,
+    quantity,
+    stockOut,
+  ]);
+  const confirmedRemoteDecision =
+    demoStarted && remoteSnapshotKey === snapshotKey ? remoteDecision : null;
+
+  // When configured, server decisions are mandatory: never quietly substitute
+  // browser decisions when Cloud Run or Firebase authentication fails.
+  useEffect(() => {
+    if (!remoteEnabled || !demoStarted) {
+      setRemoteDecision(null);
+      setRemotePending(false);
+      setRemoteError("");
+      return;
+    }
+    const controller = new AbortController();
+    const timestamp = new Date().toISOString();
+    const offer = (
+      placeId: string,
+      price: number,
+      stock: number,
+    ): CloudReplanInput["merchants"][number] => ({
+      place_id: placeId,
+      name: placeId,
+      evidence: {
+        product_query: scenarioProduct,
+        status: "REPORTED_UNVERIFIED",
+        submission: {
+          product_name: scenarioProduct,
+          stock_quantity: stock,
+          price_minor: price * 100,
+          currency: "INR",
+          delivery_available: true,
+          submitted_at: timestamp,
+        },
+        assessment: {
+          status: "REPORTED_UNVERIFIED",
+          freshness: "RECENT_REPORT",
+          eligible_for_commitment: false,
+        },
+      },
+    });
+    const payload: CloudReplanInput = {
+      customer: {
+        product_query: scenarioProduct,
+        budget_minor: Math.round(scenarioBudget * 100),
+        required_quantity: quantity,
+        delivery_required: true,
+      },
+      merchants: [
+        offer("TEST_STORE_A", scenarioPriceA, stockOut ? 0 : 3),
+        offer("TEST_STORE_B", scenarioPriceB, 5),
+      ],
+    };
+    setRemoteDecision(null);
+    setRemoteSnapshotKey("");
+    setRemotePending(true);
+    setRemoteError("");
+    requestCloudReplan(payload, controller.signal)
+      .then((result) => {
+        if (!controller.signal.aborted) {
+          setRemoteSnapshotKey(snapshotKey);
+          setRemoteDecision(result);
+        }
+      })
+      .catch((reason: unknown) => {
+        if (!controller.signal.aborted) {
+          setRemoteError(
+            reason instanceof Error
+              ? reason.message
+              : "Cloud decision request failed.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setRemotePending(false);
+      });
+    return () => controller.abort();
+  }, [
+    demoStarted,
+    quantity,
+    remoteEnabled,
+    scenarioBudget,
+    scenarioPriceA,
+    scenarioPriceB,
+    scenarioProduct,
+    snapshotKey,
+    stockOut,
+  ]);
+
   const selected =
     candidates
       .filter((merchant) => merchant.status === "PROVISIONAL")
@@ -244,8 +314,27 @@ export default function FreeShowcase() {
         }
       : null;
 
+  const activeDecision: DecisionResult | null = remoteEnabled
+    ? confirmedRemoteDecision
+    : simulatedDecision;
+  const activeSelected = remoteEnabled
+    ? (confirmedRemoteDecision?.selected ?? null)
+    : selected;
+  const displayedCandidates = remoteEnabled
+    ? (confirmedRemoteDecision?.candidates ?? []).map((candidate) => ({
+        ...candidate,
+        price:
+          candidate.place_id === "TEST_STORE_A"
+            ? scenarioPriceA
+            : scenarioPriceB,
+        stock: candidate.place_id === "TEST_STORE_A" ? (stockOut ? 0 : 3) : 5,
+      }))
+    : candidates;
+
   function startDemo(mode: "reference" | "customer") {
     if (mode === "customer" && !isCurrent) return;
+    setPlan(null);
+    setPlanError("");
     setDemoSource(mode);
     setDemoStarted(true);
     setStockOut(false);
@@ -258,6 +347,25 @@ export default function FreeShowcase() {
 
   function resetDemo() {
     startDemo("reference");
+  }
+
+  async function runVerificationPlan() {
+    if (!remoteEnabled || planLoading) return;
+    setPlanLoading(true);
+    setPlan(null);
+    setPlanError("");
+    try {
+      const response = await requestCloudVerificationPlan(scenarioBudget);
+      setPlan(response);
+    } catch (reason) {
+      setPlanError(
+        reason instanceof Error
+          ? reason.message
+          : "Verification planning unavailable.",
+      );
+    } finally {
+      setPlanLoading(false);
+    }
   }
 
   async function analyze() {
@@ -289,7 +397,7 @@ budget_amount is a number in INR when an INR budget is provided, otherwise null.
 delivery_location is a string or null.
 Customer request: ${JSON.stringify(submittedText)}
 `;
-      const response = await getFreeGeminiModel().generateContent(prompt);
+      const response = await getShowcaseGeminiModel().generateContent(prompt);
       const extracted = parseIntent(response.response.text());
       if (sequence.current !== current) return;
       setIntent(extracted);
@@ -366,8 +474,8 @@ Customer request: ${JSON.stringify(submittedText)}
             Assurance desk
           </p>
           <p className="mt-2 px-3 text-[11px] leading-5 text-amber-200/75">
-            Require the separate local FastAPI backend; not available on
-            Firebase Hosting.
+            Merchant operations still require the local FastAPI backend; the
+            isolated decision API runs on Cloud Run when enabled.
           </p>
         </div>
         <div className="mt-auto rounded-xl border border-[#273449] bg-[#101829] p-3">
@@ -375,7 +483,8 @@ Customer request: ${JSON.stringify(submittedText)}
             <Sparkles size={14} /> Firebase Spark Showcase
           </p>
           <p className="mt-2 text-[11px] leading-5 text-slate-400">
-            Live Gemini · Clearly labeled synthetic decision demonstration
+            Live Gemini · Cloud Run decision engine when configured · Synthetic
+            merchant evidence
           </p>
         </div>
       </aside>
@@ -430,11 +539,15 @@ Customer request: ${JSON.stringify(submittedText)}
             isCurrent={isCurrent}
             discovery={null}
             evidenceByPlace={{}}
-            decision={simulatedDecision}
+            decision={activeDecision}
             decisionMode="fictional"
             showcaseMode
             showcaseDemoStarted={demoStarted}
-            showcaseDemoReplanned={demoStarted && stockOut}
+            showcaseDemoReplanned={
+              demoStarted &&
+              stockOut &&
+              (!remoteEnabled || confirmedRemoteDecision !== null)
+            }
             onStart={() => document.getElementById("customer-request")?.focus()}
             onDiscover={resetDemo}
             onReviewDecision={() =>
@@ -467,7 +580,11 @@ Customer request: ${JSON.stringify(submittedText)}
               <textarea
                 id="customer-request"
                 value={request}
-                onChange={(event) => setRequest(event.target.value)}
+                onChange={(event) => {
+                  setRequest(event.target.value);
+                  setDemoStarted(false);
+                  setPlan(null);
+                }}
                 maxLength={2000}
                 rows={5}
                 className="min-h-36 w-full resize-y rounded-xl border border-[#31425B] bg-[#080D17] p-3.5 text-sm leading-6 text-white outline-none focus:border-sky-500"
@@ -730,10 +847,40 @@ Customer request: ${JSON.stringify(submittedText)}
                 Simulate Store A stock-out
               </button>
             </div>
+            <div className="mt-3 text-xs" aria-live="polite">
+              {remoteEnabled ? (
+                <span className="text-sky-300">
+                  Decision source: FastAPI on Cloud Run · validated Firebase
+                  session · synthetic merchant snapshot
+                </span>
+              ) : (
+                <span className="text-amber-200">
+                  Decision source: browser-only fiction (Cloud Run API not
+                  configured)
+                </span>
+              )}
+              {remotePending && (
+                <p className="mt-2 text-sky-200">
+                  Recalculating on Cloud Run...
+                </p>
+              )}
+              {remoteError && (
+                <p role="alert" className="mt-2 text-rose-300">
+                  Cloud decision unavailable: {remoteError}. No browser fallback
+                  was used.
+                </p>
+              )}
+            </div>
             {!demoStarted ? (
               <p className="mt-5 rounded-xl border border-slate-800 bg-[#080D17] p-4 text-sm text-slate-400">
                 Launch the fictional example to compare two reported offers and
                 see how stock-out changes the provisional leader.
+              </p>
+            ) : remoteEnabled && !confirmedRemoteDecision ? (
+              <p className="mt-5 rounded-xl border border-slate-800 bg-[#080D17] p-4 text-sm text-slate-300">
+                {remotePending
+                  ? "Waiting for secured Cloud Run evaluation..."
+                  : "Decision unavailable. Check authentication and Cloud Run status."}
               </p>
             ) : (
               <div
@@ -748,13 +895,15 @@ Customer request: ${JSON.stringify(submittedText)}
                     <p className="mt-2 text-[11px] text-slate-400">
                       Simulated product: {scenarioProduct}
                     </p>
-                    {selected ? (
+                    {activeSelected ? (
                       <>
                         <h3 className="mt-2 break-words text-xl font-semibold">
-                          {selected.name}
+                          {activeSelected.name}
                         </h3>
                         <p className="mt-2 text-2xl font-bold">
-                          {formatINR(selected.reported_subtotal_minor / 100)}
+                          {formatINR(
+                            (activeSelected.reported_subtotal_minor ?? 0) / 100,
+                          )}
                         </p>
                       </>
                     ) : (
@@ -771,7 +920,7 @@ Customer request: ${JSON.stringify(submittedText)}
                       Merchant evaluations
                     </h3>
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      {candidates.map((candidate) => (
+                      {displayedCandidates.map((candidate) => (
                         <div
                           key={candidate.place_id}
                           className="min-w-0 rounded-lg border border-slate-800 p-3"
@@ -818,8 +967,8 @@ Customer request: ${JSON.stringify(submittedText)}
                       {stockOut && (
                         <p className="mt-3">
                           Changed evidence: TEST_STORE_A stock becomes zero.{" "}
-                          {selected
-                            ? `New leader: ${selected.name}.`
+                          {activeSelected
+                            ? `New leader: ${activeSelected.name}.`
                             : "No eligible offer remains."}
                         </p>
                       )}
@@ -841,19 +990,89 @@ Customer request: ${JSON.stringify(submittedText)}
                         Evidence is not independently verified
                       </p>
                       <p className="mt-2 text-xs leading-5 text-slate-400">
-                        Browser-only fictional data. Merchant ownership,
-                        inventory, compatibility and delivery are not
-                        authenticated. No checkout or real transaction.
+                        Fictional, client-provided merchant data. Merchant
+                        ownership, inventory, compatibility and delivery are not
+                        authenticated; a Cloud Run result does not make them
+                        real. No checkout or real transaction.
                       </p>
                     </div>
                   </div>
                 </div>
               </div>
             )}
+            {remoteEnabled && (
+              <div className="mt-5 rounded-xl border border-sky-500/25 bg-[#090F1B] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">
+                      Active Evidence Planner · Bayesian / EVSI research fixture
+                    </h3>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Executes the existing Python expected-value-of-information
+                      algorithm on Cloud Run. This is an independent synthetic
+                      research case, not a verification of the stores above.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={planLoading}
+                    onClick={() => void runVerificationPlan()}
+                    className="min-h-10 rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 py-2 text-xs font-semibold text-sky-300 disabled:opacity-40"
+                  >
+                    {planLoading
+                      ? "Computing on Cloud Run..."
+                      : "Calculate next verification action"}
+                  </button>
+                </div>
+                {planError && (
+                  <p className="mt-3 text-xs text-rose-300" role="alert">
+                    {planError}
+                  </p>
+                )}
+                {plan && (
+                  <div aria-live="polite" className="mt-4 space-y-3 text-xs">
+                    <div className="rounded-lg border border-slate-700 p-3">
+                      <p className="text-slate-400">
+                        Recommended verification action
+                      </p>
+                      <p className="mt-1 text-base font-semibold text-sky-300">
+                        {plan.recommended_action_id ??
+                          plan.stopping_reason ??
+                          "No feasible action"}
+                      </p>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {plan.actions.map((action) => (
+                        <div
+                          key={action.action_id}
+                          className="rounded-lg border border-slate-800 p-3"
+                        >
+                          <p className="font-semibold text-white">
+                            {action.action_id} · {action.merchant}
+                          </p>
+                          <p className="mt-1 text-slate-300">
+                            Modeled net EVSI: ₹{action.net_evsi_inr}
+                          </p>
+                          {action.skip_reason && (
+                            <p className="mt-1 text-amber-300">
+                              {action.skip_reason}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-amber-200">
+                      Synthetic priors, costs and outcomes; no merchant
+                      contacted or independently verified.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </section>
           <p className="py-2 text-center text-[11px] text-slate-500">
             NeedProof AI · Google AI Builder Cup · Firebase Hosting demo with
-            live Gemini and isolated synthetic decision support
+            live Gemini and clearly identified synthetic decision support
           </p>
         </div>
       </main>

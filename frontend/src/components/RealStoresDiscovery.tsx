@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Building2, ExternalLink, MapPin, Search, ShieldAlert } from "lucide-react";
 import { cloudApiUrl } from "../lib/cloudDecisions";
-import { discoverRealStores, type DiscoveryResult } from "../lib/storeDiscovery";
+import { discoverRealStores, type DiscoveryResult, type StoreCandidate } from "../lib/storeDiscovery";
+import { createEvidenceInquiry, getEvidenceInquiry, evidence13bEnabled, type EvidenceInquiry13B } from "../lib/evidence13b";
 
 type Props = {
   requestedProduct: string | null;
@@ -17,8 +18,60 @@ export default function RealStoresDiscovery({ requestedProduct, location, onEven
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const abort = useRef<AbortController | null>(null);
+  const [tracked, setTracked] = useState<Record<string, EvidenceInquiry13B>>({});
+  const [trackingPlace, setTrackingPlace] = useState<string | null>(null);
+  const [trackingError, setTrackingError] = useState("");
 
   useEffect(() => () => abort.current?.abort(), []);
+
+  useEffect(() => {
+    if (!result || !evidence13bEnabled) return;
+    const controller = new AbortController();
+    for (const store of result.stores) {
+      // Store only the stable Place ID and our own inquiry ID. No Maps name/address caching.
+      let inquiryId: string | null = null;
+      try { inquiryId = window.localStorage.getItem(`np13b:${store.place_id}`); } catch { /* private browsing */ }
+      if (!inquiryId) continue;
+      void getEvidenceInquiry(inquiryId, controller.signal).then((item) => {
+        if (!controller.signal.aborted && item.product_query === product.trim()) {
+          setTracked((previous) => ({ ...previous, [store.place_id]: item }));
+        }
+      }).catch(() => { /* Saved reference may belong to another signed-in user. */ });
+    }
+    return () => controller.abort();
+  }, [result, product]);
+
+  async function trackStore(store: StoreCandidate) {
+    if (trackingPlace) return;
+    setTrackingPlace(store.place_id);
+    setTrackingError("");
+    try {
+      const inquiry = await createEvidenceInquiry(store.place_id, product);
+      setTracked((previous) => ({ ...previous, [store.place_id]: inquiry }));
+      try { window.localStorage.setItem(`np13b:${store.place_id}`, inquiry.inquiry_id); } catch { /* optional */ }
+      onEvent("EVIDENCE_INQUIRY", "Evidence tracking record created. No merchant was contacted.", "CLOUD_RUN");
+    } catch (exc) {
+      setTrackingError(exc instanceof Error ? exc.message : "Could not create an evidence record.");
+    } finally {
+      setTrackingPlace(null);
+    }
+  }
+
+  async function refreshStore(store: StoreCandidate) {
+    const inquiry = tracked[store.place_id];
+    if (!inquiry || trackingPlace) return;
+    setTrackingPlace(store.place_id);
+    setTrackingError("");
+    try {
+      const next = await getEvidenceInquiry(inquiry.inquiry_id);
+      setTracked((previous) => ({ ...previous, [store.place_id]: next }));
+      onEvent("EVIDENCE_REFRESH", "Retrieved the latest merchant evidence history from Cloud Run.", "CLOUD_RUN");
+    } catch (exc) {
+      setTrackingError(exc instanceof Error ? exc.message : "Could not refresh evidence.");
+    } finally {
+      setTrackingPlace(null);
+    }
+  }
 
   function importGemini() {
     if (!requestedProduct) return;
@@ -26,6 +79,7 @@ export default function RealStoresDiscovery({ requestedProduct, location, onEven
     setProduct(requestedProduct.slice(0, 120));
     if (location) setArea(location.slice(0, 80));
     setResult(null);
+    setTracked({});
     setError("");
     onEvent("DISCOVERY_INPUTS", "Loaded Gemini-extracted product/location for candidate-business discovery.", "USER");
   }
@@ -38,6 +92,7 @@ export default function RealStoresDiscovery({ requestedProduct, location, onEven
     setPending(true);
     setError("");
     setResult(null);
+    setTracked({});
     try {
       const next = await discoverRealStores(product, area, controller.signal);
       if (controller.signal.aborted) return;
@@ -76,6 +131,7 @@ export default function RealStoresDiscovery({ requestedProduct, location, onEven
       </div>
       {!cloudApiUrl && <p className="mt-3 text-xs text-amber-300">Cloud Run URL not configured. Real discovery is disabled.</p>}
       {error && <p role="alert" className="mt-4 rounded-lg border border-rose-500/25 p-3 text-xs text-rose-300">{error}</p>}
+      {trackingError && <p role="alert" className="mt-4 rounded-lg border border-rose-500/25 p-3 text-xs text-rose-300">{trackingError}</p>}
       {result && (
         <div className="mt-5 space-y-3" aria-live="polite">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -90,6 +146,25 @@ export default function RealStoresDiscovery({ requestedProduct, location, onEven
                 <p className="mt-2 flex items-start gap-2 break-words text-xs leading-5 text-slate-400"><MapPin size={13} className="mt-0.5 shrink-0" />{store.address || "Address not provided"}</p>
                 <p className="mt-3 flex items-center gap-2 text-[11px] text-amber-300"><ShieldAlert size={13}/> Inventory, compatibility and delivery: unknown</p>
                 {store.maps_url && <a className="mt-3 inline-flex items-center gap-2 text-xs font-medium text-sky-300 hover:text-sky-200" href={store.maps_url} target="_blank" rel="noopener noreferrer">View business on Google Maps <ExternalLink size={13}/></a>}
+                {evidence13bEnabled && (
+                  <div className="mt-3 border-t border-slate-700/70 pt-3 text-xs">
+                    {!tracked[store.place_id] ? (
+                      <button type="button" disabled={Boolean(trackingPlace)} onClick={() => void trackStore(store)} className="rounded-lg border border-sky-500/40 px-3 py-2 text-sky-200 disabled:opacity-40">
+                        {trackingPlace === store.place_id ? "Creating record..." : "Track missing merchant evidence"}
+                      </button>
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="font-semibold text-sky-200">{tracked[store.place_id].status.replace(/_/g, " ")}</p>
+                        <p className="text-slate-400">{tracked[store.place_id].current_report
+                          ? `Merchant-reported stock: ${tracked[store.place_id].current_report?.stock_quantity}; not independently verified.`
+                          : "No merchant response. Creating an inquiry does not contact the store."}</p>
+                        {tracked[store.place_id].current_report && <p className="text-slate-400">Decision: {tracked[store.place_id].replanning.candidates[0]?.status ?? "UNKNOWN"}. Next: {tracked[store.place_id].replanning.recommended_next_action.replace(/_/g, " ")}.</p>}
+                        <p className="text-slate-500">{tracked[store.place_id].history.length} recorded update(s). Never a purchase authorization.</p>
+                        <button type="button" disabled={Boolean(trackingPlace)} onClick={() => void refreshStore(store)} className="rounded-lg border border-slate-600 px-3 py-2 text-sky-200 disabled:opacity-40">Refresh evidence</button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </article>
             ))}
           </div>

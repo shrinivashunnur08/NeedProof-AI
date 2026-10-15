@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from app.algorithms.adaptive_replanning import ReplanInput, evaluate_replan
 from app.api.decisions import demo_evidence_plan
 from app.public_places import DiscoveryInput, discover_stores
+from app.merchant_evidence_13b import router as evidence_13b_router
 
 
 FIREBASE_PROJECT_ID = os.environ.get("FIREBASE_PROJECT_ID", "").strip()
@@ -97,6 +98,9 @@ def require_firebase_client(
 
 
 Identity = Annotated[str, Depends(require_firebase_client)]
+
+
+app.include_router(evidence_13b_router)
 
 
 @app.post("/api/v1/discovery/stores")

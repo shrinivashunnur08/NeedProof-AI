@@ -22,6 +22,7 @@ from app.evidence_planner_14a1 import EvidencePlanInput14A1, evaluate_evidence_p
 from app.basket_optimizer_14a2 import BasketPlan14A2, evaluate_basket_14a2
 from app.decision_orchestrator_14a3 import OrchestrationInput14A3, orchestrate_decision_14a3
 from app.retail_forecast_14b1 import ForecastInput14B1, evaluate_retail_forecast_14b1
+from app.retail_segments_14b2 import CommerceInsightsInput14B2, evaluate_commerce_insights_14b2
 from app.merchant_evidence_13b import router as evidence_13b_router
 
 
@@ -111,6 +112,14 @@ Identity = Annotated[str, Depends(require_firebase_client)]
 if os.environ.get("MERCHANT_EVIDENCE_STORAGE", "").strip().lower() == "firestore":
     from app.evidence_firestore_13b2 import router as evidence_13b_router
 app.include_router(evidence_13b_router)
+
+
+@app.post("/api/v1/analytics/cohort-basket-insights")
+def cohort_and_basket_insights_14b2(payload: CommerceInsightsInput14B2, user_id: Identity, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    if os.environ.get("RETAIL_INSIGHTS_14B2_ENABLED", "false").strip().lower() != "true":
+        raise HTTPException(status_code=503, detail="Retail cohort/basket analysis is disabled")
+    return evaluate_commerce_insights_14b2(payload)
 
 
 @app.post("/api/v1/analytics/sales-forecast")

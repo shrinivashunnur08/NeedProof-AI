@@ -38,6 +38,8 @@ import EvidencePlanner14A1 from "./components/EvidencePlanner14A1";
 import BasketOptimizer14A2 from "./components/BasketOptimizer14A2";
 import DecisionOrchestrator14A3 from "./components/DecisionOrchestrator14A3";
 import RetailForecast14B1 from "./components/RetailForecast14B1";
+import RetailInsights14B2 from "./components/RetailInsights14B2";
+import { retailInsights14b2Enabled } from "./lib/retailInsights14b2";
 import { retailForecast14b1Enabled } from "./lib/retailForecast14b1";
 import { decisionOrchestrator14a3Enabled } from "./lib/decisionOrchestrator14a3";
 import { basketOptimizer14a2Enabled } from "./lib/basketOptimizer14a2";
@@ -1167,6 +1169,10 @@ Customer request: ${JSON.stringify(submittedText)}
 
           {retailForecast14b1Enabled && (
             <RetailForecast14B1 onEvent={recordEvent} />
+          )}
+
+          {retailInsights14b2Enabled && (
+            <RetailInsights14B2 onEvent={recordEvent} />
           )}
 
           <MerchantEvidenceDesk />

@@ -34,6 +34,8 @@ import RealStoresDiscovery from "./components/RealStoresDiscovery";
 import MerchantEvidenceDesk from "./components/MerchantEvidenceDesk";
 import GroundedProductLab from "./components/GroundedProductLab";
 import ProductResearch13C2 from "./components/ProductResearch13C2";
+import EvidencePlanner14A1 from "./components/EvidencePlanner14A1";
+import { evidencePlanner14a1Enabled } from "./lib/evidencePlanner14a1";
 import { productRetrieval13c2Enabled } from "./lib/productRetrieval13c2";
 import { productGrounding13c1Enabled } from "./lib/productGrounding13c1";
 import { evidence13bEnabled } from "./lib/evidence13b";
@@ -1133,6 +1135,14 @@ Customer request: ${JSON.stringify(submittedText)}
           {productRetrieval13c2Enabled && (
             <ProductResearch13C2
               requestedProduct={isCurrent && intent ? intent.requested_product : null}
+              onEvent={recordEvent}
+            />
+          )}
+
+          {evidencePlanner14a1Enabled && (
+            <EvidencePlanner14A1
+              requestedProduct={isCurrent && intent ? intent.requested_product : null}
+              extractedBudget={isCurrent && intent ? intent.budget_amount : null}
               onEvent={recordEvent}
             />
           )}

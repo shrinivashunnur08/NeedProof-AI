@@ -18,6 +18,7 @@ from app.api.decisions import demo_evidence_plan
 from app.public_places import DiscoveryInput, discover_stores
 from app.product_grounding_13c1 import ReviewInput, review_product
 from app.product_retrieval_13c2 import RetrievalInput, retrieve_and_review
+from app.evidence_planner_14a1 import EvidencePlanInput14A1, evaluate_evidence_plan
 from app.merchant_evidence_13b import router as evidence_13b_router
 
 
@@ -107,6 +108,17 @@ Identity = Annotated[str, Depends(require_firebase_client)]
 if os.environ.get("MERCHANT_EVIDENCE_STORAGE", "").strip().lower() == "firestore":
     from app.evidence_firestore_13b2 import router as evidence_13b_router
 app.include_router(evidence_13b_router)
+
+
+@app.post("/api/v1/decision/evidence-plan")
+def hypothetical_evidence_plan(payload: EvidencePlanInput14A1, user_id: Identity, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    if os.environ.get("EVIDENCE_PLANNER_14A1_ENABLED", "false").strip().lower() != "true":
+        raise HTTPException(status_code=503, detail="Evidence verification planning is not enabled")
+    try:
+        return evaluate_evidence_plan(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.post("/api/v1/products/research")

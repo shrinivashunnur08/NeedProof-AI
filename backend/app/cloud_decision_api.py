@@ -20,6 +20,7 @@ from app.product_grounding_13c1 import ReviewInput, review_product
 from app.product_retrieval_13c2 import RetrievalInput, retrieve_and_review
 from app.evidence_planner_14a1 import EvidencePlanInput14A1, evaluate_evidence_plan
 from app.basket_optimizer_14a2 import BasketPlan14A2, evaluate_basket_14a2
+from app.decision_orchestrator_14a3 import OrchestrationInput14A3, orchestrate_decision_14a3
 from app.merchant_evidence_13b import router as evidence_13b_router
 
 
@@ -109,6 +110,17 @@ Identity = Annotated[str, Depends(require_firebase_client)]
 if os.environ.get("MERCHANT_EVIDENCE_STORAGE", "").strip().lower() == "firestore":
     from app.evidence_firestore_13b2 import router as evidence_13b_router
 app.include_router(evidence_13b_router)
+
+
+@app.post("/api/v1/decision/orchestrate")
+def evidence_orchestration_14a3(payload: OrchestrationInput14A3, user_id: Identity, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    if os.environ.get("DECISION_ORCHESTRATOR_14A3_ENABLED", "false").strip().lower() != "true":
+        raise HTTPException(status_code=503, detail="Evidence orchestration is disabled")
+    try:
+        return orchestrate_decision_14a3(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.post("/api/v1/commerce/basket-plan")

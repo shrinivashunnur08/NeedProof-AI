@@ -36,6 +36,8 @@ import GroundedProductLab from "./components/GroundedProductLab";
 import ProductResearch13C2 from "./components/ProductResearch13C2";
 import EvidencePlanner14A1 from "./components/EvidencePlanner14A1";
 import BasketOptimizer14A2 from "./components/BasketOptimizer14A2";
+import DecisionOrchestrator14A3 from "./components/DecisionOrchestrator14A3";
+import { decisionOrchestrator14a3Enabled } from "./lib/decisionOrchestrator14a3";
 import { basketOptimizer14a2Enabled } from "./lib/basketOptimizer14a2";
 import { evidencePlanner14a1Enabled } from "./lib/evidencePlanner14a1";
 import { productRetrieval13c2Enabled } from "./lib/productRetrieval13c2";
@@ -1151,6 +1153,14 @@ Customer request: ${JSON.stringify(submittedText)}
 
           {basketOptimizer14a2Enabled && (
             <BasketOptimizer14A2 onEvent={recordEvent} />
+          )}
+
+          {decisionOrchestrator14a3Enabled && (
+            <DecisionOrchestrator14A3
+              requestedProduct={isCurrent && intent ? intent.requested_product : null}
+              extractedBudget={isCurrent && intent ? intent.budget_amount : null}
+              onEvent={recordEvent}
+            />
           )}
 
           <MerchantEvidenceDesk />

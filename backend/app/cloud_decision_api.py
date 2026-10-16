@@ -17,6 +17,7 @@ from app.algorithms.adaptive_replanning import ReplanInput, evaluate_replan
 from app.api.decisions import demo_evidence_plan
 from app.public_places import DiscoveryInput, discover_stores
 from app.product_grounding_13c1 import ReviewInput, review_product
+from app.product_retrieval_13c2 import RetrievalInput, retrieve_and_review
 from app.merchant_evidence_13b import router as evidence_13b_router
 
 
@@ -106,6 +107,14 @@ Identity = Annotated[str, Depends(require_firebase_client)]
 if os.environ.get("MERCHANT_EVIDENCE_STORAGE", "").strip().lower() == "firestore":
     from app.evidence_firestore_13b2 import router as evidence_13b_router
 app.include_router(evidence_13b_router)
+
+
+@app.post("/api/v1/products/research")
+def product_evidence_research(payload: RetrievalInput, user_id: Identity, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    if os.environ.get("PRODUCT_RETRIEVAL_13C2_ENABLED", "false").strip().lower() != "true":
+        raise HTTPException(status_code=503, detail="Document research is not enabled")
+    return retrieve_and_review(payload)
 
 
 @app.post("/api/v1/products/grounded-review")

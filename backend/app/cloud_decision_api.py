@@ -100,6 +100,10 @@ def require_firebase_client(
 Identity = Annotated[str, Depends(require_firebase_client)]
 
 
+# SQL backend remains the default for existing local tests and tooling.
+# Firestore requires explicit deployment configuration; no automatic migration.
+if os.environ.get("MERCHANT_EVIDENCE_STORAGE", "").strip().lower() == "firestore":
+    from app.evidence_firestore_13b2 import router as evidence_13b_router
 app.include_router(evidence_13b_router)
 
 

@@ -5,7 +5,7 @@ import { cloudApiUrl, firebaseShowcaseClients } from "./cloudDecisions";
 export const evidence13bEnabled = import.meta.env.VITE_MERCHANT_EVIDENCE_ENABLED === "true";
 
 export type EvidenceRevision13B = {
-  revision_id: number;
+  revision_id: string;
   stock_quantity: number;
   price_minor: number | null;
   currency: string;

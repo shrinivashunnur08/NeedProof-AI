@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from app.algorithms.adaptive_replanning import ReplanInput, evaluate_replan
 from app.api.decisions import demo_evidence_plan
 from app.public_places import DiscoveryInput, discover_stores
+from app.product_grounding_13c1 import ReviewInput, review_product
 from app.merchant_evidence_13b import router as evidence_13b_router
 
 
@@ -105,6 +106,14 @@ Identity = Annotated[str, Depends(require_firebase_client)]
 if os.environ.get("MERCHANT_EVIDENCE_STORAGE", "").strip().lower() == "firestore":
     from app.evidence_firestore_13b2 import router as evidence_13b_router
 app.include_router(evidence_13b_router)
+
+
+@app.post("/api/v1/products/grounded-review")
+def product_grounding_review(payload: ReviewInput, user_id: Identity, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    if os.environ.get("PRODUCT_GROUNDING_13C1_ENABLED", "false").strip().lower() != "true":
+        raise HTTPException(status_code=503, detail="Product evidence review is not enabled")
+    return review_product(payload)
 
 
 @app.post("/api/v1/discovery/stores")

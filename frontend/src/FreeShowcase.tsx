@@ -32,6 +32,8 @@ import DecisionSpotlight from "./components/DecisionSpotlight";
 import EvidenceWorkbench from "./components/EvidenceWorkbench";
 import RealStoresDiscovery from "./components/RealStoresDiscovery";
 import MerchantEvidenceDesk from "./components/MerchantEvidenceDesk";
+import GroundedProductLab from "./components/GroundedProductLab";
+import { productGrounding13c1Enabled } from "./lib/productGrounding13c1";
 import { evidence13bEnabled } from "./lib/evidence13b";
 import {
   deleteJourney,
@@ -1118,6 +1120,13 @@ Customer request: ${JSON.stringify(submittedText)}
             onEvent={recordEvent}
           />
 
+
+          {productGrounding13c1Enabled && (
+            <GroundedProductLab
+              requestedProduct={isCurrent && intent ? intent.requested_product : null}
+              onEvent={recordEvent}
+            />
+          )}
 
           <MerchantEvidenceDesk />
 

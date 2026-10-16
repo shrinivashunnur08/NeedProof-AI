@@ -35,6 +35,8 @@ import MerchantEvidenceDesk from "./components/MerchantEvidenceDesk";
 import GroundedProductLab from "./components/GroundedProductLab";
 import ProductResearch13C2 from "./components/ProductResearch13C2";
 import EvidencePlanner14A1 from "./components/EvidencePlanner14A1";
+import BasketOptimizer14A2 from "./components/BasketOptimizer14A2";
+import { basketOptimizer14a2Enabled } from "./lib/basketOptimizer14a2";
 import { evidencePlanner14a1Enabled } from "./lib/evidencePlanner14a1";
 import { productRetrieval13c2Enabled } from "./lib/productRetrieval13c2";
 import { productGrounding13c1Enabled } from "./lib/productGrounding13c1";
@@ -1145,6 +1147,10 @@ Customer request: ${JSON.stringify(submittedText)}
               extractedBudget={isCurrent && intent ? intent.budget_amount : null}
               onEvent={recordEvent}
             />
+          )}
+
+          {basketOptimizer14a2Enabled && (
+            <BasketOptimizer14A2 onEvent={recordEvent} />
           )}
 
           <MerchantEvidenceDesk />

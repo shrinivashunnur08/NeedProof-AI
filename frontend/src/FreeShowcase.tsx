@@ -31,6 +31,8 @@ import {
 import DecisionSpotlight from "./components/DecisionSpotlight";
 import EvidenceWorkbench from "./components/EvidenceWorkbench";
 import RealStoresDiscovery from "./components/RealStoresDiscovery";
+import MerchantEvidenceDesk from "./components/MerchantEvidenceDesk";
+import { evidence13bEnabled } from "./lib/evidence13b";
 import {
   deleteJourney,
   loadJourney,
@@ -656,6 +658,7 @@ Customer request: ${JSON.stringify(submittedText)}
         </p>
         <nav aria-label="Showcase workspace" className="space-y-2">
           <a href="#real-store-discovery" className="block rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-3 text-xs text-sky-300">Discover Real Stores</a>
+          {evidence13bEnabled && <a href="#merchant-evidence-desk" className="block rounded-lg border border-sky-500/20 px-3 py-3 text-xs text-sky-300">Merchant Desk</a>}
           <a href="#evidence-workbench" className="flex items-center rounded-lg border border-sky-500/25 bg-sky-500/5 px-3 py-3 text-xs text-sky-200 hover:bg-sky-500/10">Evidence Intelligence</a>
           <a
             href="#customer-request"
@@ -726,6 +729,7 @@ Customer request: ${JSON.stringify(submittedText)}
             className="flex gap-2 lg:hidden"
           >
             <a href="#real-store-discovery" className="shrink-0 rounded-lg border border-sky-500/25 px-3 py-2 text-xs text-sky-200">Real Stores</a>
+            {evidence13bEnabled && <a href="#merchant-evidence-desk" className="shrink-0 rounded-lg border border-sky-500/25 px-3 py-2 text-xs text-sky-200">Merchant Desk</a>}
             <a href="#evidence-workbench" className="shrink-0 rounded-lg border border-sky-500/30 bg-sky-500/5 px-3 py-2 text-xs text-sky-200">Evidence Lab</a>
             <a
               className="rounded-lg bg-sky-500/10 px-3 py-2 text-xs text-sky-300"
@@ -1114,7 +1118,10 @@ Customer request: ${JSON.stringify(submittedText)}
             onEvent={recordEvent}
           />
 
-          <EvidenceWorkbench
+
+          <MerchantEvidenceDesk />
+
+<EvidenceWorkbench
             requestedProduct={isCurrent && intent ? intent.requested_product : null}
             extractedBudget={isCurrent && intent ? intent.budget_amount : null}
             onEvent={recordEvent}

@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from app.config import get_settings
 from app.api.intent import router as intent_router
 from app.api.catalog import router as catalog_router
 from app.api.places import router as places_router
@@ -41,6 +42,13 @@ async def cloud_preview_guard(request: Request, call_next):
             "NEEDPROOF_CLOUD_PREVIEW", "false"
         ).lower() == "true"
     )
+
+    # The legacy intent endpoint has no Firebase auth. Never make a paid
+    # Gemini invocation through this development-only route in production.
+    if (request.url.path == "/api/intent/extract" and
+            (os.environ.get("ENVIRONMENT", "").strip().lower() == "production"
+             or get_settings().environment == "production")):
+        return JSONResponse(status_code=403, content={"detail": "Local intent endpoint disabled in production"})
 
     if preview_mode:
         path = request.url.path

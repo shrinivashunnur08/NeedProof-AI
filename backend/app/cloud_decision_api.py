@@ -27,6 +27,11 @@ from app.inventory_intelligence_14b3 import InventoryInput14B3, evaluate_invento
 from app.bi_command_center_14b4 import BIInput14B4, evaluate_bi_command_center_14b4
 from app.api_guard_15a import BoundedAPIGuard15A
 from app.guided_journey_16a import GuidedJourneyInput16A, evaluate_guided_journey_16a
+from app.config import get_settings
+from app.schemas.intent import IntentRequest, IntentAnalysisResponse
+from app.services.intent_service import (
+    IntentService, IntentConfigurationError, IntentModelError, IntentOutputError,
+)
 from app.merchant_evidence_13b import router as evidence_13b_router
 
 
@@ -120,6 +125,34 @@ Identity = Annotated[str, Depends(require_firebase_client)]
 if os.environ.get("MERCHANT_EVIDENCE_STORAGE", "").strip().lower() == "firestore":
     from app.evidence_firestore_13b2 import router as evidence_13b_router
 app.include_router(evidence_13b_router)
+
+
+def get_intent_service_17b() -> IntentService:
+    return IntentService(get_settings())
+
+
+@app.post("/api/v1/ai/intent/extract", response_model=IntentAnalysisResponse)
+def extract_intent_17b(
+    payload: IntentRequest,
+    user_id: Identity,
+    response: Response,
+    service: IntentService = Depends(get_intent_service_17b),
+):
+    """Verified Firebase Auth + App Check; disabled until consciously enabled.
+
+    NOTE: no global rate quota is implemented in this chunk. Do NOT enable on a
+    public deployment before provisioning spend quotas/alerts and reviewing it.
+    """
+    response.headers["Cache-Control"] = "no-store"
+    if os.environ.get("NEEDPROOF_INTENT_17B_ENABLED", "false").strip().lower() != "true":
+        raise HTTPException(status_code=503, detail="Gemini intent extraction is disabled")
+    try:
+        return service.extract(payload.text)
+    except IntentConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except (IntentModelError, IntentOutputError) as exc:
+        # Errors contain no model response body or untrusted customer text.
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @app.post("/api/v1/demo/guided-journey")

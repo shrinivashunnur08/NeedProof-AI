@@ -1,6 +1,7 @@
 
 import logging
 import time
+import re
 
 from google import genai
 from google.genai import types
@@ -95,11 +96,13 @@ class IntentService:
                     response_mime_type="application/json",
                     response_schema=ExtractedIntent,
                     temperature=0.1,
+                    max_output_tokens=1200,
                 ),
             )
 
         except Exception as exc:
-            logger.exception("Vertex AI intent extraction failed")
+            # Do not log SDK exception text: it could include customer input.
+            logger.warning("Vertex AI intent extraction failed (%s)", type(exc).__name__)
             raise IntentModelError(
                 "Gemini request failed. Check project, "
                 "permissions, model availability and quota."
@@ -111,13 +114,9 @@ class IntentService:
 
         try:
             if response.parsed is not None:
-                intent = ExtractedIntent.model_validate(
-                    response.parsed
-                )
+                intent = ExtractedIntent.model_validate(response.parsed)
             elif response.text:
-                intent = ExtractedIntent.model_validate_json(
-                    response.text
-                )
+                intent = ExtractedIntent.model_validate_json(response.text)
             else:
                 raise IntentOutputError(
                     "Gemini returned no usable structured output."
@@ -128,6 +127,8 @@ class IntentService:
             raise IntentOutputError(
                 "Gemini output did not match the intent schema."
             ) from exc
+
+        _validate_source_grounding(text, intent)
 
         elapsed_ms = round(
             (time.perf_counter() - started) * 1000
@@ -154,3 +155,53 @@ class IntentService:
             processing_ms=elapsed_ms,
             usage=usage,
         )
+
+
+# These deterministic checks are deliberately conservative. Semantic product
+# interpretations still remain UNVERIFIED until later evidence checks.
+_MONEY_PATTERNS = (
+    re.compile(r"(?:₹|\bINR\b|\bRs\.?)(?:\s*)([0-9][0-9,]*)", re.I),
+    re.compile(r"\b(?:under|below|within|upto|up to|less than|max|maximum|budget(?: of)?)\s*(?:₹|Rs\.?|INR)?\s*([0-9][0-9,]*)\b", re.I),
+    re.compile(r"\b([0-9][0-9,]*)\s*(?:rupees|INR|rs\.?|रुपये|रुपयां)(?![A-Za-z0-9])", re.I),
+)
+
+
+def _validate_source_grounding(text: str, intent: ExtractedIntent) -> None:
+    """Reject plainly invented numeric claims before exposing model output."""
+    amounts = set()
+    for pattern in _MONEY_PATTERNS:
+        for match in pattern.finditer(text):
+            amounts.add(int(match.group(1).replace(",", "")))
+
+    if intent.budget_amount is not None and intent.budget_amount not in amounts:
+        raise IntentOutputError("Gemini supplied a budget not supported by the request.")
+
+    currency_explicit = bool(re.search(r"₹|\b(?:INR|Rs\.?|rupees)\b|रुपये|रुपयां", text, re.I))
+    if intent.budget_currency is not None and not currency_explicit:
+        raise IntentOutputError("Gemini inferred a currency not stated in the request.")
+    if intent.budget_amount is not None and '₹' in text and intent.budget_currency != 'INR':
+        raise IntentOutputError("Gemini misinterpreted the explicit INR currency.")
+
+    if intent.delivery_location:
+        normalized_text = " ".join(text.casefold().split())
+        normalized_location = " ".join(intent.delivery_location.casefold().split())
+        if normalized_location not in normalized_text:
+            raise IntentOutputError("Gemini supplied an unsupported delivery location.")
+
+    # Prevent inventing wattage, capacity, USB protocol version and similar
+    # quantitative requirements. We do not claim to semantically verify text.
+    stated_numbers = set(re.findall(r"\d+(?:\.\d+)?", text))
+    model_specs = intent.required_specifications + intent.preferred_specifications
+    for spec in model_specs:
+        for number in re.findall(r"\d+(?:\.\d+)?", spec):
+            if number not in stated_numbers:
+                raise IntentOutputError("Gemini supplied an unsupported numeric specification.")
+
+    # A shopping prompt cannot independently establish technical compatibility.
+    sensitive = re.search(r"charger|adapter|battery|replacement|compatible|compatibility", text, re.I)
+    if sensitive and not intent.compatibility_needs_verification:
+        intent.compatibility_needs_verification = True
+        if not intent.missing_information:
+            intent.missing_information.append("Independent compatibility verification")
+        if not intent.clarification_questions:
+            intent.clarification_questions.append("What is your exact device model?")

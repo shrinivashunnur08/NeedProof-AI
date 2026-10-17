@@ -1,0 +1,27 @@
+{
+  "fixture_version": "15B.1",
+  "origin": "HAND_AUTHORED_SYNTHETIC_ILLUSTRATIVE_NOT_EXTERNAL",
+  "retrieval": [
+    {"id":"pd_profile","query":"65W USB PD charger 20V 3250mA", "positive":"d1", "sources":[["d0","Example kitchen blender","Appliance Blender can process vegetables. Warranty applies."],["d1","Example charger specifications","USB PD supported. Output 20V/3250mA. Cable 5A rated."],["d2","Example USB-C cable","Cable 3A rated. Not suitable for every high-current setup."]]},
+    {"id":"pd_negation","query":"USB PD not supported limitation", "positive":"d1", "sources":[["d0","Compatible output notes","USB PD supported. Output 20V/3250mA. Cable 5A rated."],["d1","Unsupported USB PD model","USB PD not supported. An alternate proprietary charging port is needed."],["d2","Charging accessories","Output 5V/1000mA. Basic wall adapter only."]]},
+    {"id":"cable_5a","query":"5A cable current rating high power charger", "positive":"d2", "sources":[["d0","Cable warning","Cable 3A rated. Some connections may limit supplied power."],["d1","Cable packaging","Unmarked standard charging cable with a short connector."],["d2","5A cable specification","High power certified cable 5A rated. Longer length 2 m."]]},
+    {"id":"output_5v","query":"5V 1000mA USB adapter output specification", "positive":"d0", "sources":[["d0","5V power adapter specification","Output 5V/1000mA. Charger for a small USB accessory."],["d1","Power adapter summary","Output 20V/3250mA. Fast charging available."],["d2","Cable document","USB cable 3A rated. No wall adapter specified."]]},
+    {"id":"solar_voltage","query":"solar panel inverter voltage compatibility", "positive":"d2", "sources":[["d0","USB supply","USB PD supported. Output 20V/3250mA. Cable 5A rated."],["d1","Garden tent","A sunshade product for camping and recreation."],["d2","Solar inverter","Solar panel inverter voltage compatibility: check 48V DC input and manufacturer limits."]]},
+    {"id":"delivery_promo","query":"USB PD charger warranty returns and delivery", "positive":"d1", "sources":[["d0","Laptop charging specification","USB PD supported. Output 20V/3250mA. Cable 5A rated."],["d1","Accessory service policy","USB PD charger warranty returns and delivery conditions are subject to seller terms."],["d2","Rechargeable device","USB power delivery design with built-in battery, limited details."]]}
+  ],
+  "evsi": [
+    {"id":"value_vs_cost", "prices_minor":[30000,42000,50000], "priors":["0.9","0.25","0.7"], "responses":["0.9","0.7","0.8"], "costs_minor":[1600,200,700], "delays_minutes":[3,2,1]},
+    {"id":"very_expensive_check", "prices_minor":[35000,38000,48000], "priors":["0.8","0.6","0.7"], "responses":["0.95","0.9","0.8"], "costs_minor":[4000,100,800], "delays_minutes":[5,1,1]},
+    {"id":"low_response", "prices_minor":[32000,45000,47000], "priors":["0.75","0.9","0.5"], "responses":["0.2","0.95","0.85"], "costs_minor":[100,800,400], "delays_minutes":[4,3,2]},
+    {"id":"deadline", "prices_minor":[40000,42000,46000], "priors":["0.9","0.65","0.8"], "responses":["0.9","0.9","0.7"], "costs_minor":[100,300,600], "delays_minutes":[25,2,2]}
+  ],
+  "baskets": [
+    {"id":"merchant_fee_tradeoff", "fee_a":7500,"fee_b":0,"prices_a":[11000,11000],"prices_b":[11500,11500],"budget":50000,"deadline":60},
+    {"id":"single_merchant_discount", "fee_a":0,"fee_b":14000,"prices_a":[16000,22000],"prices_b":[11000,17500],"budget":70000,"deadline":60},
+    {"id":"binding_budget", "fee_a":6000,"fee_b":1500,"prices_a":[11000,9000],"prices_b":[14000,6000],"budget":25000,"deadline":60},
+    {"id":"tight_deadline", "fee_a":4500,"fee_b":100,"prices_a":[16000,12000],"prices_b":[9000,9000],"budget":40000,"deadline":10}
+  ],
+  "forecasts":["weekly_pattern","rising_sales","flat","all_zero"],
+  "synthetic_bayesian_trials":120,
+  "seed":1502026
+}

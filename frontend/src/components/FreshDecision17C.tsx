@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState, type FormEvent} from "react";
-import {fresh17CEnabled, local17C, runFresh17C, type FreshResult17C, type Simulation17C, type DocumentCase17D} from "../lib/freshJourney17c";
+import {fresh17CEnabled, local17C, runFresh17C, type FreshResult17C, type Simulation17C, type DocumentCase17D, type FictionalUpdate17E} from "../lib/freshJourney17c";
 
 const readable = (s: string) => s.toLowerCase().replace(/_/g, " ");
 
@@ -10,6 +10,7 @@ export default function FreshDecision17C() {
   const [location, setLocation] = useState("Thane");
   const [report, setReport] = useState<Simulation17C>("reported_offer");
   const [documents, setDocuments] = useState<DocumentCase17D>("not_submitted");
+  const [merchantUpdate, setMerchantUpdate] = useState<FictionalUpdate17E>("none");
   const [ack, setAck] = useState(false);
   const [result, setResult] = useState<FreshResult17C | null>(null);
   const [error, setError] = useState("");
@@ -26,7 +27,7 @@ export default function FreshDecision17C() {
       const data = await runFresh17C({
         product_query: product.trim(), budget_inr: budget, location_note: location.trim(),
         reported_price_inr: price, simulated_report: report, simulation_acknowledged: true,
-        synthetic_documents: documents,
+        synthetic_documents: documents, fictional_merchant_update_17e: merchantUpdate,
       }, next.signal);
       if (controller.current === next) setResult(data);
     } catch (cause) {
@@ -59,12 +60,21 @@ export default function FreshDecision17C() {
           className="mt-1 w-full rounded-lg border border-slate-600 bg-[#080D17] p-2 text-sm text-white"/></label>
       </div>
       <label className="block text-xs text-slate-300">What-if merchant evidence
-        <select value={report} onChange={e=>{invalidate();setReport(e.target.value as Simulation17C);}}
+        <select value={report} onChange={e=>{invalidate();setReport(e.target.value as Simulation17C);setMerchantUpdate("none");}}
           className="mt-1 w-full rounded-lg border border-slate-600 bg-[#080D17] p-2 text-sm text-white">
           <option value="reported_offer">Fictional report: 1 unit</option>
           <option value="stockout">Fictional update: 0 units (vs illustrative previous 1)</option>
           <option value="no_merchants">No merchant records provided</option>
         </select>
+      </label>
+      <label className="block text-xs text-slate-300">17E what-if merchant revision (not a real merchant submission)
+        <select value={merchantUpdate} onChange={e=>{invalidate();setMerchantUpdate(e.target.value as FictionalUpdate17E);}}
+          className="mt-1 w-full rounded-lg border border-slate-600 bg-[#080D17] p-2 text-sm text-white">
+          <option value="none">No extra revision; use the selected report as-is</option>
+          {report === "reported_offer" && <option value="stockout_after_report">Simulate new 0-unit report after 1-unit report</option>}
+          {report === "stockout" && <option value="restock_after_stockout">Simulate new 1-unit report after 0-unit report</option>}
+        </select>
+        <span className="mt-1 block text-[11px] text-slate-400">The server computes two hypothetical snapshots; no real seller identity, updates, authorization or stored history.</span>
       </label>
       <label className="block text-xs text-slate-300">Fictional specification documents (no real documents retrieved)
         <select value={documents} onChange={e=>{invalidate();setDocuments(e.target.value as DocumentCase17D);}}
@@ -89,6 +99,26 @@ export default function FreshDecision17C() {
       {result.workflow.change_detection.changed && <p className="text-xs text-amber-200">Hypothetical change: {result.workflow.change_detection.changes.map(c=>readable(c.event)).join(", ")}</p>}
       <h3 className="text-sm font-semibold text-white">Five-stage backend trace</h3>
       <ol className="grid gap-2 sm:grid-cols-2">{result.workflow.workflow_trace.map((step,i)=><li key={step.stage} className="rounded-lg bg-[#080D17] p-2 text-xs text-slate-300">{i+1}. {readable(step.stage)}<span className="block text-cyan-200">{readable(step.state)} · {readable(step.status)}</span></li>)}</ol>
+      <section aria-label="Chunk 17E Next Best Proof" className="space-y-3 rounded-lg border border-emerald-800/70 bg-slate-950/60 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-emerald-200">Next Best Proof · 17E</h3>
+          <span className="text-[11px] text-amber-200">HYPOTHETICAL · NO MERCHANT CONTACT</span>
+        </div>
+        <p className="text-xs text-slate-300">First check: <strong>{readable(result.verification_queue_17e.recommended_action_id)}</strong> · Safety-first rule, not a trained probability.</p>
+        {result.verification_queue_17e.hypothetical_merchant_update && <p className="rounded-md border border-amber-800/60 p-2 text-xs text-amber-200">Fictional revision: {readable(result.verification_queue_17e.hypothetical_merchant_update.previous_fictional_report)} → {readable(result.verification_queue_17e.hypothetical_merchant_update.current_fictional_report)}. Comparison is in-memory, not real merchant history.</p>}
+        <ol className="space-y-2">{result.verification_queue_17e.actions.map(a=><li key={a.action_id} className="rounded-lg border border-slate-800 p-2 text-xs text-slate-300">
+          <strong className="text-cyan-200">{a.rank}. {a.label}</strong> <span className="text-amber-200">· Not executed</span>
+          <p className="mt-1">Why: {a.reason}</p>
+          <p className="mt-1 text-slate-400">Suggested human verification: {a.suggested_human_check}</p>
+        </li>)}</ol>
+        <details className="rounded-md border border-slate-800 p-2 text-xs text-slate-300">
+          <summary className="cursor-pointer text-emerald-200">14A.1 hypothetical EVSI calculation (uncalibrated assumptions)</summary>
+          <p className="mt-2">Status: {readable(result.verification_queue_17e.hypothetical_evsi.status)}. EVSI cannot override a conflict or independently prove stock.</p>
+          {result.verification_queue_17e.hypothetical_evsi.actions.map(a=><p key={a.action_id} className="mt-2">{a.action_id}: net assumed EVSI ₹{a.net_evsi_inr}{a.skip_reason ? ` · ${readable(a.skip_reason)}` : ""}</p>)}
+          {Object.entries(result.verification_queue_17e.hypothetical_evsi.assumptions || {}).map(([k,v])=><p key={k}>{readable(k)}: {v}</p>)}
+        </details>
+        <p className="text-[11px] text-slate-400">{result.verification_queue_17e.interpretation}</p>
+      </section>
       <section aria-label="Chunk 17D Evidence Passport" className="space-y-3 rounded-lg border border-cyan-700/40 bg-slate-950/60 p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-cyan-200">Evidence Passport · 17D</h3>
@@ -117,7 +147,7 @@ export default function FreshDecision17C() {
         </details>
         <p className="text-[11px] text-slate-400">{result.evidence_passport.interpretation}</p>
       </section>
-      <p className="text-xs text-slate-400">No Gemini, merchant contact, real document retrieval, independently verified inventory, geosearch, persistence or checkout. Only explicitly selected fictional document fixtures run 13C.2; EVSI and basket optimization are not provided.</p>
+      <p className="text-xs text-slate-400">No Gemini, merchant contact, real document retrieval, independently verified inventory, geosearch, persistence or checkout. 17E runs only a clearly hypothetical 14A.1 EVSI sidecar; basket optimization remains not provided.</p>
     </div>}
   </section>;
 }

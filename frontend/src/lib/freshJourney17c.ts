@@ -14,6 +14,17 @@ export type EvidencePassport17D = {
 };
 
 export type Simulation17C = "reported_offer" | "stockout" | "no_merchants";
+export type FictionalUpdate17E = "none" | "stockout_after_report" | "restock_after_stockout";
+export type VerificationQueue17E = {
+  mode: "NEXT_BEST_PROOF_17E"; data_origin: "FICTIONAL_SCENARIO_AND_UNCALIBRATED_ASSUMPTIONS";
+  snapshot_sha256: string; workflow_state: string; recommended_action_id: string;
+  selection_rule: string;
+  actions: Array<{rank: number; action_id: string; label: string; reason: string; suggested_human_check: string; status: "NOT_EXECUTED"; requires_independent_evidence: true; score_origin: string}>;
+  hypothetical_evsi: {status: string; recommended_action_id: string | null; actions: Array<{action_id: string; net_evsi_inr: string; skip_reason: string | null}>; assumptions_calibrated: false; assumptions?: Record<string, string>; purchase_allowed?: false};
+  hypothetical_merchant_update: null | {event_id: string; previous_fictional_report: Simulation17C; current_fictional_report: Simulation17C; origin: string; authenticated_merchant: false; persistent_history: false; actual_merchant_contact: false};
+  real_merchant_evidence_submitted: false; merchant_verified: false; stock_verified: false; external_requests_performed: false; database_written: false; purchase_allowed: false;
+  interpretation: string; business_kpis: {actual_contact_count: 0; real_customer_time_saved_measured: false; real_merchant_response_rate_measured: false; real_conversion_improvement_measured: false};
+};
 export type FreshInput17C = {
   product_query: string;
   budget_inr: number;
@@ -22,6 +33,7 @@ export type FreshInput17C = {
   simulated_report: Simulation17C;
   simulation_acknowledged: true;
   synthetic_documents?: DocumentCase17D;
+  fictional_merchant_update_17e?: FictionalUpdate17E;
 };
 export type FreshResult17C = {
   mode: "FRESH_STRUCTURED_WHAT_IF_17C";
@@ -34,6 +46,8 @@ export type FreshResult17C = {
   location_used_for_discovery: false;
   simulated_report: Simulation17C;
   synthetic_documents: DocumentCase17D;
+  fictional_merchant_update_17e: FictionalUpdate17E;
+  verification_queue_17e: VerificationQueue17E;
   evidence_passport: EvidencePassport17D;
   gemini_called: false;
   merchant_contacted: false;
@@ -66,6 +80,19 @@ function isResult(body: unknown): body is FreshResult17C {
     && r.gemini_called === false && r.merchant_contacted === false
     && r.location_used_for_discovery === false
     && r.workflow?.purchase_allowed === false
+    && r.verification_queue_17e?.mode === "NEXT_BEST_PROOF_17E"
+    && r.verification_queue_17e?.data_origin === "FICTIONAL_SCENARIO_AND_UNCALIBRATED_ASSUMPTIONS"
+    && r.verification_queue_17e?.snapshot_sha256 === r.workflow?.snapshot_sha256
+    && r.verification_queue_17e?.workflow_state === r.workflow?.workflow_state
+    && r.verification_queue_17e?.purchase_allowed === false
+    && r.verification_queue_17e?.real_merchant_evidence_submitted === false
+    && r.verification_queue_17e?.external_requests_performed === false
+    && r.verification_queue_17e?.merchant_verified === false
+    && r.verification_queue_17e?.stock_verified === false
+    && r.verification_queue_17e?.hypothetical_evsi?.assumptions_calibrated === false
+    && Array.isArray(r.verification_queue_17e?.actions)
+    && r.verification_queue_17e.actions.length > 0
+    && r.verification_queue_17e.actions.every(a => a.status === "NOT_EXECUTED" && a.requires_independent_evidence === true)
     && r.evidence_passport?.mode === "EVIDENCE_PASSPORT_17D"
     && r.evidence_passport?.data_origin === "SERVER_CREATED_FICTIONAL_WHAT_IF_ONLY"
     && r.evidence_passport?.purchase_allowed === false

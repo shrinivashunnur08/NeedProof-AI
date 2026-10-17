@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.decision_orchestrator_14a3 import OrchestrationInput14A3, orchestrate_decision_14a3
 from app.evidence_passport_17d import build_passport_17d
+from app.verification_queue_17e import build_verification_queue_17e
 
 
 class FreshJourney17C(BaseModel):
@@ -23,11 +24,16 @@ class FreshJourney17C(BaseModel):
     simulated_report: Literal["reported_offer", "stockout", "no_merchants"]
     simulation_acknowledged: Literal[True]
     synthetic_documents: Literal["not_submitted", "matching_fixture", "conflicting_fixtures"] = "not_submitted"
+    fictional_merchant_update_17e: Literal["none", "stockout_after_report", "restock_after_stockout"] = "none"
 
     @model_validator(mode="after")
     def document_fixture_is_applicable(self):
         if self.synthetic_documents != "not_submitted" and ("charger" not in self.product_query.casefold() or len(self.product_query) > 150):
             raise ValueError("Illustrative USB-PD documents apply only to charger requests <=150 characters")
+        if self.fictional_merchant_update_17e == "stockout_after_report" and self.simulated_report != "reported_offer":
+            raise ValueError("stockout update requires the reported-offer starting point")
+        if self.fictional_merchant_update_17e == "restock_after_stockout" and self.simulated_report != "stockout":
+            raise ValueError("restock update requires the stock-out starting point")
         return self
 
     @field_validator("product_query")
@@ -100,12 +106,27 @@ def _fictional_documents_17d(payload: FreshJourney17C, at: str) -> dict | None:
 def evaluate_fresh_journey_17c(payload: FreshJourney17C) -> dict:
     """Run the actual 14A.3 engine on a new, explicit, bounded what-if input."""
     when = datetime.now(timezone.utc).isoformat()
-    current = _snapshot(
-        payload, 0 if payload.simulated_report == "stockout" else 1,
-        when, empty=payload.simulated_report == "no_merchants",
-    )
-    # Previous snapshot is an *illustrative what-if*, NOT recorded merchant history.
-    previous = _snapshot(payload, 1, when) if payload.simulated_report == "stockout" else None
+    update = payload.fictional_merchant_update_17e
+    final_report = ("stockout" if update == "stockout_after_report" else
+                    "reported_offer" if update == "restock_after_stockout" else payload.simulated_report)
+    effective = payload.model_copy(update={"simulated_report": final_report})
+    current = _snapshot(effective, 0 if final_report == "stockout" else 1,
+                        when, empty=final_report == "no_merchants")
+    previous = None
+    if update != "none":
+        previous = _snapshot(payload, 0 if payload.simulated_report == "stockout" else 1, when)
+    elif final_report == "stockout":
+        # Preserve the pre-17E comparison behavior for an ordinary stock-out case.
+        previous = _snapshot(effective, 1, when)
+    fictional_event = None if update == "none" else {
+        "event_id": update,
+        "previous_fictional_report": payload.simulated_report,
+        "current_fictional_report": final_report,
+        "origin": "USER_SELECTED_FICTIONAL_TWO_SNAPSHOT_TRANSITION",
+        "authenticated_merchant": False,
+        "persistent_history": False,
+        "actual_merchant_contact": False,
+    }
     fictional_documents = _fictional_documents_17d(payload, when)
     workflow = orchestrate_decision_14a3(OrchestrationInput14A3.model_validate({
         "snapshot": current,
@@ -116,10 +137,16 @@ def evaluate_fresh_journey_17c(payload: FreshJourney17C) -> dict:
     }))
     if workflow["purchase_allowed"] is not False or workflow["stock_independently_verified"] is not False:
         raise RuntimeError("Unsafe decision engine contract")
-    passport = build_passport_17d(payload=payload, workflow=workflow, issued_at=when,
+    passport = build_passport_17d(payload=effective, workflow=workflow, issued_at=when,
                                   fixture_research=fictional_documents)
     if passport["snapshot_sha256"] != workflow["snapshot_sha256"] or passport["purchase_allowed"] is not False:
         raise RuntimeError("Evidence passport is not bound to safe workflow")
+    verification_queue = build_verification_queue_17e(
+        snapshot=current, passport=passport, workflow=workflow,
+        fictional_update=fictional_event,
+    )
+    if verification_queue["snapshot_sha256"] != workflow["snapshot_sha256"] or verification_queue["purchase_allowed"]:
+        raise RuntimeError("Unsafe or stale verification queue")
     return {
         "mode": "FRESH_STRUCTURED_WHAT_IF_17C",
         "execution": "LIVE_LOCAL_OR_CLOUD_PYTHON_NO_MODEL",
@@ -129,7 +156,10 @@ def evaluate_fresh_journey_17c(payload: FreshJourney17C) -> dict:
         "location_note_unverified": payload.location_note,
         "location_used_for_discovery": False,
         "input_reported_price_inr": payload.reported_price_inr,
-        "simulated_report": payload.simulated_report,
+        "simulated_report": final_report,
+        "original_simulated_report": payload.simulated_report,
+        "fictional_merchant_update_17e": update,
+        "verification_queue_17e": verification_queue,
         "synthetic_documents": payload.synthetic_documents,
         "evidence_passport": passport,
         "workflow": workflow,
@@ -142,7 +172,7 @@ def evaluate_fresh_journey_17c(payload: FreshJourney17C) -> dict:
             "New customer-entered fields drive a real Python orchestration call.",
             "The store and stock values are fictional what-if inputs, not observed merchant evidence.",
             "The location note is not used for real Places discovery in this chunk.",
-            "No Gemini, EVSI or basket calculation was executed. Document retrieval runs only when fictional fixture excerpts are explicitly selected.",
+            "No Gemini or basket model called; EVSI is executed separately as a clearly uncalibrated 17E sidecar when applicable; document review requires opt-in fictional excerpts.",
             "Stock-out comparison is simulated, not a historical merchant update.",
             "No stock verification, purchase, merchant contact, external API or storage.",
         ],

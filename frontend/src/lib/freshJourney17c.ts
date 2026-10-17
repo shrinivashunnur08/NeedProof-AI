@@ -1,5 +1,18 @@
 import {cloudApiUrl, firebaseShowcaseConfigured, requestCloudFreshJourney17C} from "./cloudDecisions";
 
+export type DocumentCase17D = "not_submitted" | "matching_fixture" | "conflicting_fixtures";
+export type EvidencePassport17D = {
+  mode: "EVIDENCE_PASSPORT_17D"; data_origin: "SERVER_CREATED_FICTIONAL_WHAT_IF_ONLY";
+  issued_at: string; snapshot_sha256: string; overall_trust_state: string;
+  sources: Array<{source_id: string; source_type: string; display_title: string; content_sha256: string; captured_at: string; freshness_label: string; independently_verified: false; origin_authenticated: false; external_url: null}>;
+  claims: Array<{claim_id: string; kind: string; display_value: string; source_id: string | null; citation_id: string | null; verification_status: string; explanation: string; purchase_eligible: false}>;
+  conflicts: Array<{conflict_id: string; topic: string; status: string; source_ids: string[]; citations: Array<{source_id: string; quote: string}>; action: string}>;
+  unresolved_verification: Array<{kind: string; label: string}>;
+  freshness_is_real_world_verified: false; real_world_evidence_present: false;
+  merchant_verified: false; stock_verified: false; compatibility_verified: false;
+  purchase_allowed: false; interpretation: string;
+};
+
 export type Simulation17C = "reported_offer" | "stockout" | "no_merchants";
 export type FreshInput17C = {
   product_query: string;
@@ -8,6 +21,7 @@ export type FreshInput17C = {
   reported_price_inr: number;
   simulated_report: Simulation17C;
   simulation_acknowledged: true;
+  synthetic_documents?: DocumentCase17D;
 };
 export type FreshResult17C = {
   mode: "FRESH_STRUCTURED_WHAT_IF_17C";
@@ -19,6 +33,8 @@ export type FreshResult17C = {
   location_note_unverified: string;
   location_used_for_discovery: false;
   simulated_report: Simulation17C;
+  synthetic_documents: DocumentCase17D;
+  evidence_passport: EvidencePassport17D;
   gemini_called: false;
   merchant_contacted: false;
   stock_independently_verified: false;
@@ -50,6 +66,19 @@ function isResult(body: unknown): body is FreshResult17C {
     && r.gemini_called === false && r.merchant_contacted === false
     && r.location_used_for_discovery === false
     && r.workflow?.purchase_allowed === false
+    && r.evidence_passport?.mode === "EVIDENCE_PASSPORT_17D"
+    && r.evidence_passport?.data_origin === "SERVER_CREATED_FICTIONAL_WHAT_IF_ONLY"
+    && r.evidence_passport?.purchase_allowed === false
+    && r.evidence_passport?.real_world_evidence_present === false
+    && r.evidence_passport?.merchant_verified === false
+    && r.evidence_passport?.stock_verified === false
+    && r.evidence_passport?.compatibility_verified === false
+    && r.evidence_passport?.snapshot_sha256 === r.workflow?.snapshot_sha256
+    && Array.isArray(r.evidence_passport?.claims)
+    && Array.isArray(r.evidence_passport?.sources)
+    && Array.isArray(r.evidence_passport?.conflicts)
+    && Array.isArray(r.evidence_passport?.unresolved_verification)
+    && r.evidence_passport.claims.every(c => c.purchase_eligible === false)
     && typeof r.workflow?.workflow_state === "string"
     && typeof r.workflow?.reason === "string"
     && Array.isArray(r.workflow?.workflow_trace)

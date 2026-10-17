@@ -22,6 +22,7 @@ from app.api.merchant_onboarding import router as onboarding_router
 from app.api.transactions import router as transactions_router
 from app.api.benchmarks import router as benchmarks_router
 from app.api.journey import router as journey_router
+from app.commerce_loop.api import router as commerce_loop_router
 from app.fresh_journey_17c import FreshJourney17C, evaluate_fresh_journey_17c
 app = FastAPI(
     title="NeedProof AI API",
@@ -93,6 +94,7 @@ app.include_router(onboarding_router)
 app.include_router(transactions_router)
 app.include_router(benchmarks_router)
 app.include_router(journey_router)
+app.include_router(commerce_loop_router)
 
 app.add_middleware(
     CORSMiddleware,

@@ -10,6 +10,16 @@ Built for the **Google AI Builder Cup 2026 — Retail & Commerce** challenge, th
 
 > **Important:** The live Firebase website is a standalone showcase, not the complete FastAPI-backed system. It uses live Gemini for intent extraction and fictional merchant offers for decision demonstrations. No real stock, merchant identity, delivery promise, or purchase is verified by the public demo.
 
+## New: the Gemini commerce loop (`/app`)
+
+**Shopper asks in any language → a Gemini agent checks nearby shops with the NeedProof decision engine → if nothing is confirmed, the need goes to shops → a shop replies with a photo that Gemini Vision checks → unanswered needs become demand insights for shops.**
+
+- **Shopper agent:** Gemini function calling over the existing 17C–17E engine (orchestration, Evidence Passport, Next-Best-Proof). Works in English, Chinese, Portuguese, Hindi and more; budgets in any currency.
+- **Shop photo proof:** Gemini Vision reads the box or label; code checks wattage, connector, USB PD, price and authenticity cues against the request.
+- **Demand intelligence:** unmet demand by city and product, a 7-day estimate, a Gemini-written weekly brief, and BigQuery export with BigQuery ML `ARIMA_PLUS` and BigQuery AI SQL in `infra/bigquery/`.
+- **One switch for cost:** `NEEDPROOF_PROFILE=free` (Gemini API key, local analytics) or `google_full` (Vertex AI, BigQuery). `GEMINI_BACKEND=mock` runs offline.
+- Demo cities: **Singapore**, São Paulo and Mumbai. Details: [`docs/COMMERCE_LOOP.md`](docs/COMMERCE_LOOP.md).
+
 ## The Problem
 
 Finding a product is only the beginning of a reliable purchase decision. A listing or nearby-store result does not necessarily establish that the item is in stock, compatible, genuine, within the total budget, or available by the required deadline.

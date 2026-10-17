@@ -5,6 +5,7 @@ import { lazy, Suspense } from "react";
 const FreeShowcase = lazy(() => import("./FreeShowcase"));
 const NeedProofWorkspace = lazy(() => import("./NeedProofWorkspace"));
 const MerchantVerificationPage = lazy(() => import("./components/MerchantVerificationPage"));
+const LoopApp = lazy(() => import("./loop/LoopApp"));
 
 function RouteLoading() {
   return (
@@ -19,6 +20,10 @@ function RouteLoading() {
 }
 
 export default function NeedProofRouter() {
+  // The commerce loop app lives at /app in every mode.
+  if (/^\/app\/?$/.test(window.location.pathname)) {
+    return <Suspense fallback={<RouteLoading />}><LoopApp /></Suspense>;
+  }
   // Preserve the previous precedence: showcase mode wins over verify routes.
   if (import.meta.env.VITE_PUBLIC_SHOWCASE === "true") {
     return <Suspense fallback={<RouteLoading />}><FreeShowcase /></Suspense>;

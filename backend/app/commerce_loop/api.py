@@ -1,0 +1,145 @@
+"""HTTP API for the commerce loop: /api/v2/loop/*"""
+from __future__ import annotations
+
+import base64
+import binascii
+import os
+from typing import Literal
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+
+from app.commerce_loop import store
+from app.commerce_loop.agent import ShopperAgent
+from app.commerce_loop.insights import city_demand, demand_brief, export_events_ndjson
+from app.commerce_loop.locale import CITIES
+from app.commerce_loop.providers import get_providers
+from app.commerce_loop.vision import read_photo
+
+MAX_IMAGE_BYTES = 5 * 1024 * 1024
+ALLOWED_MIME = {"image/jpeg", "image/png", "image/webp", "image/heic"}
+
+
+def loop_enabled() -> None:
+    flag = os.environ.get("COMMERCE_LOOP_ENABLED", "").strip().lower()
+    production = os.environ.get("ENVIRONMENT", "").strip().lower() == "production"
+    if flag == "false" or (production and flag != "true"):
+        raise HTTPException(status_code=503, detail="Commerce loop is disabled")
+
+
+router = APIRouter(prefix="/api/v2/loop", tags=["commerce-loop"], dependencies=[Depends(loop_enabled)])
+
+
+def _city(city: str) -> str:
+    if city not in CITIES:
+        raise HTTPException(status_code=404, detail="Unknown city")
+    return city
+
+
+@router.get("/status")
+def status():
+    store.conn()
+    return {"providers": get_providers().public_status(), "cities": list(CITIES.values()),
+            "data_note": "Shops and listings are fictional demo data."}
+
+
+@router.get("/cities/{city}/shops")
+def city_shops(city: str):
+    city = _city(city)
+    return [{**s, "listings": store.listings_for(s["id"])} for s in store.shops_in_city(city)]
+
+
+class ChatTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    text: str = Field(max_length=2000)
+
+
+class ChatIn(BaseModel):
+    city: str
+    history: list[ChatTurn] = Field(min_length=1, max_length=30)
+
+
+@router.post("/agent/chat")
+def agent_chat(body: ChatIn):
+    city = _city(body.city)
+    if body.history[-1].role != "user" or not body.history[-1].text.strip():
+        raise HTTPException(status_code=422, detail="Last turn must be a non-empty user message")
+    agent = ShopperAgent(city)
+    return agent.chat([t.model_dump() for t in body.history])
+
+
+@router.get("/requests/{request_id}")
+def get_request(request_id: int):
+    req = store.get_request(request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+    return req
+
+
+@router.get("/cities/{city}/requests")
+def city_requests(city: str):
+    return store.open_requests(_city(city))
+
+
+class PhotoReplyIn(BaseModel):
+    shop_id: str
+    price: float | None = Field(default=None, ge=0, le=10_000_000)
+    stock: int | None = Field(default=None, ge=0, le=100_000)
+    image_base64: str | None = Field(default=None, max_length=8_000_000)
+    image_mime: str | None = None
+    mock_hint: dict | None = Field(default=None, description="Test-only: fields the mock model returns")
+
+
+@router.post("/requests/{request_id}/reply")
+def reply_with_photo(request_id: int, body: PhotoReplyIn):
+    req = store.get_request(request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+    shop = store.shop(body.shop_id)
+    if not shop or shop["city"] != req["city"]:
+        raise HTTPException(status_code=403, detail="This shop cannot reply to a request in another city")
+    image = None
+    if body.image_base64:
+        if (body.image_mime or "") not in ALLOWED_MIME:
+            raise HTTPException(status_code=415, detail="Use a JPEG, PNG, WEBP or HEIC photo")
+        try:
+            data = base64.b64decode(body.image_base64.split(",")[-1], validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise HTTPException(status_code=422, detail="Image is not valid base64") from exc
+        if len(data) > MAX_IMAGE_BYTES:
+            raise HTTPException(status_code=413, detail="Photo must be under 5 MB")
+        image = (data, body.image_mime)
+    result = read_photo(req, image, body.price, mock_hint=body.mock_hint)
+    response_id = store.add_response(request_id, body.shop_id, body.price, CITIES[req["city"]]["currency"],
+                                     body.stock, result["claim"], result["check"], result["check"]["status"])
+    return {"response_id": response_id, **result}
+
+
+@router.get("/cities/{city}/insights")
+def insights(city: str):
+    return city_demand(_city(city))
+
+
+class BriefIn(BaseModel):
+    language: str = Field(default="en", max_length=10)
+    shop_id: str | None = None
+
+
+@router.post("/cities/{city}/brief")
+def brief(city: str, body: BriefIn):
+    city = _city(city)
+    shop = store.shop(body.shop_id) if body.shop_id else None
+    return demand_brief(city, body.language, shop["name"] if shop else None)
+
+
+@router.post("/demo/reset")
+def demo_reset():
+    store.reset()
+    return {"reset": True}
+
+
+@router.post("/analytics/export")
+def analytics_export():
+    path = os.path.join(os.path.dirname(store.db_path()), "demand_events.ndjson")
+    return {"rows": export_events_ndjson(path), "path": path,
+            "next": "bq load --source_format=NEWLINE_DELIMITED_JSON --autodetect needproof_loop.demand_events " + path}

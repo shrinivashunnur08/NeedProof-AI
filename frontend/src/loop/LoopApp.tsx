@@ -26,12 +26,14 @@ const STATUS_STYLE: Record<string, string> = {
   PHOTO_CONFLICTS_WITH_REQUEST: "bg-rose-500/15 text-rose-300 ring-rose-500/40",
   PHOTO_NEEDS_CLEARER_DETAIL: "bg-amber-500/15 text-amber-200 ring-amber-500/40",
   PHOTO_UNREADABLE: "bg-amber-500/15 text-amber-200 ring-amber-500/40",
+  PHOTO_NOT_CHECKED: "bg-slate-600/30 text-slate-200 ring-slate-500/50",
 };
 const STATUS_TEXT: Record<string, string> = {
   PHOTO_MATCHES_REQUEST: "Photo matches the request",
   PHOTO_CONFLICTS_WITH_REQUEST: "Photo conflicts with the request",
   PHOTO_NEEDS_CLEARER_DETAIL: "Needs a clearer photo",
   PHOTO_UNREADABLE: "Photo not readable",
+  PHOTO_NOT_CHECKED: "Not checked",
   NONE: "No photo yet",
 };
 
@@ -263,14 +265,14 @@ function ReplyForm({ req, shopId, onDone }: { req: LoopRequest; shopId: string; 
           <input id={`${id}-photo`} type="file" accept="image/*" capture="environment" className="sr-only" onChange={(e) => void onFile(e.target.files?.[0])} />
         </label>
         {photo && <img src={photo.preview} alt="Photo to send" className="max-h-40 rounded-lg object-contain" />}
-        <button type="button" onClick={() => void submit()} disabled={busy} className="rounded-lg bg-teal-500 px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-40">
-          {busy ? "Gemini is reading the photo…" : "Send photo proof"}
+        <button type="button" onClick={() => void submit()} disabled={busy || !photo} className="rounded-lg bg-teal-500 px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-40">
+          {busy ? "Gemini is reading the photo…" : photo ? "Send photo proof" : "Add a photo to send proof"}
         </button>
         <ErrorNote message={error} />
       </div>
       {result && (
         <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-3" aria-live="polite">
-          <div className="flex flex-wrap items-center gap-2"><StatusChip status={result.check.status} /><span className="text-xs text-slate-400">read by {result.mode === "gemini" ? "Gemini Vision" : result.mode}</span></div>
+          <div className="flex flex-wrap items-center gap-2"><StatusChip status={result.check.status} /><span className="text-xs text-slate-400">{result.mode === "gemini" ? "read by Gemini Vision" : "not read by a model"}</span></div>
           {result.check.matches.length > 0 && <p className="mt-2 text-xs text-emerald-300">✓ {result.check.matches.join(" · ")}</p>}
           {result.check.issues.length > 0 && <p className="mt-1 text-xs text-rose-300">✗ {result.check.issues.join(" · ")}</p>}
           {result.check.missing.length > 0 && <p className="mt-1 text-xs text-amber-200">? {result.check.missing.join(" · ")}</p>}

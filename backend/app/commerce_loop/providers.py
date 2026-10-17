@@ -95,7 +95,7 @@ def get_providers() -> Providers:
     return Providers(
         profile=profile,
         gemini_backend=backend,
-        gemini_model=setting("LOOP_GEMINI_MODEL", setting("GEMINI_MODEL", "gemini-2.5-flash")),
+        gemini_model=setting("LOOP_GEMINI_MODEL", "gemini-flash-lite-latest"),
         gemini_api_key=api_key,
         gcp_project=project,
         gcp_location=setting("GOOGLE_CLOUD_LOCATION", "global"),

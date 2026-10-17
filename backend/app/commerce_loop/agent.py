@@ -46,7 +46,7 @@ class ShopperAgent:
         self.request: dict | None = None
 
     # ---- tools (exposed to Gemini through function calling) ----
-    def find_offers(self, product: str, city: str = "", required_wattage_w: int = 0,
+    def _find_offers(self, product: str, city: str = "", required_wattage_w: int = 0,
                     connector: str = "", budget_amount: float = 0.0) -> dict:
         """Find shop listings near the shopper and evaluate each with the NeedProof decision engine.
 
@@ -89,7 +89,7 @@ class ShopperAgent:
                   f"{len(offers)} offers, {sum(o['usable'] for o in offers)} usable")
         return result
 
-    def ask_nearby_shops(self, product: str, required_wattage_w: int = 0, connector: str = "",
+    def _ask_nearby_shops(self, product: str, required_wattage_w: int = 0, connector: str = "",
                          budget_amount: float = 0.0, language: str = "en") -> dict:
         """Send the shopper's need to every shop in the city so they can reply with a photo of the item.
 
@@ -114,6 +114,42 @@ class ShopperAgent:
                   f"request #{rid} sent to {len(shops)} shops")
         return {"request_id": rid, "shops_notified": len(shops),
                 "note": "Shops will reply with a photo; Gemini Vision will check it against the request."}
+
+    def find_offers(self, product: str, city: str = "", required_wattage_w: int = 0,
+                    connector: str = "", budget_amount: float = 0.0) -> dict:
+        """Find shop listings near the shopper and evaluate each with the NeedProof decision engine.
+
+        Args:
+            product: What the shopper needs, in English, e.g. "65W USB-C PD laptop charger".
+            city: City name if the shopper mentioned one, otherwise empty.
+            required_wattage_w: Minimum wattage the shopper needs, or 0 if not relevant.
+            connector: Required connector such as "USB-C", or empty.
+            budget_amount: Maximum price in the city's local currency, or 0 if not given.
+        """
+        try:
+            return self._find_offers(str(product), str(city or ""), int(required_wattage_w or 0),
+                                     str(connector or ""), float(budget_amount or 0))
+        except Exception as exc:  # noqa: BLE001 - report to the model and the trace instead of failing silently
+            self._log("find_offers", {"product": product}, f"error: {type(exc).__name__}: {exc}"[:300])
+            return {"error": "Shop search failed; tell the shopper and offer to ask nearby shops."}
+
+    def ask_nearby_shops(self, product: str, required_wattage_w: int = 0, connector: str = "",
+                         budget_amount: float = 0.0, language: str = "en") -> dict:
+        """Send the shopper's need to every shop in the city so they can reply with a photo of the item.
+
+        Args:
+            product: The item in English, e.g. "65W USB-C PD laptop charger".
+            required_wattage_w: Minimum wattage, or 0.
+            connector: Required connector, or empty.
+            budget_amount: Maximum price in local currency, or 0.
+            language: ISO code of the shopper's language, e.g. "en", "zh", "pt", "hi".
+        """
+        try:
+            return self._ask_nearby_shops(str(product), int(required_wattage_w or 0), str(connector or ""),
+                                          float(budget_amount or 0), str(language or "en"))
+        except Exception as exc:  # noqa: BLE001
+            self._log("ask_nearby_shops", {"product": product}, f"error: {type(exc).__name__}: {exc}"[:300])
+            return {"error": "Could not reach shops right now."}
 
     # ---- helpers ----
     def _photo_proof(self, city: str, shop_id: str, product: str) -> str:

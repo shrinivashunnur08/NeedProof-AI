@@ -38,6 +38,7 @@ what CI uses. The header badge shows which model backend is live, so the demo ne
 # backend\.env
 GEMINI_BACKEND=ai_studio
 GEMINI_API_KEY=<key from https://aistudio.google.com/apikey>
+LOOP_GEMINI_MODEL=gemini-flash-lite-latest
 
 cd backend; uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 cd frontend; npm run dev -- --host 127.0.0.1

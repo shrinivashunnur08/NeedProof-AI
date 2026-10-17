@@ -99,7 +99,8 @@ def test_shop_photo_reply_matches_and_answers_request(client):
     chat = client.post("/api/v2/loop/agent/chat", json={
         "city": "sao-paulo", "history": [{"role": "user", "text": "carregador 65W USB-C PD até R$ 250"}]}).json()
     rid = chat["request"]["id"]
-    r = client.post(f"/api/v2/loop/requests/{rid}/reply", json={"shop_id": "sp-paulista", "price": 189, "stock": 2})
+    r = client.post(f"/api/v2/loop/requests/{rid}/reply", json={"shop_id": "sp-paulista", "price": 189, "stock": 2,
+                                                             "mock_hint": {"product_category": "laptop charger"}})
     assert r.status_code == 200 and r.json()["check"]["status"] == "PHOTO_MATCHES_REQUEST"
     req = client.get(f"/api/v2/loop/requests/{rid}").json()
     assert req["status"] == "ANSWERED" and req["responses"][0]["shop_name"].startswith("Paulista")
@@ -131,6 +132,27 @@ def test_reply_rejects_bad_image_type(client):
     r = client.post(f"/api/v2/loop/requests/{rid}/reply", json={
         "shop_id": "mu-metro", "image_base64": "aGVsbG8=", "image_mime": "application/pdf"})
     assert r.status_code == 415
+
+
+def test_reply_without_photo_or_model_never_matches(client):
+    rid = client.post("/api/v2/loop/agent/chat", json={
+        "city": "singapore", "history": [{"role": "user", "text": "65W USB-C charger under S$60"}]}).json()["request"]["id"]
+    no_photo = client.post(f"/api/v2/loop/requests/{rid}/reply", json={"shop_id": "sg-harbour", "price": 49}).json()
+    assert no_photo["check"]["status"] == "PHOTO_NOT_CHECKED"
+    png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+    unread = client.post(f"/api/v2/loop/requests/{rid}/reply", json={
+        "shop_id": "sg-lioncity", "image_base64": png, "image_mime": "image/png"}).json()
+    assert unread["check"]["status"] == "PHOTO_NOT_CHECKED"
+    assert client.get(f"/api/v2/loop/requests/{rid}").json()["status"] == "OPEN"
+
+
+def test_wrong_item_type_is_rejected_even_if_watts_are_higher():
+    req = {"product": "65W USB-C PD charger", "specs": {"wattage_w": 65}, "budget": 60}
+    mixer = PhotoClaim(is_product_photo=True, product_category="mixer grinder", wattage_w=750, is_requested_item_type=False)
+    out = check_photo(req, mixer, 49)
+    assert out["status"] == "PHOTO_CONFLICTS_WITH_REQUEST" and "mixer grinder" in out["issues"][0]
+    sneaky = PhotoClaim(is_product_photo=True, product_category="mixer grinder", wattage_w=750, is_requested_item_type=True)
+    assert check_photo(req, sneaky, 49)["status"] == "PHOTO_CONFLICTS_WITH_REQUEST"
 
 
 def test_check_photo_rules():

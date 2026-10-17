@@ -132,6 +132,25 @@ def brief(city: str, body: BriefIn):
     return demand_brief(city, body.language, shop["name"] if shop else None)
 
 
+@router.get("/models")
+def available_models():
+    """Model names this key can call (names only), to pick one with quota left."""
+    from app.commerce_loop.gemini import Gemini, GeminiUnavailable, _describe
+
+    gem = Gemini()
+    if gem.is_mock:
+        return {"backend": "mock", "models": []}
+    try:
+        names = [m.name for m in gem._client().models.list()
+                 if "generateContent" in (getattr(m, "supported_actions", None) or ["generateContent"])]
+    except GeminiUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=_describe(exc)) from exc
+    return {"backend": gem.p.gemini_backend, "current": gem.p.gemini_model,
+            "models": sorted(n.removeprefix("models/") for n in names if "gemini" in n)}
+
+
 @router.post("/demo/reset")
 def demo_reset():
     store.reset()

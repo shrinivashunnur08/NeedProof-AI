@@ -24,6 +24,7 @@ from app.decision_orchestrator_14a3 import OrchestrationInput14A3, orchestrate_d
 from app.retail_forecast_14b1 import ForecastInput14B1, evaluate_retail_forecast_14b1
 from app.retail_segments_14b2 import CommerceInsightsInput14B2, evaluate_commerce_insights_14b2
 from app.inventory_intelligence_14b3 import InventoryInput14B3, evaluate_inventory_14b3
+from app.bi_command_center_14b4 import BIInput14B4, evaluate_bi_command_center_14b4
 from app.merchant_evidence_13b import router as evidence_13b_router
 
 
@@ -113,6 +114,14 @@ Identity = Annotated[str, Depends(require_firebase_client)]
 if os.environ.get("MERCHANT_EVIDENCE_STORAGE", "").strip().lower() == "firestore":
     from app.evidence_firestore_13b2 import router as evidence_13b_router
 app.include_router(evidence_13b_router)
+
+
+@app.post("/api/v1/analytics/command-center")
+def bi_command_center_14b4(payload: BIInput14B4, user_id: Identity, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    if os.environ.get("BI_COMMAND_CENTER_14B4_ENABLED", "false").strip().lower() != "true":
+        raise HTTPException(status_code=503, detail="BI command center is disabled")
+    return evaluate_bi_command_center_14b4(payload)
 
 
 @app.post("/api/v1/analytics/inventory-review")

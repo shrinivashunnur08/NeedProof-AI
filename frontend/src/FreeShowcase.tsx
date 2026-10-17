@@ -40,6 +40,8 @@ import DecisionOrchestrator14A3 from "./components/DecisionOrchestrator14A3";
 import RetailForecast14B1 from "./components/RetailForecast14B1";
 import RetailInsights14B2 from "./components/RetailInsights14B2";
 import InventoryReview14B3 from "./components/InventoryReview14B3";
+import BusinessCommandCenter14B4 from "./components/BusinessCommandCenter14B4";
+import { biCommandCenter14b4Enabled } from "./lib/biCommandCenter14b4";
 import { inventoryReview14b3Enabled } from "./lib/inventoryReview14b3";
 import { retailInsights14b2Enabled } from "./lib/retailInsights14b2";
 import { retailForecast14b1Enabled } from "./lib/retailForecast14b1";
@@ -1179,6 +1181,10 @@ Customer request: ${JSON.stringify(submittedText)}
 
           {inventoryReview14b3Enabled && (
             <InventoryReview14B3 onEvent={recordEvent} />
+          )}
+
+          {biCommandCenter14b4Enabled && (
+            <BusinessCommandCenter14B4 onEvent={recordEvent} />
           )}
 
           <MerchantEvidenceDesk />

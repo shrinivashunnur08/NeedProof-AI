@@ -1,0 +1,13 @@
+{
+  "provenance": "HYPOTHETICAL_UNVERIFIED_INPUTS",
+  "purpose": "Scenario math; NOT current Gemini, Cloud Run, or Google Places published prices",
+  "assumptions": {
+    "journeys": 1000,
+    "model_calls_per_journey": "1",
+    "illustrative_usd_per_model_call": "0.0015",
+    "illustrative_usd_per_backend_journey": "0.0002",
+    "illustrative_usd_per_optional_merchant_check": "0.01",
+    "fraction_requiring_merchant_check": "0.20"
+  },
+  "warning": "These numbers are invented for sensitivity analysis, not looked up from any provider. Adjust after authentic invoice and pricing verification."
+}

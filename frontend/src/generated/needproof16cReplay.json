@@ -1,0 +1,2025 @@
+{
+  "baseline": "088b9df",
+  "generated_at_fixed_utc": "2026-10-17T00:00:00+00:00",
+  "mode": "OFFLINE_ENGINE_REPLAY_16C",
+  "scenarios": {
+    "document_conflict": {
+      "business_context_is_derived_from_customer_journey": false,
+      "cloud_model_used": false,
+      "database_used": false,
+      "fixture_origin": "SERVER_OWNED_SYNTHETIC_NOT_REAL_MERCHANTS",
+      "journey_is_historical_verified_record": false,
+      "limitations": [
+        "All store names, stock, prices and document excerpts are deliberately fictional fixtures.",
+        "The orchestration calculations are real code on fictitious, unverified inputs.",
+        "Optional retail BI figures are illustrative aggregates unrelated to this customer journey.",
+        "EVSI results are hypothetical and uncalibrated; no observed purchase or savings.",
+        "This endpoint does not contact merchants, Gemini, Places, Firestore, BigQuery or payment systems.",
+        "No inventory is independently verified, no stock is reserved and no purchase can be authorized."
+      ],
+      "mode": "GUIDED_EVIDENCE_JOURNEY_16A",
+      "product": "65W USB-C PD charger",
+      "purchase_allowed": false,
+      "real_merchant_contact": false,
+      "scenario": "document_conflict",
+      "separate_illustrative_business_context": {
+        "as_of": "2026-10-17",
+        "bigquery_used": false,
+        "cloud_model_used": false,
+        "coverage": {
+          "available_modules": 4,
+          "missing_modules": [],
+          "supplied": {
+            "cohorts": true,
+            "forecast": true,
+            "inventory": true,
+            "verification": true
+          },
+          "total_modules": 4
+        },
+        "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+        "executive_summary": "4/4 analysis families represented; 5 follow-up review actions. All values are supplied summaries, not verified operational outcomes.",
+        "fraud_determined": false,
+        "independently_verified": false,
+        "individual_customer_data_returned": false,
+        "limitations": [
+          "All aggregates are caller-supplied summaries, even when their source chunk is named; the API does not recompute or authenticate the upstream calculations.",
+          "Synthetic demo inputs are labels supplied by the client and not evidence of production retail activity.",
+          "Forecasts are observed-sales proxies; inventory is unverified; associations are descriptive and do not imply sales uplift.",
+          "Priority levels are deterministic review heuristics, not calibrated risk, fraud prediction, EVSI, or financial value.",
+          "Missing analysis modules mean the command center is incomplete; no module silently becomes verified by aggregation.",
+          "No persistence, live BigQuery, Looker, POS or ERP feeds, merchant contact, stock confirmation, purchasing or restocking is performed."
+        ],
+        "metrics": [
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Caller-supplied forecast summary; not independently recomputed or true demand",
+            "key": "forecast_sales",
+            "label": "Projected observed sales",
+            "source_module": "14B.1",
+            "unit": "units",
+            "value": 53.4
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Caller-reported backtest error; not audited by this endpoint",
+            "key": "forecast_wape",
+            "label": "Reported backtest WAPE",
+            "source_module": "14B.1",
+            "unit": "%",
+            "value": 17.5
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Caller-reported stock figure; not physically verified",
+            "key": "on_hand",
+            "label": "Reported on-hand inventory",
+            "source_module": "14B.3",
+            "unit": "units",
+            "value": 25
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Sum of caller-supplied flagged categories; not fraud findings",
+            "key": "inventory_signals",
+            "label": "Reported inventory review signals",
+            "source_module": "14B.3",
+            "unit": "signals",
+            "value": 3
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "User-supplied lead-time scenario, not a replenishment order",
+            "key": "lead_gap",
+            "label": "Modeled lead-time shortfall",
+            "source_module": "14B.3",
+            "unit": "units",
+            "value": 14.6
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Count only; no individual identities or assignments",
+            "key": "cohort_profiles",
+            "label": "Anonymous aggregate profiles",
+            "source_module": "14B.2",
+            "unit": "profiles",
+            "value": 48
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Co-occurrences, not causal cross-sell uplift",
+            "key": "basket_rules",
+            "label": "Exploratory basket association rules",
+            "source_module": "14B.2",
+            "unit": "rules",
+            "value": 3
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Caller-supplied verification backlog; not proof of live merchant contact",
+            "key": "pending_evidence",
+            "label": "Unresolved evidence items",
+            "source_module": "14A/13B",
+            "unit": "items",
+            "value": 2
+          }
+        ],
+        "mode": "AGGREGATE_BI_COMMAND_CENTER_14B4",
+        "purchase_allowed": false,
+        "review_queue": [
+          {
+            "key": "lead_time_gap",
+            "priority": 1,
+            "reason": "The supplied scenario estimates a positive unit shortfall; check live inventory and lead times",
+            "requires_human_verification": true,
+            "source_module": "14B.3",
+            "title": "Verify potential replenishment gap"
+          },
+          {
+            "key": "stock_reconciliation",
+            "priority": 1,
+            "reason": "Reported balance or continuity differences require reconciliation with source records",
+            "requires_human_verification": true,
+            "source_module": "14B.3",
+            "title": "Reconcile reported stock movements"
+          },
+          {
+            "key": "verification_backlog",
+            "priority": 1,
+            "reason": "Pending evidence or provisional candidates must not be treated as purchasable stock",
+            "requires_human_verification": true,
+            "source_module": "14A/13B",
+            "title": "Prioritize independent verification"
+          },
+          {
+            "key": "sales_anomalies",
+            "priority": 2,
+            "reason": "Review promotions, batch orders and data-entry errors before attributing cause",
+            "requires_human_verification": true,
+            "source_module": "14B.3",
+            "title": "Investigate unusual sales"
+          },
+          {
+            "key": "sales_censoring",
+            "priority": 2,
+            "reason": "Reported stockout days may hide unmet demand",
+            "requires_human_verification": true,
+            "source_module": "14B.1",
+            "title": "Review stockout-censored sales"
+          }
+        ],
+        "snapshot_age_days": 0,
+        "source_records_persisted": false
+      },
+      "source_records_persisted": false,
+      "stock_independently_verified": false,
+      "title": "Two fictional product excerpts disagree on USB PD support. Research must be reconciled before the offer can progress.",
+      "workflow": {
+        "change_detection": {
+          "changed": null,
+          "changes": [],
+          "comparison": "NO_CLIENT_PREVIOUS_SNAPSHOT"
+        },
+        "client_revision": 0,
+        "gemini_used": false,
+        "hypothetical_verification_plan": {
+          "actions": [
+            {
+              "action_id": "VERIFY_fixture_store_a",
+              "delay_cost_inr": "1.20",
+              "gross_evsi_inr": "249.60",
+              "merchant": "FICTIONAL Store A",
+              "net_evsi_inr": "243.40",
+              "p_fail": 0.28,
+              "p_no_response": 0.2,
+              "p_pass": 0.52,
+              "prior_feasible": 0.65,
+              "response_probability": 0.8,
+              "skip_reason": null,
+              "sku": "fixture_store_a",
+              "verification_cost_inr": "5.00"
+            },
+            {
+              "action_id": "VERIFY_fixture_store_b",
+              "delay_cost_inr": "1.20",
+              "gross_evsi_inr": "197.60",
+              "merchant": "FICTIONAL Store B",
+              "net_evsi_inr": "191.40",
+              "p_fail": 0.28,
+              "p_no_response": 0.2,
+              "p_pass": 0.52,
+              "prior_feasible": 0.65,
+              "response_probability": 0.8,
+              "skip_reason": null,
+              "sku": "fixture_store_b",
+              "verification_cost_inr": "5.00"
+            }
+          ],
+          "assumptions": [
+            "Probabilities, detection characteristics and response rates are hypothetical, not measured or independently calibrated.",
+            "Multiple signals are conditionally independent ONLY under the hypothetical model.",
+            "Existing EVSI model assumes perfect complete verification on response and uses synthetic utility; reported claims do not satisfy that condition.",
+            "Merchant evidence and supplied document excerpts are not independent confirmation of stock, product compatibility or fulfillment.",
+            "No merchant was contacted or purchase authorized."
+          ],
+          "calibration_status": "UNCALIBRATED_USER_SUPPLIED_PRIORS_AND_LIKELIHOODS",
+          "current_verification_baseline": null,
+          "evidence_traces": [
+            {
+              "assumed_posterior": 0.65,
+              "assumed_prior": 0.65,
+              "blocked_reason": null,
+              "compatibility_status": "UNKNOWN",
+              "merchant": "FICTIONAL Store A",
+              "place_id": "fixture_store_a",
+              "price_provenance": "MERCHANT_REPORTED_UNVERIFIED",
+              "quoted_total_minor": 72000,
+              "signals": [],
+              "source_reference_ids": []
+            },
+            {
+              "assumed_posterior": 0.65,
+              "assumed_prior": 0.65,
+              "blocked_reason": null,
+              "compatibility_status": "UNKNOWN",
+              "merchant": "FICTIONAL Store B",
+              "place_id": "fixture_store_b",
+              "price_provenance": "CLIENT_ESTIMATE_UNVERIFIED",
+              "quoted_total_minor": 82000,
+              "signals": [],
+              "source_reference_ids": []
+            }
+          ],
+          "mode": "CLIENT_EVIDENCE_HYPOTHETICAL_EVSI_14A1",
+          "no_merchant_contact_performed": true,
+          "purchase_allowed": false,
+          "recommended_action_id": "VERIFY_fixture_store_a",
+          "snapshot_replanning": {
+            "candidates": [
+              {
+                "evidence_gaps": [
+                  "COMPATIBILITY_NOT_INDEPENDENTLY_VERIFIED",
+                  "FULFILLMENT_FEES_NOT_CONFIRMED",
+                  "MERCHANT_IDENTITY_NOT_AUTHENTICATED"
+                ],
+                "name": "FICTIONAL Store A",
+                "place_id": "fixture_store_a",
+                "reasons": [],
+                "reported_subtotal_minor": 72000,
+                "status": "PROVISIONAL"
+              },
+              {
+                "evidence_gaps": [
+                  "MERCHANT_NOT_CONTACTED"
+                ],
+                "name": "FICTIONAL Store B",
+                "place_id": "fixture_store_b",
+                "reasons": [],
+                "reported_subtotal_minor": null,
+                "status": "AWAITING_EVIDENCE"
+              }
+            ],
+            "decision_status": "PROVISIONAL_OFFER_FOUND",
+            "evaluated_at": "2026-10-17T00:00:00+00:00",
+            "mode": "CLIENT_SNAPSHOT_REPLANNING",
+            "notice": "The evaluator uses a client-provided snapshot of merchant-reported claims. No merchant identity, product compatibility, final delivery cost or actual inventory is independently authenticated.",
+            "purchase_allowed": false,
+            "recommended_next_action": "VERIFY_IDENTITY_COMPATIBILITY_AND_DELIVERY",
+            "selected": {
+              "evidence_gaps": [
+                "COMPATIBILITY_NOT_INDEPENDENTLY_VERIFIED",
+                "FULFILLMENT_FEES_NOT_CONFIRMED",
+                "MERCHANT_IDENTITY_NOT_AUTHENTICATED"
+              ],
+              "name": "FICTIONAL Store A",
+              "place_id": "fixture_store_a",
+              "reasons": [],
+              "reported_subtotal_minor": 72000,
+              "status": "PROVISIONAL"
+            }
+          },
+          "stopping_reason": null
+        },
+        "limitations": [
+          "This is a deterministic workflow, not autonomous external tool-using agents.",
+          "The snapshots and comparison history are client-supplied; no backend origin or tamper verification is performed.",
+          "Merchant reports and document excerpts are not independent proof of inventory or compatibility.",
+          "Bayesian likelihoods, response probabilities, and utility are hypothetical and not calibrated.",
+          "Basket optima refer only to separate synthetic fixtures, not confirmed purchasable offers.",
+          "No real merchant contacted, no stock reserved, no checkout or payment performed."
+        ],
+        "merchant_contact_performed": false,
+        "merchant_replanning": {
+          "candidates": [
+            {
+              "evidence_gaps": [
+                "COMPATIBILITY_NOT_INDEPENDENTLY_VERIFIED",
+                "FULFILLMENT_FEES_NOT_CONFIRMED",
+                "MERCHANT_IDENTITY_NOT_AUTHENTICATED"
+              ],
+              "name": "FICTIONAL Store A",
+              "place_id": "fixture_store_a",
+              "reasons": [],
+              "reported_subtotal_minor": 72000,
+              "status": "PROVISIONAL"
+            },
+            {
+              "evidence_gaps": [
+                "MERCHANT_NOT_CONTACTED"
+              ],
+              "name": "FICTIONAL Store B",
+              "place_id": "fixture_store_b",
+              "reasons": [],
+              "reported_subtotal_minor": null,
+              "status": "AWAITING_EVIDENCE"
+            }
+          ],
+          "decision_status": "PROVISIONAL_OFFER_FOUND",
+          "evaluated_at": "2026-10-17T00:00:00+00:00",
+          "mode": "CLIENT_SNAPSHOT_REPLANNING",
+          "notice": "The evaluator uses a client-provided snapshot of merchant-reported claims. No merchant identity, product compatibility, final delivery cost or actual inventory is independently authenticated.",
+          "purchase_allowed": false,
+          "recommended_next_action": "VERIFY_IDENTITY_COMPATIBILITY_AND_DELIVERY",
+          "selected": {
+            "evidence_gaps": [
+              "COMPATIBILITY_NOT_INDEPENDENTLY_VERIFIED",
+              "FULFILLMENT_FEES_NOT_CONFIRMED",
+              "MERCHANT_IDENTITY_NOT_AUTHENTICATED"
+            ],
+            "name": "FICTIONAL Store A",
+            "place_id": "fixture_store_a",
+            "reasons": [],
+            "reported_subtotal_minor": 72000,
+            "status": "PROVISIONAL"
+          }
+        },
+        "mode": "EVIDENCE_SEPARATED_ORCHESTRATION_14A3",
+        "product_research": {
+          "documents_supplied": 2,
+          "gemini_used": false,
+          "notice": "Retrieved text comes only from user-supplied, unverified excerpts. URLs were not fetched. AI-generated or quoted information is not merchant stock verification or purchase approval.",
+          "passages": [
+            {
+              "captured_at": "2026-10-17T00:00:00+00:00",
+              "citation_id": "fictional_excerpt_a:0",
+              "end": 17,
+              "quote": "USB PD supported.",
+              "retrieval_score": 2.15465,
+              "source_id": "fictional_excerpt_a",
+              "source_sha256": "aa8145cd10904edae13dccb340779951a5feba7dc19e550c92958121efad1fcc",
+              "start": 0,
+              "title": "Illustrative document excerpt A",
+              "url": null
+            },
+            {
+              "captured_at": "2026-10-17T00:00:00+00:00",
+              "citation_id": "fictional_excerpt_b:0",
+              "end": 21,
+              "quote": "USB PD not supported.",
+              "retrieval_score": 2.0389,
+              "source_id": "fictional_excerpt_b",
+              "source_sha256": "28c6201d9469b879bf24694f37bc52e2bf2e21ad631150ca4d8f67fe117d21bb",
+              "start": 0,
+              "title": "Illustrative document excerpt B",
+              "url": null
+            },
+            {
+              "captured_at": "2026-10-17T00:00:00+00:00",
+              "citation_id": "fictional_excerpt_a:18",
+              "end": 36,
+              "quote": "Output 20V/3250mA.",
+              "retrieval_score": 1.11451,
+              "source_id": "fictional_excerpt_a",
+              "source_sha256": "aa8145cd10904edae13dccb340779951a5feba7dc19e550c92958121efad1fcc",
+              "start": 18,
+              "title": "Illustrative document excerpt A",
+              "url": null
+            },
+            {
+              "captured_at": "2026-10-17T00:00:00+00:00",
+              "citation_id": "fictional_excerpt_b:22",
+              "end": 40,
+              "quote": "Output 20V/3250mA.",
+              "retrieval_score": 1.11451,
+              "source_id": "fictional_excerpt_b",
+              "source_sha256": "28c6201d9469b879bf24694f37bc52e2bf2e21ad631150ca4d8f67fe117d21bb",
+              "start": 22,
+              "title": "Illustrative document excerpt B",
+              "url": null
+            },
+            {
+              "captured_at": "2026-10-17T00:00:00+00:00",
+              "citation_id": "fictional_excerpt_a:37",
+              "end": 52,
+              "quote": "Cable 5A rated.",
+              "retrieval_score": 1.10361,
+              "source_id": "fictional_excerpt_a",
+              "source_sha256": "aa8145cd10904edae13dccb340779951a5feba7dc19e550c92958121efad1fcc",
+              "start": 37,
+              "title": "Illustrative document excerpt A",
+              "url": null
+            },
+            {
+              "captured_at": "2026-10-17T00:00:00+00:00",
+              "citation_id": "fictional_excerpt_b:41",
+              "end": 56,
+              "quote": "Cable 5A rated.",
+              "retrieval_score": 1.10361,
+              "source_id": "fictional_excerpt_b",
+              "source_sha256": "28c6201d9469b879bf24694f37bc52e2bf2e21ad631150ca4d8f67fe117d21bb",
+              "start": 41,
+              "title": "Illustrative document excerpt B",
+              "url": null
+            }
+          ],
+          "purchase_allowed": false,
+          "retrieval_method": "LOCAL_BM25_CHAR_TRIGRAM_NO_EMBEDDINGS",
+          "review": {
+            "cited_facts": [
+              {
+                "captured_at": "2026-10-17T00:00:00+00:00",
+                "kind": "USB_PD_SUPPORT",
+                "quote": "USB PD supported",
+                "source_id": "fictional_excerpt_a",
+                "title": "Illustrative document excerpt A",
+                "url": null
+              },
+              {
+                "captured_at": "2026-10-17T00:00:00+00:00",
+                "kind": "USB_PD_SUPPORT",
+                "quote": "USB PD not supported",
+                "source_id": "fictional_excerpt_b",
+                "title": "Illustrative document excerpt B",
+                "url": null
+              },
+              {
+                "captured_at": "2026-10-17T00:00:00+00:00",
+                "kind": "OUTPUT_PROFILE",
+                "quote": "Output 20V/3250mA",
+                "source_id": "fictional_excerpt_a",
+                "title": "Illustrative document excerpt A",
+                "url": null
+              },
+              {
+                "captured_at": "2026-10-17T00:00:00+00:00",
+                "kind": "OUTPUT_PROFILE",
+                "quote": "Output 20V/3250mA",
+                "source_id": "fictional_excerpt_b",
+                "title": "Illustrative document excerpt B",
+                "url": null
+              },
+              {
+                "captured_at": "2026-10-17T00:00:00+00:00",
+                "kind": "CABLE_CURRENT_RATING",
+                "quote": "Cable 5A",
+                "source_id": "fictional_excerpt_a",
+                "title": "Illustrative document excerpt A",
+                "url": null
+              },
+              {
+                "captured_at": "2026-10-17T00:00:00+00:00",
+                "kind": "CABLE_CURRENT_RATING",
+                "quote": "Cable 5A",
+                "source_id": "fictional_excerpt_b",
+                "title": "Illustrative document excerpt B",
+                "url": null
+              }
+            ],
+            "compatibility": {
+              "purchase_allowed": false,
+              "reasons": [
+                "USB_PD_SUPPORT: CONTRADICTORY_SOURCE_FACTS"
+              ],
+              "recommended_next_action": "Obtain noncontradictory source excerpts for missing specification claims.",
+              "specification_source_verified": false,
+              "status": "INSUFFICIENT_SOURCE_EVIDENCE"
+            },
+            "evidence_gaps": [
+              {
+                "kind": "USB_PD_SUPPORT",
+                "reason": "CONTRADICTORY_SOURCE_FACTS"
+              }
+            ],
+            "notice": "Quotes and URLs were provided by the user and have not been fetched or independently authenticated. Product, seller, stock and safety remain unverified.",
+            "product_label": "65W USB-C PD charger",
+            "provenance": "USER_SUPPLIED_EXCERPTS_NOT_INDEPENDENTLY_VERIFIED",
+            "purchase_allowed": false,
+            "source_count": 2,
+            "status": "INSUFFICIENT_SOURCE_EVIDENCE"
+          },
+          "sources_verified": false,
+          "stale_source_ids": []
+        },
+        "purchase_allowed": false,
+        "reason": "Source excerpts disagree; do not advance a candidate based on contradictory specifications.",
+        "recommended_next_action": "RECONCILE_CONFLICTING_DOCUMENT_EXCERPTS",
+        "snapshot_sha256": "499d5479af486c63c0c8a9a92fc5dc6dfce63fd1f221eee51e09462737f58d34",
+        "stock_independently_verified": false,
+        "synthetic_basket_scenario": {
+          "disclosure": "Only explicitly synthetic verified fixtures may be mathematically selected. Merchant-reported, document-sourced, or unknown stock is never accepted as independently verified. No purchase or reservation is performed.",
+          "mode": "EVIDENCE_SEPARATED_BASKET_SCENARIO_14A2",
+          "purchase_allowed": false,
+          "real_merchant_inventory_verified": false,
+          "scenario_status": "OPTIMAL",
+          "solver_engine": "EXACT_BOUNDED_ENUMERATOR",
+          "synthetic_optimum": {
+            "blocked_items": [],
+            "eligible_offer_count": 1,
+            "excluded_offers": [],
+            "mode": "SYNTHETIC_OPTIMIZATION",
+            "notice": "An exact optimal combination for the synthetic fixture; not real inventory.",
+            "reason": null,
+            "selected_offers": [
+              {
+                "delivery_eta_minutes": 10,
+                "evidence_source": "SIMULATION_VERIFIED",
+                "item_id": "charger",
+                "item_name": "Synthetic charger",
+                "line_total_minor": 60000,
+                "merchant": "SIMULATED fixture merchant",
+                "quantity": 1,
+                "sku": "simulation_verified_fixture",
+                "unit_price_minor": 60000
+              }
+            ],
+            "status": "OPTIMAL",
+            "totals": {
+              "budget_minor": 100000,
+              "fulfillment_fees_minor": 1000,
+              "remaining_minor": 39000,
+              "subtotal_minor": 60000,
+              "total_minor": 61000
+            },
+            "used_merchants": [
+              {
+                "fulfillment_fee_minor": 1000,
+                "name": "SIMULATED fixture merchant"
+              }
+            ]
+          },
+          "verification_backlog": []
+        },
+        "workflow_persisted": false,
+        "workflow_state": "RESEARCH_CONFLICT",
+        "workflow_trace": [
+          {
+            "source": "CLIENT_SUPPLIED_MERCHANT_SNAPSHOT",
+            "stage": "MERCHANT_REPLAN_13B",
+            "state": "PROVISIONAL_OFFER_FOUND",
+            "status": "EVALUATED"
+          },
+          {
+            "source": "USER_SUPPLIED_EXCERPTS_UNVERIFIED",
+            "stage": "DOCUMENT_RETRIEVAL_13C2",
+            "state": "INSUFFICIENT_SOURCE_EVIDENCE",
+            "status": "EVALUATED"
+          },
+          {
+            "source": "CLIENT_SUPPLIED_MODEL_ASSUMPTIONS",
+            "stage": "BAYES_EVSI_14A1",
+            "state": "HYPOTHETICAL_UNCALIBRATED",
+            "status": "EVALUATED"
+          },
+          {
+            "source": "SYNTHETIC_SCENARIO_ONLY",
+            "stage": "BASKET_OPTIMIZATION_14A2",
+            "state": "OPTIMAL",
+            "status": "EVALUATED"
+          },
+          {
+            "source": "SERVER_POLICY",
+            "stage": "POLICY_BOUNDARY",
+            "state": "NO_PURCHASE_AUTHORIZATION",
+            "status": "ENFORCED"
+          }
+        ]
+      }
+    },
+    "no_merchants": {
+      "business_context_is_derived_from_customer_journey": false,
+      "cloud_model_used": false,
+      "database_used": false,
+      "fixture_origin": "SERVER_OWNED_SYNTHETIC_NOT_REAL_MERCHANTS",
+      "journey_is_historical_verified_record": false,
+      "limitations": [
+        "All store names, stock, prices and document excerpts are deliberately fictional fixtures.",
+        "The orchestration calculations are real code on fictitious, unverified inputs.",
+        "Optional retail BI figures are illustrative aggregates unrelated to this customer journey.",
+        "EVSI results are hypothetical and uncalibrated; no observed purchase or savings.",
+        "This endpoint does not contact merchants, Gemini, Places, Firestore, BigQuery or payment systems.",
+        "No inventory is independently verified, no stock is reserved and no purchase can be authorized."
+      ],
+      "mode": "GUIDED_EVIDENCE_JOURNEY_16A",
+      "product": "65W USB-C PD charger",
+      "purchase_allowed": false,
+      "real_merchant_contact": false,
+      "scenario": "no_merchants",
+      "separate_illustrative_business_context": {
+        "as_of": "2026-10-17",
+        "bigquery_used": false,
+        "cloud_model_used": false,
+        "coverage": {
+          "available_modules": 4,
+          "missing_modules": [],
+          "supplied": {
+            "cohorts": true,
+            "forecast": true,
+            "inventory": true,
+            "verification": true
+          },
+          "total_modules": 4
+        },
+        "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+        "executive_summary": "4/4 analysis families represented; 5 follow-up review actions. All values are supplied summaries, not verified operational outcomes.",
+        "fraud_determined": false,
+        "independently_verified": false,
+        "individual_customer_data_returned": false,
+        "limitations": [
+          "All aggregates are caller-supplied summaries, even when their source chunk is named; the API does not recompute or authenticate the upstream calculations.",
+          "Synthetic demo inputs are labels supplied by the client and not evidence of production retail activity.",
+          "Forecasts are observed-sales proxies; inventory is unverified; associations are descriptive and do not imply sales uplift.",
+          "Priority levels are deterministic review heuristics, not calibrated risk, fraud prediction, EVSI, or financial value.",
+          "Missing analysis modules mean the command center is incomplete; no module silently becomes verified by aggregation.",
+          "No persistence, live BigQuery, Looker, POS or ERP feeds, merchant contact, stock confirmation, purchasing or restocking is performed."
+        ],
+        "metrics": [
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Caller-supplied forecast summary; not independently recomputed or true demand",
+            "key": "forecast_sales",
+            "label": "Projected observed sales",
+            "source_module": "14B.1",
+            "unit": "units",
+            "value": 53.4
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Caller-reported backtest error; not audited by this endpoint",
+            "key": "forecast_wape",
+            "label": "Reported backtest WAPE",
+            "source_module": "14B.1",
+            "unit": "%",
+            "value": 17.5
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Caller-reported stock figure; not physically verified",
+            "key": "on_hand",
+            "label": "Reported on-hand inventory",
+            "source_module": "14B.3",
+            "unit": "units",
+            "value": 25
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Sum of caller-supplied flagged categories; not fraud findings",
+            "key": "inventory_signals",
+            "label": "Reported inventory review signals",
+            "source_module": "14B.3",
+            "unit": "signals",
+            "value": 3
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "User-supplied lead-time scenario, not a replenishment order",
+            "key": "lead_gap",
+            "label": "Modeled lead-time shortfall",
+            "source_module": "14B.3",
+            "unit": "units",
+            "value": 14.6
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Count only; no individual identities or assignments",
+            "key": "cohort_profiles",
+            "label": "Anonymous aggregate profiles",
+            "source_module": "14B.2",
+            "unit": "profiles",
+            "value": 48
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Co-occurrences, not causal cross-sell uplift",
+            "key": "basket_rules",
+            "label": "Exploratory basket association rules",
+            "source_module": "14B.2",
+            "unit": "rules",
+            "value": 3
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Caller-supplied verification backlog; not proof of live merchant contact",
+            "key": "pending_evidence",
+            "label": "Unresolved evidence items",
+            "source_module": "14A/13B",
+            "unit": "items",
+            "value": 2
+          }
+        ],
+        "mode": "AGGREGATE_BI_COMMAND_CENTER_14B4",
+        "purchase_allowed": false,
+        "review_queue": [
+          {
+            "key": "lead_time_gap",
+            "priority": 1,
+            "reason": "The supplied scenario estimates a positive unit shortfall; check live inventory and lead times",
+            "requires_human_verification": true,
+            "source_module": "14B.3",
+            "title": "Verify potential replenishment gap"
+          },
+          {
+            "key": "stock_reconciliation",
+            "priority": 1,
+            "reason": "Reported balance or continuity differences require reconciliation with source records",
+            "requires_human_verification": true,
+            "source_module": "14B.3",
+            "title": "Reconcile reported stock movements"
+          },
+          {
+            "key": "verification_backlog",
+            "priority": 1,
+            "reason": "Pending evidence or provisional candidates must not be treated as purchasable stock",
+            "requires_human_verification": true,
+            "source_module": "14A/13B",
+            "title": "Prioritize independent verification"
+          },
+          {
+            "key": "sales_anomalies",
+            "priority": 2,
+            "reason": "Review promotions, batch orders and data-entry errors before attributing cause",
+            "requires_human_verification": true,
+            "source_module": "14B.3",
+            "title": "Investigate unusual sales"
+          },
+          {
+            "key": "sales_censoring",
+            "priority": 2,
+            "reason": "Reported stockout days may hide unmet demand",
+            "requires_human_verification": true,
+            "source_module": "14B.1",
+            "title": "Review stockout-censored sales"
+          }
+        ],
+        "snapshot_age_days": 0,
+        "source_records_persisted": false
+      },
+      "source_records_persisted": false,
+      "stock_independently_verified": false,
+      "title": "No merchant reports are supplied. The next step is discovery, not invented stock availability.",
+      "workflow": {
+        "change_detection": {
+          "changed": null,
+          "changes": [],
+          "comparison": "NO_CLIENT_PREVIOUS_SNAPSHOT"
+        },
+        "client_revision": 0,
+        "gemini_used": false,
+        "hypothetical_verification_plan": null,
+        "limitations": [
+          "This is a deterministic workflow, not autonomous external tool-using agents.",
+          "The snapshots and comparison history are client-supplied; no backend origin or tamper verification is performed.",
+          "Merchant reports and document excerpts are not independent proof of inventory or compatibility.",
+          "Bayesian likelihoods, response probabilities, and utility are hypothetical and not calibrated.",
+          "Basket optima refer only to separate synthetic fixtures, not confirmed purchasable offers.",
+          "No real merchant contacted, no stock reserved, no checkout or payment performed."
+        ],
+        "merchant_contact_performed": false,
+        "merchant_replanning": {
+          "candidates": [],
+          "decision_status": "NO_PROVISIONAL_OFFER",
+          "evaluated_at": "2026-10-17T00:00:00+00:00",
+          "mode": "CLIENT_SNAPSHOT_REPLANNING",
+          "notice": "The evaluator uses a client-provided snapshot of merchant-reported claims. No merchant identity, product compatibility, final delivery cost or actual inventory is independently authenticated.",
+          "purchase_allowed": false,
+          "recommended_next_action": "DISCOVER_MERCHANTS",
+          "selected": null
+        },
+        "mode": "EVIDENCE_SEPARATED_ORCHESTRATION_14A3",
+        "product_research": {
+          "documents_supplied": 1,
+          "gemini_used": false,
+          "notice": "Retrieved text comes only from user-supplied, unverified excerpts. URLs were not fetched. AI-generated or quoted information is not merchant stock verification or purchase approval.",
+          "passages": [
+            {
+              "captured_at": "2026-10-17T00:00:00+00:00",
+              "citation_id": "fictional_excerpt_a:0",
+              "end": 17,
+              "quote": "USB PD supported.",
+              "retrieval_score": 2.03729,
+              "source_id": "fictional_excerpt_a",
+              "source_sha256": "aa8145cd10904edae13dccb340779951a5feba7dc19e550c92958121efad1fcc",
+              "start": 0,
+              "title": "Illustrative document excerpt A",
+              "url": null
+            },
+            {
+              "captured_at": "2026-10-17T00:00:00+00:00",
+              "citation_id": "fictional_excerpt_a:18",
+              "end": 36,
+              "quote": "Output 20V/3250mA.",
+              "retrieval_score": 1.05583,
+              "source_id": "fictional_excerpt_a",
+              "source_sha256": "aa8145cd10904edae13dccb340779951a5feba7dc19e550c92958121efad1fcc",
+              "start": 18,
+              "title": "Illustrative document excerpt A",
+              "url": null
+            },
+            {
+              "captured_at": "2026-10-17T00:00:00+00:00",
+              "citation_id": "fictional_excerpt_a:37",
+              "end": 52,
+              "quote": "Cable 5A rated.",
+              "retrieval_score": 1.04493,
+              "source_id": "fictional_excerpt_a",
+              "source_sha256": "aa8145cd10904edae13dccb340779951a5feba7dc19e550c92958121efad1fcc",
+              "start": 37,
+              "title": "Illustrative document excerpt A",
+              "url": null
+            }
+          ],
+          "purchase_allowed": false,
+          "retrieval_method": "LOCAL_BM25_CHAR_TRIGRAM_NO_EMBEDDINGS",
+          "review": {
+            "cited_facts": [
+              {
+                "captured_at": "2026-10-17T00:00:00+00:00",
+                "kind": "USB_PD_SUPPORT",
+                "quote": "USB PD supported",
+                "source_id": "fictional_excerpt_a",
+                "title": "Illustrative document excerpt A",
+                "url": null
+              },
+              {
+                "captured_at": "2026-10-17T00:00:00+00:00",
+                "kind": "OUTPUT_PROFILE",
+                "quote": "Output 20V/3250mA",
+                "source_id": "fictional_excerpt_a",
+                "title": "Illustrative document excerpt A",
+                "url": null
+              },
+              {
+                "captured_at": "2026-10-17T00:00:00+00:00",
+                "kind": "CABLE_CURRENT_RATING",
+                "quote": "Cable 5A",
+                "source_id": "fictional_excerpt_a",
+                "title": "Illustrative document excerpt A",
+                "url": null
+              }
+            ],
+            "compatibility": {
+              "device_model": "FICTIONAL laptop",
+              "notice": "Result is based on entered specifications. It does not prove actual device compatibility, product authenticity or purchase readiness.",
+              "product_authenticity_verified": false,
+              "purchase_allowed": false,
+              "reasons": [
+                "The entered charger output profile meets the entered voltage and power requirements.",
+                "The actual product, device charging behavior and evidence provenance remain unverified."
+              ],
+              "recommended_next_action": "Verify source specifications and merchant evidence.",
+              "specification_source_verified": false,
+              "status": "CONDITIONAL_SPEC_MATCH"
+            },
+            "evidence_gaps": [],
+            "notice": "Quotes and URLs were provided by the user and have not been fetched or independently authenticated. Product, seller, stock and safety remain unverified.",
+            "product_label": "65W USB-C PD charger",
+            "provenance": "USER_SUPPLIED_EXCERPTS_NOT_INDEPENDENTLY_VERIFIED",
+            "purchase_allowed": false,
+            "source_count": 1,
+            "status": "CONDITIONAL_SPEC_MATCH"
+          },
+          "sources_verified": false,
+          "stale_source_ids": []
+        },
+        "purchase_allowed": false,
+        "reason": "No candidate merchants were provided in the current snapshot.",
+        "recommended_next_action": "DISCOVER_MERCHANTS",
+        "snapshot_sha256": "cfb4d9beca25e70dfd3dbc311d0520dbac1f3615b18576589993a7175886183f",
+        "stock_independently_verified": false,
+        "synthetic_basket_scenario": {
+          "disclosure": "Only explicitly synthetic verified fixtures may be mathematically selected. Merchant-reported, document-sourced, or unknown stock is never accepted as independently verified. No purchase or reservation is performed.",
+          "mode": "EVIDENCE_SEPARATED_BASKET_SCENARIO_14A2",
+          "purchase_allowed": false,
+          "real_merchant_inventory_verified": false,
+          "scenario_status": "OPTIMAL",
+          "solver_engine": "EXACT_BOUNDED_ENUMERATOR",
+          "synthetic_optimum": {
+            "blocked_items": [],
+            "eligible_offer_count": 1,
+            "excluded_offers": [],
+            "mode": "SYNTHETIC_OPTIMIZATION",
+            "notice": "An exact optimal combination for the synthetic fixture; not real inventory.",
+            "reason": null,
+            "selected_offers": [
+              {
+                "delivery_eta_minutes": 10,
+                "evidence_source": "SIMULATION_VERIFIED",
+                "item_id": "charger",
+                "item_name": "Synthetic charger",
+                "line_total_minor": 60000,
+                "merchant": "SIMULATED fixture merchant",
+                "quantity": 1,
+                "sku": "simulation_verified_fixture",
+                "unit_price_minor": 60000
+              }
+            ],
+            "status": "OPTIMAL",
+            "totals": {
+              "budget_minor": 100000,
+              "fulfillment_fees_minor": 1000,
+              "remaining_minor": 39000,
+              "subtotal_minor": 60000,
+              "total_minor": 61000
+            },
+            "used_merchants": [
+              {
+                "fulfillment_fee_minor": 1000,
+                "name": "SIMULATED fixture merchant"
+              }
+            ]
+          },
+          "verification_backlog": []
+        },
+        "workflow_persisted": false,
+        "workflow_state": "DISCOVERY_NEEDED",
+        "workflow_trace": [
+          {
+            "source": "CLIENT_SUPPLIED_MERCHANT_SNAPSHOT",
+            "stage": "MERCHANT_REPLAN_13B",
+            "state": "NO_PROVISIONAL_OFFER",
+            "status": "EVALUATED"
+          },
+          {
+            "source": "USER_SUPPLIED_EXCERPTS_UNVERIFIED",
+            "stage": "DOCUMENT_RETRIEVAL_13C2",
+            "state": "CONDITIONAL_SPEC_MATCH",
+            "status": "EVALUATED"
+          },
+          {
+            "source": "CLIENT_SUPPLIED_MODEL_ASSUMPTIONS",
+            "stage": "BAYES_EVSI_14A1",
+            "state": "NOT_RUN",
+            "status": "NOT_PROVIDED"
+          },
+          {
+            "source": "SYNTHETIC_SCENARIO_ONLY",
+            "stage": "BASKET_OPTIMIZATION_14A2",
+            "state": "OPTIMAL",
+            "status": "EVALUATED"
+          },
+          {
+            "source": "SERVER_POLICY",
+            "stage": "POLICY_BOUNDARY",
+            "state": "NO_PURCHASE_AUTHORIZATION",
+            "status": "ENFORCED"
+          }
+        ]
+      }
+    },
+    "reported_offer": {
+      "business_context_is_derived_from_customer_journey": false,
+      "cloud_model_used": false,
+      "database_used": false,
+      "fixture_origin": "SERVER_OWNED_SYNTHETIC_NOT_REAL_MERCHANTS",
+      "journey_is_historical_verified_record": false,
+      "limitations": [
+        "All store names, stock, prices and document excerpts are deliberately fictional fixtures.",
+        "The orchestration calculations are real code on fictitious, unverified inputs.",
+        "Optional retail BI figures are illustrative aggregates unrelated to this customer journey.",
+        "EVSI results are hypothetical and uncalibrated; no observed purchase or savings.",
+        "This endpoint does not contact merchants, Gemini, Places, Firestore, BigQuery or payment systems.",
+        "No inventory is independently verified, no stock is reserved and no purchase can be authorized."
+      ],
+      "mode": "GUIDED_EVIDENCE_JOURNEY_16A",
+      "product": "65W USB-C PD charger",
+      "purchase_allowed": false,
+      "real_merchant_contact": false,
+      "scenario": "reported_offer",
+      "separate_illustrative_business_context": {
+        "as_of": "2026-10-17",
+        "bigquery_used": false,
+        "cloud_model_used": false,
+        "coverage": {
+          "available_modules": 4,
+          "missing_modules": [],
+          "supplied": {
+            "cohorts": true,
+            "forecast": true,
+            "inventory": true,
+            "verification": true
+          },
+          "total_modules": 4
+        },
+        "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+        "executive_summary": "4/4 analysis families represented; 5 follow-up review actions. All values are supplied summaries, not verified operational outcomes.",
+        "fraud_determined": false,
+        "independently_verified": false,
+        "individual_customer_data_returned": false,
+        "limitations": [
+          "All aggregates are caller-supplied summaries, even when their source chunk is named; the API does not recompute or authenticate the upstream calculations.",
+          "Synthetic demo inputs are labels supplied by the client and not evidence of production retail activity.",
+          "Forecasts are observed-sales proxies; inventory is unverified; associations are descriptive and do not imply sales uplift.",
+          "Priority levels are deterministic review heuristics, not calibrated risk, fraud prediction, EVSI, or financial value.",
+          "Missing analysis modules mean the command center is incomplete; no module silently becomes verified by aggregation.",
+          "No persistence, live BigQuery, Looker, POS or ERP feeds, merchant contact, stock confirmation, purchasing or restocking is performed."
+        ],
+        "metrics": [
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Caller-supplied forecast summary; not independently recomputed or true demand",
+            "key": "forecast_sales",
+            "label": "Projected observed sales",
+            "source_module": "14B.1",
+            "unit": "units",
+            "value": 53.4
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Caller-reported backtest error; not audited by this endpoint",
+            "key": "forecast_wape",
+            "label": "Reported backtest WAPE",
+            "source_module": "14B.1",
+            "unit": "%",
+            "value": 17.5
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Caller-reported stock figure; not physically verified",
+            "key": "on_hand",
+            "label": "Reported on-hand inventory",
+            "source_module": "14B.3",
+            "unit": "units",
+            "value": 25
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Sum of caller-supplied flagged categories; not fraud findings",
+            "key": "inventory_signals",
+            "label": "Reported inventory review signals",
+            "source_module": "14B.3",
+            "unit": "signals",
+            "value": 3
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "User-supplied lead-time scenario, not a replenishment order",
+            "key": "lead_gap",
+            "label": "Modeled lead-time shortfall",
+            "source_module": "14B.3",
+            "unit": "units",
+            "value": 14.6
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Count only; no individual identities or assignments",
+            "key": "cohort_profiles",
+            "label": "Anonymous aggregate profiles",
+            "source_module": "14B.2",
+            "unit": "profiles",
+            "value": 48
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Co-occurrences, not causal cross-sell uplift",
+            "key": "basket_rules",
+            "label": "Exploratory basket association rules",
+            "source_module": "14B.2",
+            "unit": "rules",
+            "value": 3
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Caller-supplied verification backlog; not proof of live merchant contact",
+            "key": "pending_evidence",
+            "label": "Unresolved evidence items",
+            "source_module": "14A/13B",
+            "unit": "items",
+            "value": 2
+          }
+        ],
+        "mode": "AGGREGATE_BI_COMMAND_CENTER_14B4",
+        "purchase_allowed": false,
+        "review_queue": [
+          {
+            "key": "lead_time_gap",
+            "priority": 1,
+            "reason": "The supplied scenario estimates a positive unit shortfall; check live inventory and lead times",
+            "requires_human_verification": true,
+            "source_module": "14B.3",
+            "title": "Verify potential replenishment gap"
+          },
+          {
+            "key": "stock_reconciliation",
+            "priority": 1,
+            "reason": "Reported balance or continuity differences require reconciliation with source records",
+            "requires_human_verification": true,
+            "source_module": "14B.3",
+            "title": "Reconcile reported stock movements"
+          },
+          {
+            "key": "verification_backlog",
+            "priority": 1,
+            "reason": "Pending evidence or provisional candidates must not be treated as purchasable stock",
+            "requires_human_verification": true,
+            "source_module": "14A/13B",
+            "title": "Prioritize independent verification"
+          },
+          {
+            "key": "sales_anomalies",
+            "priority": 2,
+            "reason": "Review promotions, batch orders and data-entry errors before attributing cause",
+            "requires_human_verification": true,
+            "source_module": "14B.3",
+            "title": "Investigate unusual sales"
+          },
+          {
+            "key": "sales_censoring",
+            "priority": 2,
+            "reason": "Reported stockout days may hide unmet demand",
+            "requires_human_verification": true,
+            "source_module": "14B.1",
+            "title": "Review stockout-censored sales"
+          }
+        ],
+        "snapshot_age_days": 0,
+        "source_records_persisted": false
+      },
+      "source_records_persisted": false,
+      "stock_independently_verified": false,
+      "title": "A fictional store claims one charger is available. The model may shortlist it provisionally, but cannot approve a purchase.",
+      "workflow": {
+        "change_detection": {
+          "changed": null,
+          "changes": [],
+          "comparison": "NO_CLIENT_PREVIOUS_SNAPSHOT"
+        },
+        "client_revision": 0,
+        "gemini_used": false,
+        "hypothetical_verification_plan": {
+          "actions": [
+            {
+              "action_id": "VERIFY_fixture_store_a",
+              "delay_cost_inr": "1.20",
+              "gross_evsi_inr": "249.60",
+              "merchant": "FICTIONAL Store A",
+              "net_evsi_inr": "243.40",
+              "p_fail": 0.28,
+              "p_no_response": 0.2,
+              "p_pass": 0.52,
+              "prior_feasible": 0.65,
+              "response_probability": 0.8,
+              "skip_reason": null,
+              "sku": "fixture_store_a",
+              "verification_cost_inr": "5.00"
+            },
+            {
+              "action_id": "VERIFY_fixture_store_b",
+              "delay_cost_inr": "1.20",
+              "gross_evsi_inr": "197.60",
+              "merchant": "FICTIONAL Store B",
+              "net_evsi_inr": "191.40",
+              "p_fail": 0.28,
+              "p_no_response": 0.2,
+              "p_pass": 0.52,
+              "prior_feasible": 0.65,
+              "response_probability": 0.8,
+              "skip_reason": null,
+              "sku": "fixture_store_b",
+              "verification_cost_inr": "5.00"
+            }
+          ],
+          "assumptions": [
+            "Probabilities, detection characteristics and response rates are hypothetical, not measured or independently calibrated.",
+            "Multiple signals are conditionally independent ONLY under the hypothetical model.",
+            "Existing EVSI model assumes perfect complete verification on response and uses synthetic utility; reported claims do not satisfy that condition.",
+            "Merchant evidence and supplied document excerpts are not independent confirmation of stock, product compatibility or fulfillment.",
+            "No merchant was contacted or purchase authorized."
+          ],
+          "calibration_status": "UNCALIBRATED_USER_SUPPLIED_PRIORS_AND_LIKELIHOODS",
+          "current_verification_baseline": null,
+          "evidence_traces": [
+            {
+              "assumed_posterior": 0.65,
+              "assumed_prior": 0.65,
+              "blocked_reason": null,
+              "compatibility_status": "UNKNOWN",
+              "merchant": "FICTIONAL Store A",
+              "place_id": "fixture_store_a",
+              "price_provenance": "MERCHANT_REPORTED_UNVERIFIED",
+              "quoted_total_minor": 72000,
+              "signals": [],
+              "source_reference_ids": []
+            },
+            {
+              "assumed_posterior": 0.65,
+              "assumed_prior": 0.65,
+              "blocked_reason": null,
+              "compatibility_status": "UNKNOWN",
+              "merchant": "FICTIONAL Store B",
+              "place_id": "fixture_store_b",
+              "price_provenance": "CLIENT_ESTIMATE_UNVERIFIED",
+              "quoted_total_minor": 82000,
+              "signals": [],
+              "source_reference_ids": []
+            }
+          ],
+          "mode": "CLIENT_EVIDENCE_HYPOTHETICAL_EVSI_14A1",
+          "no_merchant_contact_performed": true,
+          "purchase_allowed": false,
+          "recommended_action_id": "VERIFY_fixture_store_a",
+          "snapshot_replanning": {
+            "candidates": [
+              {
+                "evidence_gaps": [
+                  "COMPATIBILITY_NOT_INDEPENDENTLY_VERIFIED",
+                  "FULFILLMENT_FEES_NOT_CONFIRMED",
+                  "MERCHANT_IDENTITY_NOT_AUTHENTICATED"
+                ],
+                "name": "FICTIONAL Store A",
+                "place_id": "fixture_store_a",
+                "reasons": [],
+                "reported_subtotal_minor": 72000,
+                "status": "PROVISIONAL"
+              },
+              {
+                "evidence_gaps": [
+                  "MERCHANT_NOT_CONTACTED"
+                ],
+                "name": "FICTIONAL Store B",
+                "place_id": "fixture_store_b",
+                "reasons": [],
+                "reported_subtotal_minor": null,
+                "status": "AWAITING_EVIDENCE"
+              }
+            ],
+            "decision_status": "PROVISIONAL_OFFER_FOUND",
+            "evaluated_at": "2026-10-17T00:00:00+00:00",
+            "mode": "CLIENT_SNAPSHOT_REPLANNING",
+            "notice": "The evaluator uses a client-provided snapshot of merchant-reported claims. No merchant identity, product compatibility, final delivery cost or actual inventory is independently authenticated.",
+            "purchase_allowed": false,
+            "recommended_next_action": "VERIFY_IDENTITY_COMPATIBILITY_AND_DELIVERY",
+            "selected": {
+              "evidence_gaps": [
+                "COMPATIBILITY_NOT_INDEPENDENTLY_VERIFIED",
+                "FULFILLMENT_FEES_NOT_CONFIRMED",
+                "MERCHANT_IDENTITY_NOT_AUTHENTICATED"
+              ],
+              "name": "FICTIONAL Store A",
+              "place_id": "fixture_store_a",
+              "reasons": [],
+              "reported_subtotal_minor": 72000,
+              "status": "PROVISIONAL"
+            }
+          },
+          "stopping_reason": null
+        },
+        "limitations": [
+          "This is a deterministic workflow, not autonomous external tool-using agents.",
+          "The snapshots and comparison history are client-supplied; no backend origin or tamper verification is performed.",
+          "Merchant reports and document excerpts are not independent proof of inventory or compatibility.",
+          "Bayesian likelihoods, response probabilities, and utility are hypothetical and not calibrated.",
+          "Basket optima refer only to separate synthetic fixtures, not confirmed purchasable offers.",
+          "No real merchant contacted, no stock reserved, no checkout or payment performed."
+        ],
+        "merchant_contact_performed": false,
+        "merchant_replanning": {
+          "candidates": [
+            {
+              "evidence_gaps": [
+                "COMPATIBILITY_NOT_INDEPENDENTLY_VERIFIED",
+                "FULFILLMENT_FEES_NOT_CONFIRMED",
+                "MERCHANT_IDENTITY_NOT_AUTHENTICATED"
+              ],
+              "name": "FICTIONAL Store A",
+              "place_id": "fixture_store_a",
+              "reasons": [],
+              "reported_subtotal_minor": 72000,
+              "status": "PROVISIONAL"
+            },
+            {
+              "evidence_gaps": [
+                "MERCHANT_NOT_CONTACTED"
+              ],
+              "name": "FICTIONAL Store B",
+              "place_id": "fixture_store_b",
+              "reasons": [],
+              "reported_subtotal_minor": null,
+              "status": "AWAITING_EVIDENCE"
+            }
+          ],
+          "decision_status": "PROVISIONAL_OFFER_FOUND",
+          "evaluated_at": "2026-10-17T00:00:00+00:00",
+          "mode": "CLIENT_SNAPSHOT_REPLANNING",
+          "notice": "The evaluator uses a client-provided snapshot of merchant-reported claims. No merchant identity, product compatibility, final delivery cost or actual inventory is independently authenticated.",
+          "purchase_allowed": false,
+          "recommended_next_action": "VERIFY_IDENTITY_COMPATIBILITY_AND_DELIVERY",
+          "selected": {
+            "evidence_gaps": [
+              "COMPATIBILITY_NOT_INDEPENDENTLY_VERIFIED",
+              "FULFILLMENT_FEES_NOT_CONFIRMED",
+              "MERCHANT_IDENTITY_NOT_AUTHENTICATED"
+            ],
+            "name": "FICTIONAL Store A",
+            "place_id": "fixture_store_a",
+            "reasons": [],
+            "reported_subtotal_minor": 72000,
+            "status": "PROVISIONAL"
+          }
+        },
+        "mode": "EVIDENCE_SEPARATED_ORCHESTRATION_14A3",
+        "product_research": {
+          "documents_supplied": 1,
+          "gemini_used": false,
+          "notice": "Retrieved text comes only from user-supplied, unverified excerpts. URLs were not fetched. AI-generated or quoted information is not merchant stock verification or purchase approval.",
+          "passages": [
+            {
+              "captured_at": "2026-10-17T00:00:00+00:00",
+              "citation_id": "fictional_excerpt_a:0",
+              "end": 17,
+              "quote": "USB PD supported.",
+              "retrieval_score": 2.03729,
+              "source_id": "fictional_excerpt_a",
+              "source_sha256": "aa8145cd10904edae13dccb340779951a5feba7dc19e550c92958121efad1fcc",
+              "start": 0,
+              "title": "Illustrative document excerpt A",
+              "url": null
+            },
+            {
+              "captured_at": "2026-10-17T00:00:00+00:00",
+              "citation_id": "fictional_excerpt_a:18",
+              "end": 36,
+              "quote": "Output 20V/3250mA.",
+              "retrieval_score": 1.05583,
+              "source_id": "fictional_excerpt_a",
+              "source_sha256": "aa8145cd10904edae13dccb340779951a5feba7dc19e550c92958121efad1fcc",
+              "start": 18,
+              "title": "Illustrative document excerpt A",
+              "url": null
+            },
+            {
+              "captured_at": "2026-10-17T00:00:00+00:00",
+              "citation_id": "fictional_excerpt_a:37",
+              "end": 52,
+              "quote": "Cable 5A rated.",
+              "retrieval_score": 1.04493,
+              "source_id": "fictional_excerpt_a",
+              "source_sha256": "aa8145cd10904edae13dccb340779951a5feba7dc19e550c92958121efad1fcc",
+              "start": 37,
+              "title": "Illustrative document excerpt A",
+              "url": null
+            }
+          ],
+          "purchase_allowed": false,
+          "retrieval_method": "LOCAL_BM25_CHAR_TRIGRAM_NO_EMBEDDINGS",
+          "review": {
+            "cited_facts": [
+              {
+                "captured_at": "2026-10-17T00:00:00+00:00",
+                "kind": "USB_PD_SUPPORT",
+                "quote": "USB PD supported",
+                "source_id": "fictional_excerpt_a",
+                "title": "Illustrative document excerpt A",
+                "url": null
+              },
+              {
+                "captured_at": "2026-10-17T00:00:00+00:00",
+                "kind": "OUTPUT_PROFILE",
+                "quote": "Output 20V/3250mA",
+                "source_id": "fictional_excerpt_a",
+                "title": "Illustrative document excerpt A",
+                "url": null
+              },
+              {
+                "captured_at": "2026-10-17T00:00:00+00:00",
+                "kind": "CABLE_CURRENT_RATING",
+                "quote": "Cable 5A",
+                "source_id": "fictional_excerpt_a",
+                "title": "Illustrative document excerpt A",
+                "url": null
+              }
+            ],
+            "compatibility": {
+              "device_model": "FICTIONAL laptop",
+              "notice": "Result is based on entered specifications. It does not prove actual device compatibility, product authenticity or purchase readiness.",
+              "product_authenticity_verified": false,
+              "purchase_allowed": false,
+              "reasons": [
+                "The entered charger output profile meets the entered voltage and power requirements.",
+                "The actual product, device charging behavior and evidence provenance remain unverified."
+              ],
+              "recommended_next_action": "Verify source specifications and merchant evidence.",
+              "specification_source_verified": false,
+              "status": "CONDITIONAL_SPEC_MATCH"
+            },
+            "evidence_gaps": [],
+            "notice": "Quotes and URLs were provided by the user and have not been fetched or independently authenticated. Product, seller, stock and safety remain unverified.",
+            "product_label": "65W USB-C PD charger",
+            "provenance": "USER_SUPPLIED_EXCERPTS_NOT_INDEPENDENTLY_VERIFIED",
+            "purchase_allowed": false,
+            "source_count": 1,
+            "status": "CONDITIONAL_SPEC_MATCH"
+          },
+          "sources_verified": false,
+          "stale_source_ids": []
+        },
+        "purchase_allowed": false,
+        "reason": "Merchant report is provisional; identity, compatibility and fulfillment remain unverified. EVSI provides a hypothetical ranking, not a real merchant confirmation.",
+        "recommended_next_action": "REVIEW_HYPOTHETICAL_VERIFY_fixture_store_a",
+        "snapshot_sha256": "499d5479af486c63c0c8a9a92fc5dc6dfce63fd1f221eee51e09462737f58d34",
+        "stock_independently_verified": false,
+        "synthetic_basket_scenario": {
+          "disclosure": "Only explicitly synthetic verified fixtures may be mathematically selected. Merchant-reported, document-sourced, or unknown stock is never accepted as independently verified. No purchase or reservation is performed.",
+          "mode": "EVIDENCE_SEPARATED_BASKET_SCENARIO_14A2",
+          "purchase_allowed": false,
+          "real_merchant_inventory_verified": false,
+          "scenario_status": "OPTIMAL",
+          "solver_engine": "EXACT_BOUNDED_ENUMERATOR",
+          "synthetic_optimum": {
+            "blocked_items": [],
+            "eligible_offer_count": 1,
+            "excluded_offers": [],
+            "mode": "SYNTHETIC_OPTIMIZATION",
+            "notice": "An exact optimal combination for the synthetic fixture; not real inventory.",
+            "reason": null,
+            "selected_offers": [
+              {
+                "delivery_eta_minutes": 10,
+                "evidence_source": "SIMULATION_VERIFIED",
+                "item_id": "charger",
+                "item_name": "Synthetic charger",
+                "line_total_minor": 60000,
+                "merchant": "SIMULATED fixture merchant",
+                "quantity": 1,
+                "sku": "simulation_verified_fixture",
+                "unit_price_minor": 60000
+              }
+            ],
+            "status": "OPTIMAL",
+            "totals": {
+              "budget_minor": 100000,
+              "fulfillment_fees_minor": 1000,
+              "remaining_minor": 39000,
+              "subtotal_minor": 60000,
+              "total_minor": 61000
+            },
+            "used_merchants": [
+              {
+                "fulfillment_fee_minor": 1000,
+                "name": "SIMULATED fixture merchant"
+              }
+            ]
+          },
+          "verification_backlog": []
+        },
+        "workflow_persisted": false,
+        "workflow_state": "PROVISIONAL_VERIFICATION_NEEDED",
+        "workflow_trace": [
+          {
+            "source": "CLIENT_SUPPLIED_MERCHANT_SNAPSHOT",
+            "stage": "MERCHANT_REPLAN_13B",
+            "state": "PROVISIONAL_OFFER_FOUND",
+            "status": "EVALUATED"
+          },
+          {
+            "source": "USER_SUPPLIED_EXCERPTS_UNVERIFIED",
+            "stage": "DOCUMENT_RETRIEVAL_13C2",
+            "state": "CONDITIONAL_SPEC_MATCH",
+            "status": "EVALUATED"
+          },
+          {
+            "source": "CLIENT_SUPPLIED_MODEL_ASSUMPTIONS",
+            "stage": "BAYES_EVSI_14A1",
+            "state": "HYPOTHETICAL_UNCALIBRATED",
+            "status": "EVALUATED"
+          },
+          {
+            "source": "SYNTHETIC_SCENARIO_ONLY",
+            "stage": "BASKET_OPTIMIZATION_14A2",
+            "state": "OPTIMAL",
+            "status": "EVALUATED"
+          },
+          {
+            "source": "SERVER_POLICY",
+            "stage": "POLICY_BOUNDARY",
+            "state": "NO_PURCHASE_AUTHORIZATION",
+            "status": "ENFORCED"
+          }
+        ]
+      }
+    },
+    "stockout": {
+      "business_context_is_derived_from_customer_journey": false,
+      "cloud_model_used": false,
+      "database_used": false,
+      "fixture_origin": "SERVER_OWNED_SYNTHETIC_NOT_REAL_MERCHANTS",
+      "journey_is_historical_verified_record": false,
+      "limitations": [
+        "All store names, stock, prices and document excerpts are deliberately fictional fixtures.",
+        "The orchestration calculations are real code on fictitious, unverified inputs.",
+        "Optional retail BI figures are illustrative aggregates unrelated to this customer journey.",
+        "EVSI results are hypothetical and uncalibrated; no observed purchase or savings.",
+        "This endpoint does not contact merchants, Gemini, Places, Firestore, BigQuery or payment systems.",
+        "No inventory is independently verified, no stock is reserved and no purchase can be authorized."
+      ],
+      "mode": "GUIDED_EVIDENCE_JOURNEY_16A",
+      "product": "65W USB-C PD charger",
+      "purchase_allowed": false,
+      "real_merchant_contact": false,
+      "scenario": "stockout",
+      "separate_illustrative_business_context": {
+        "as_of": "2026-10-17",
+        "bigquery_used": false,
+        "cloud_model_used": false,
+        "coverage": {
+          "available_modules": 4,
+          "missing_modules": [],
+          "supplied": {
+            "cohorts": true,
+            "forecast": true,
+            "inventory": true,
+            "verification": true
+          },
+          "total_modules": 4
+        },
+        "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+        "executive_summary": "4/4 analysis families represented; 5 follow-up review actions. All values are supplied summaries, not verified operational outcomes.",
+        "fraud_determined": false,
+        "independently_verified": false,
+        "individual_customer_data_returned": false,
+        "limitations": [
+          "All aggregates are caller-supplied summaries, even when their source chunk is named; the API does not recompute or authenticate the upstream calculations.",
+          "Synthetic demo inputs are labels supplied by the client and not evidence of production retail activity.",
+          "Forecasts are observed-sales proxies; inventory is unverified; associations are descriptive and do not imply sales uplift.",
+          "Priority levels are deterministic review heuristics, not calibrated risk, fraud prediction, EVSI, or financial value.",
+          "Missing analysis modules mean the command center is incomplete; no module silently becomes verified by aggregation.",
+          "No persistence, live BigQuery, Looker, POS or ERP feeds, merchant contact, stock confirmation, purchasing or restocking is performed."
+        ],
+        "metrics": [
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Caller-supplied forecast summary; not independently recomputed or true demand",
+            "key": "forecast_sales",
+            "label": "Projected observed sales",
+            "source_module": "14B.1",
+            "unit": "units",
+            "value": 53.4
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Caller-reported backtest error; not audited by this endpoint",
+            "key": "forecast_wape",
+            "label": "Reported backtest WAPE",
+            "source_module": "14B.1",
+            "unit": "%",
+            "value": 17.5
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Caller-reported stock figure; not physically verified",
+            "key": "on_hand",
+            "label": "Reported on-hand inventory",
+            "source_module": "14B.3",
+            "unit": "units",
+            "value": 25
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Sum of caller-supplied flagged categories; not fraud findings",
+            "key": "inventory_signals",
+            "label": "Reported inventory review signals",
+            "source_module": "14B.3",
+            "unit": "signals",
+            "value": 3
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "User-supplied lead-time scenario, not a replenishment order",
+            "key": "lead_gap",
+            "label": "Modeled lead-time shortfall",
+            "source_module": "14B.3",
+            "unit": "units",
+            "value": 14.6
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Count only; no individual identities or assignments",
+            "key": "cohort_profiles",
+            "label": "Anonymous aggregate profiles",
+            "source_module": "14B.2",
+            "unit": "profiles",
+            "value": 48
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Co-occurrences, not causal cross-sell uplift",
+            "key": "basket_rules",
+            "label": "Exploratory basket association rules",
+            "source_module": "14B.2",
+            "unit": "rules",
+            "value": 3
+          },
+          {
+            "data_origin": "CLIENT_LABELED_SYNTHETIC_DEMO",
+            "interpretation": "Caller-supplied verification backlog; not proof of live merchant contact",
+            "key": "pending_evidence",
+            "label": "Unresolved evidence items",
+            "source_module": "14A/13B",
+            "unit": "items",
+            "value": 2
+          }
+        ],
+        "mode": "AGGREGATE_BI_COMMAND_CENTER_14B4",
+        "purchase_allowed": false,
+        "review_queue": [
+          {
+            "key": "lead_time_gap",
+            "priority": 1,
+            "reason": "The supplied scenario estimates a positive unit shortfall; check live inventory and lead times",
+            "requires_human_verification": true,
+            "source_module": "14B.3",
+            "title": "Verify potential replenishment gap"
+          },
+          {
+            "key": "stock_reconciliation",
+            "priority": 1,
+            "reason": "Reported balance or continuity differences require reconciliation with source records",
+            "requires_human_verification": true,
+            "source_module": "14B.3",
+            "title": "Reconcile reported stock movements"
+          },
+          {
+            "key": "verification_backlog",
+            "priority": 1,
+            "reason": "Pending evidence or provisional candidates must not be treated as purchasable stock",
+            "requires_human_verification": true,
+            "source_module": "14A/13B",
+            "title": "Prioritize independent verification"
+          },
+          {
+            "key": "sales_anomalies",
+            "priority": 2,
+            "reason": "Review promotions, batch orders and data-entry errors before attributing cause",
+            "requires_human_verification": true,
+            "source_module": "14B.3",
+            "title": "Investigate unusual sales"
+          },
+          {
+            "key": "sales_censoring",
+            "priority": 2,
+            "reason": "Reported stockout days may hide unmet demand",
+            "requires_human_verification": true,
+            "source_module": "14B.1",
+            "title": "Review stockout-censored sales"
+          }
+        ],
+        "snapshot_age_days": 0,
+        "source_records_persisted": false
+      },
+      "source_records_persisted": false,
+      "stock_independently_verified": false,
+      "title": "A fictional merchant report changes from one unit to zero. The previously provisional candidate is excluded.",
+      "workflow": {
+        "change_detection": {
+          "changed": true,
+          "changes": [
+            {
+              "event": "CLIENT_EVIDENCE_CHANGED",
+              "place_id": "fixture_store_a"
+            }
+          ],
+          "comparison": "CLIENT_SUPPLIED_WHAT_IF_SNAPSHOTS"
+        },
+        "client_revision": 1,
+        "gemini_used": false,
+        "hypothetical_verification_plan": {
+          "actions": [
+            {
+              "action_id": "VERIFY_fixture_store_b",
+              "delay_cost_inr": "1.20",
+              "gross_evsi_inr": "197.60",
+              "merchant": "FICTIONAL Store B",
+              "net_evsi_inr": "191.40",
+              "p_fail": 0.28,
+              "p_no_response": 0.2,
+              "p_pass": 0.52,
+              "prior_feasible": 0.65,
+              "response_probability": 0.8,
+              "skip_reason": null,
+              "sku": "fixture_store_b",
+              "verification_cost_inr": "5.00"
+            },
+            {
+              "action_id": "VERIFY_fixture_store_a",
+              "gross_evsi_inr": "0.00",
+              "merchant": "FICTIONAL Store A",
+              "net_evsi_inr": "0.00",
+              "prior_feasible": 0.65,
+              "response_probability": 0.8,
+              "skip_reason": "REPORTED_STOCK_INSUFFICIENT",
+              "sku": "fixture_store_a"
+            }
+          ],
+          "assumptions": [
+            "Probabilities, detection characteristics and response rates are hypothetical, not measured or independently calibrated.",
+            "Multiple signals are conditionally independent ONLY under the hypothetical model.",
+            "Existing EVSI model assumes perfect complete verification on response and uses synthetic utility; reported claims do not satisfy that condition.",
+            "Merchant evidence and supplied document excerpts are not independent confirmation of stock, product compatibility or fulfillment.",
+            "No merchant was contacted or purchase authorized."
+          ],
+          "calibration_status": "UNCALIBRATED_USER_SUPPLIED_PRIORS_AND_LIKELIHOODS",
+          "current_verification_baseline": null,
+          "evidence_traces": [
+            {
+              "assumed_posterior": 0.65,
+              "assumed_prior": 0.65,
+              "blocked_reason": "REPORTED_STOCK_INSUFFICIENT",
+              "compatibility_status": "UNKNOWN",
+              "merchant": "FICTIONAL Store A",
+              "place_id": "fixture_store_a",
+              "price_provenance": "CLIENT_ESTIMATE_UNVERIFIED",
+              "quoted_total_minor": 72000,
+              "signals": [],
+              "source_reference_ids": []
+            },
+            {
+              "assumed_posterior": 0.65,
+              "assumed_prior": 0.65,
+              "blocked_reason": null,
+              "compatibility_status": "UNKNOWN",
+              "merchant": "FICTIONAL Store B",
+              "place_id": "fixture_store_b",
+              "price_provenance": "CLIENT_ESTIMATE_UNVERIFIED",
+              "quoted_total_minor": 82000,
+              "signals": [],
+              "source_reference_ids": []
+            }
+          ],
+          "mode": "CLIENT_EVIDENCE_HYPOTHETICAL_EVSI_14A1",
+          "no_merchant_contact_performed": true,
+          "purchase_allowed": false,
+          "recommended_action_id": "VERIFY_fixture_store_b",
+          "snapshot_replanning": {
+            "candidates": [
+              {
+                "evidence_gaps": [
+                  "COMPATIBILITY_NOT_INDEPENDENTLY_VERIFIED",
+                  "FULFILLMENT_FEES_NOT_CONFIRMED",
+                  "MERCHANT_IDENTITY_NOT_AUTHENTICATED"
+                ],
+                "name": "FICTIONAL Store A",
+                "place_id": "fixture_store_a",
+                "reasons": [
+                  "REPORTED_STOCK_INSUFFICIENT"
+                ],
+                "reported_subtotal_minor": 72000,
+                "status": "EXCLUDED"
+              },
+              {
+                "evidence_gaps": [
+                  "MERCHANT_NOT_CONTACTED"
+                ],
+                "name": "FICTIONAL Store B",
+                "place_id": "fixture_store_b",
+                "reasons": [],
+                "reported_subtotal_minor": null,
+                "status": "AWAITING_EVIDENCE"
+              }
+            ],
+            "decision_status": "NO_PROVISIONAL_OFFER",
+            "evaluated_at": "2026-10-17T00:00:00+00:00",
+            "mode": "CLIENT_SNAPSHOT_REPLANNING",
+            "notice": "The evaluator uses a client-provided snapshot of merchant-reported claims. No merchant identity, product compatibility, final delivery cost or actual inventory is independently authenticated.",
+            "purchase_allowed": false,
+            "recommended_next_action": "REQUEST_MERCHANT_RESPONSES",
+            "selected": null
+          },
+          "stopping_reason": null
+        },
+        "limitations": [
+          "This is a deterministic workflow, not autonomous external tool-using agents.",
+          "The snapshots and comparison history are client-supplied; no backend origin or tamper verification is performed.",
+          "Merchant reports and document excerpts are not independent proof of inventory or compatibility.",
+          "Bayesian likelihoods, response probabilities, and utility are hypothetical and not calibrated.",
+          "Basket optima refer only to separate synthetic fixtures, not confirmed purchasable offers.",
+          "No real merchant contacted, no stock reserved, no checkout or payment performed."
+        ],
+        "merchant_contact_performed": false,
+        "merchant_replanning": {
+          "candidates": [
+            {
+              "evidence_gaps": [
+                "COMPATIBILITY_NOT_INDEPENDENTLY_VERIFIED",
+                "FULFILLMENT_FEES_NOT_CONFIRMED",
+                "MERCHANT_IDENTITY_NOT_AUTHENTICATED"
+              ],
+              "name": "FICTIONAL Store A",
+              "place_id": "fixture_store_a",
+              "reasons": [
+                "REPORTED_STOCK_INSUFFICIENT"
+              ],
+              "reported_subtotal_minor": 72000,
+              "status": "EXCLUDED"
+            },
+            {
+              "evidence_gaps": [
+                "MERCHANT_NOT_CONTACTED"
+              ],
+              "name": "FICTIONAL Store B",
+              "place_id": "fixture_store_b",
+              "reasons": [],
+              "reported_subtotal_minor": null,
+              "status": "AWAITING_EVIDENCE"
+            }
+          ],
+          "decision_status": "NO_PROVISIONAL_OFFER",
+          "evaluated_at": "2026-10-17T00:00:00+00:00",
+          "mode": "CLIENT_SNAPSHOT_REPLANNING",
+          "notice": "The evaluator uses a client-provided snapshot of merchant-reported claims. No merchant identity, product compatibility, final delivery cost or actual inventory is independently authenticated.",
+          "purchase_allowed": false,
+          "recommended_next_action": "REQUEST_MERCHANT_RESPONSES",
+          "selected": null
+        },
+        "mode": "EVIDENCE_SEPARATED_ORCHESTRATION_14A3",
+        "product_research": {
+          "documents_supplied": 1,
+          "gemini_used": false,
+          "notice": "Retrieved text comes only from user-supplied, unverified excerpts. URLs were not fetched. AI-generated or quoted information is not merchant stock verification or purchase approval.",
+          "passages": [
+            {
+              "captured_at": "2026-10-17T00:00:00+00:00",
+              "citation_id": "fictional_excerpt_a:0",
+              "end": 17,
+              "quote": "USB PD supported.",
+              "retrieval_score": 2.03729,
+              "source_id": "fictional_excerpt_a",
+              "source_sha256": "aa8145cd10904edae13dccb340779951a5feba7dc19e550c92958121efad1fcc",
+              "start": 0,
+              "title": "Illustrative document excerpt A",
+              "url": null
+            },
+            {
+              "captured_at": "2026-10-17T00:00:00+00:00",
+              "citation_id": "fictional_excerpt_a:18",
+              "end": 36,
+              "quote": "Output 20V/3250mA.",
+              "retrieval_score": 1.05583,
+              "source_id": "fictional_excerpt_a",
+              "source_sha256": "aa8145cd10904edae13dccb340779951a5feba7dc19e550c92958121efad1fcc",
+              "start": 18,
+              "title": "Illustrative document excerpt A",
+              "url": null
+            },
+            {
+              "captured_at": "2026-10-17T00:00:00+00:00",
+              "citation_id": "fictional_excerpt_a:37",
+              "end": 52,
+              "quote": "Cable 5A rated.",
+              "retrieval_score": 1.04493,
+              "source_id": "fictional_excerpt_a",
+              "source_sha256": "aa8145cd10904edae13dccb340779951a5feba7dc19e550c92958121efad1fcc",
+              "start": 37,
+              "title": "Illustrative document excerpt A",
+              "url": null
+            }
+          ],
+          "purchase_allowed": false,
+          "retrieval_method": "LOCAL_BM25_CHAR_TRIGRAM_NO_EMBEDDINGS",
+          "review": {
+            "cited_facts": [
+              {
+                "captured_at": "2026-10-17T00:00:00+00:00",
+                "kind": "USB_PD_SUPPORT",
+                "quote": "USB PD supported",
+                "source_id": "fictional_excerpt_a",
+                "title": "Illustrative document excerpt A",
+                "url": null
+              },
+              {
+                "captured_at": "2026-10-17T00:00:00+00:00",
+                "kind": "OUTPUT_PROFILE",
+                "quote": "Output 20V/3250mA",
+                "source_id": "fictional_excerpt_a",
+                "title": "Illustrative document excerpt A",
+                "url": null
+              },
+              {
+                "captured_at": "2026-10-17T00:00:00+00:00",
+                "kind": "CABLE_CURRENT_RATING",
+                "quote": "Cable 5A",
+                "source_id": "fictional_excerpt_a",
+                "title": "Illustrative document excerpt A",
+                "url": null
+              }
+            ],
+            "compatibility": {
+              "device_model": "FICTIONAL laptop",
+              "notice": "Result is based on entered specifications. It does not prove actual device compatibility, product authenticity or purchase readiness.",
+              "product_authenticity_verified": false,
+              "purchase_allowed": false,
+              "reasons": [
+                "The entered charger output profile meets the entered voltage and power requirements.",
+                "The actual product, device charging behavior and evidence provenance remain unverified."
+              ],
+              "recommended_next_action": "Verify source specifications and merchant evidence.",
+              "specification_source_verified": false,
+              "status": "CONDITIONAL_SPEC_MATCH"
+            },
+            "evidence_gaps": [],
+            "notice": "Quotes and URLs were provided by the user and have not been fetched or independently authenticated. Product, seller, stock and safety remain unverified.",
+            "product_label": "65W USB-C PD charger",
+            "provenance": "USER_SUPPLIED_EXCERPTS_NOT_INDEPENDENTLY_VERIFIED",
+            "purchase_allowed": false,
+            "source_count": 1,
+            "status": "CONDITIONAL_SPEC_MATCH"
+          },
+          "sources_verified": false,
+          "stale_source_ids": []
+        },
+        "purchase_allowed": false,
+        "reason": "No merchant can be treated as a confirmed fulfillment option from the supplied evidence. EVSI provides a hypothetical ranking, not a real merchant confirmation.",
+        "recommended_next_action": "REVIEW_HYPOTHETICAL_VERIFY_fixture_store_b",
+        "snapshot_sha256": "ec271f5456f3f9a9981494b48dd7f0656f8033d0a6ab3c376183adaf4f7553e0",
+        "stock_independently_verified": false,
+        "synthetic_basket_scenario": {
+          "disclosure": "Only explicitly synthetic verified fixtures may be mathematically selected. Merchant-reported, document-sourced, or unknown stock is never accepted as independently verified. No purchase or reservation is performed.",
+          "mode": "EVIDENCE_SEPARATED_BASKET_SCENARIO_14A2",
+          "purchase_allowed": false,
+          "real_merchant_inventory_verified": false,
+          "scenario_status": "OPTIMAL",
+          "solver_engine": "EXACT_BOUNDED_ENUMERATOR",
+          "synthetic_optimum": {
+            "blocked_items": [],
+            "eligible_offer_count": 1,
+            "excluded_offers": [],
+            "mode": "SYNTHETIC_OPTIMIZATION",
+            "notice": "An exact optimal combination for the synthetic fixture; not real inventory.",
+            "reason": null,
+            "selected_offers": [
+              {
+                "delivery_eta_minutes": 10,
+                "evidence_source": "SIMULATION_VERIFIED",
+                "item_id": "charger",
+                "item_name": "Synthetic charger",
+                "line_total_minor": 60000,
+                "merchant": "SIMULATED fixture merchant",
+                "quantity": 1,
+                "sku": "simulation_verified_fixture",
+                "unit_price_minor": 60000
+              }
+            ],
+            "status": "OPTIMAL",
+            "totals": {
+              "budget_minor": 100000,
+              "fulfillment_fees_minor": 1000,
+              "remaining_minor": 39000,
+              "subtotal_minor": 60000,
+              "total_minor": 61000
+            },
+            "used_merchants": [
+              {
+                "fulfillment_fee_minor": 1000,
+                "name": "SIMULATED fixture merchant"
+              }
+            ]
+          },
+          "verification_backlog": []
+        },
+        "workflow_persisted": false,
+        "workflow_state": "MORE_EVIDENCE_NEEDED",
+        "workflow_trace": [
+          {
+            "source": "CLIENT_SUPPLIED_MERCHANT_SNAPSHOT",
+            "stage": "MERCHANT_REPLAN_13B",
+            "state": "NO_PROVISIONAL_OFFER",
+            "status": "EVALUATED"
+          },
+          {
+            "source": "USER_SUPPLIED_EXCERPTS_UNVERIFIED",
+            "stage": "DOCUMENT_RETRIEVAL_13C2",
+            "state": "CONDITIONAL_SPEC_MATCH",
+            "status": "EVALUATED"
+          },
+          {
+            "source": "CLIENT_SUPPLIED_MODEL_ASSUMPTIONS",
+            "stage": "BAYES_EVSI_14A1",
+            "state": "HYPOTHETICAL_UNCALIBRATED",
+            "status": "EVALUATED"
+          },
+          {
+            "source": "SYNTHETIC_SCENARIO_ONLY",
+            "stage": "BASKET_OPTIMIZATION_14A2",
+            "state": "OPTIMAL",
+            "status": "EVALUATED"
+          },
+          {
+            "source": "SERVER_POLICY",
+            "stage": "POLICY_BOUNDARY",
+            "state": "NO_PURCHASE_AUTHORIZATION",
+            "status": "ENFORCED"
+          }
+        ]
+      }
+    }
+  },
+  "source": "ACTUAL_LOCAL_16A_EVALUATOR",
+  "synthetic": true
+}

@@ -75,6 +75,7 @@ const RetailInsights14B2 = lazy(() => import("./components/RetailInsights14B2"))
 const InventoryReview14B3 = lazy(() => import("./components/InventoryReview14B3"));
 const BusinessCommandCenter14B4 = lazy(() => import("./components/BusinessCommandCenter14B4"));
 const GuidedJourney16A = lazy(() => import("./components/GuidedJourney16A"));
+const JudgeReplay16C2 = lazy(() => import("./components/JudgeReplay16C2"));
 
 type ExtractedIntent = {
   requested_product: string;
@@ -690,6 +691,7 @@ Customer request: ${JSON.stringify(submittedText)}
           Workspace
         </p>
         <nav aria-label="Showcase workspace" className="space-y-2">
+          <a href="#judge-replay-16c2" className="block rounded-lg border border-emerald-500/50 bg-emerald-900/20 px-3 py-3 text-xs font-bold text-emerald-200">Start guided demo</a>
           <a href="#real-store-discovery" className="block rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-3 text-xs text-sky-300">Discover Real Stores</a>
           {evidence13bEnabled && <a href="#merchant-evidence-desk" className="block rounded-lg border border-sky-500/20 px-3 py-3 text-xs text-sky-300">Merchant Desk</a>}
           <a href="#evidence-workbench" className="flex items-center rounded-lg border border-sky-500/25 bg-sky-500/5 px-3 py-3 text-xs text-sky-200 hover:bg-sky-500/10">Evidence Intelligence</a>
@@ -759,8 +761,9 @@ Customer request: ${JSON.stringify(submittedText)}
         <div className="mx-auto flex max-w-[1380px] flex-col gap-5 px-4 py-5 sm:px-6">
           <nav
             aria-label="Mobile showcase navigation"
-            className="flex gap-2 lg:hidden"
+            className="flex gap-2 overflow-x-auto pb-2 lg:hidden"
           >
+            <a href="#judge-replay-16c2" className="shrink-0 rounded-lg border border-emerald-600 bg-emerald-900/30 px-3 py-2 text-xs font-bold text-emerald-200">Guided demo</a>
             <a href="#real-store-discovery" className="shrink-0 rounded-lg border border-sky-500/25 px-3 py-2 text-xs text-sky-200">Real Stores</a>
             {evidence13bEnabled && <a href="#merchant-evidence-desk" className="shrink-0 rounded-lg border border-sky-500/25 px-3 py-2 text-xs text-sky-200">Merchant Desk</a>}
             <a href="#evidence-workbench" className="shrink-0 rounded-lg border border-sky-500/30 bg-sky-500/5 px-3 py-2 text-xs text-sky-200">Evidence Lab</a>
@@ -796,6 +799,10 @@ Customer request: ${JSON.stringify(submittedText)}
               merchant decision scenario.
             </p>
           </div>
+
+          <Suspense fallback={<p role="status" className="rounded-lg p-4 text-sm text-slate-400">Loading the fictional guided demo...</p>}>
+            <JudgeReplay16C2 />
+          </Suspense>
 
           <DecisionSpotlight
             hasIntent={intent !== null}

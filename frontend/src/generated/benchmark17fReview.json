@@ -1,0 +1,43 @@
+{
+  "schema": "NEEDPROOF_17G_PUBLISHED_SYNTHETIC_BENCHMARK_V1",
+  "origin": "17F Python benchmark, authored fictional inputs and authored expected labels",
+  "source_commit": "4874ff7",
+  "dataset_size": 40,
+  "dataset_sha256": "ed65bfad46293b37d2494f40f1da61d328acfed909af9e816299942e64510414",
+  "semantic_results_sha256": "e7130712ee91db13b8dba0a10b7ec88c97f5d85ce24c812002f6352ebedc1da1",
+  "independent_ground_truth": false,
+  "live_gemini_tested": false,
+  "real_merchants_contacted": false,
+  "observed_real_customer_outcomes": false,
+  "policies": [
+    {
+      "id": "NEEDPROOF_17E",
+      "label": "NeedProof AI",
+      "correct": 40,
+      "first_checks_correct": 40,
+      "unsafe_provisional": 0
+    },
+    {
+      "id": "PRICE_ONLY",
+      "label": "Price only",
+      "correct": 25,
+      "first_checks_correct": 25,
+      "unsafe_provisional": 15
+    },
+    {
+      "id": "STOCK_AND_BUDGET",
+      "label": "Stock + budget",
+      "correct": 33,
+      "first_checks_correct": 33,
+      "unsafe_provisional": 7
+    },
+    {
+      "id": "STRUCTURED_EVIDENCE_RULES",
+      "label": "Structured evidence rules",
+      "correct": 40,
+      "first_checks_correct": 40,
+      "unsafe_provisional": 0
+    }
+  ],
+  "limitation": "NeedProof ties strong structured rules (40/40). These authored cases prove no superiority over the strong baseline or real-world impact."
+}

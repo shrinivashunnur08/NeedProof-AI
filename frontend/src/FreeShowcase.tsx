@@ -77,6 +77,7 @@ const InventoryReview14B3 = lazy(() => import("./components/InventoryReview14B3"
 const BusinessCommandCenter14B4 = lazy(() => import("./components/BusinessCommandCenter14B4"));
 const GuidedJourney16A = lazy(() => import("./components/GuidedJourney16A"));
 const JudgeReplay16C2 = lazy(() => import("./components/JudgeReplay16C2"));
+const FreshDecision17C = lazy(() => import("./components/FreshDecision17C"));
 
 type ExtractedIntent = {
   requested_product: string;
@@ -838,6 +839,12 @@ Customer request: ${JSON.stringify(submittedText)}
           <Suspense fallback={<p role="status" className="rounded-lg p-4 text-sm text-slate-400">Loading the fictional guided demo...</p>}>
             <JudgeReplay16C2 />
           </Suspense>
+
+          {(import.meta.env.DEV || import.meta.env.VITE_NP17C_CLOUD_ENABLED === "true") && (
+            <Suspense fallback={<p role="status" className="text-xs text-slate-400">Loading fresh decision interface…</p>}>
+              <FreshDecision17C />
+            </Suspense>
+          )}
 
           <DecisionSpotlight
             hasIntent={intent !== null}

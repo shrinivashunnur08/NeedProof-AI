@@ -22,6 +22,7 @@ from app.api.merchant_onboarding import router as onboarding_router
 from app.api.transactions import router as transactions_router
 from app.api.benchmarks import router as benchmarks_router
 from app.api.journey import router as journey_router
+from app.fresh_journey_17c import FreshJourney17C, evaluate_fresh_journey_17c
 app = FastAPI(
     title="NeedProof AI API",
     description="Evidence-driven commerce intelligence",
@@ -103,6 +104,22 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
+
+
+@app.post("/api/v1/demo/fresh-journey")
+def local_fresh_journey_17c(payload: FreshJourney17C, request: Request):
+    """LOCAL ONLY. Never available to a remote client or production instance.
+
+    Use `uvicorn app.main:app --host 127.0.0.1 --port 8000` plus explicit
+    NEEDPROOF_17C_LOCAL_ENABLED=true. Do not expose this dev app on 0.0.0.0.
+    """
+    enabled = os.environ.get("NEEDPROOF_17C_LOCAL_ENABLED", "false").strip().lower() == "true"
+    production = (os.environ.get("ENVIRONMENT", "").strip().lower() == "production"
+                  or get_settings().environment == "production")
+    local_client = request.client is not None and request.client.host in {"127.0.0.1", "::1"}
+    if not enabled or production or not local_client:
+        raise HTTPException(status_code=403, detail="Local development route unavailable")
+    return JSONResponse(evaluate_fresh_journey_17c(payload), headers={"Cache-Control": "no-store"})
 
 
 @app.get("/api/health")

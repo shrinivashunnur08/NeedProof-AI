@@ -27,6 +27,7 @@ from app.inventory_intelligence_14b3 import InventoryInput14B3, evaluate_invento
 from app.bi_command_center_14b4 import BIInput14B4, evaluate_bi_command_center_14b4
 from app.api_guard_15a import BoundedAPIGuard15A
 from app.guided_journey_16a import GuidedJourneyInput16A, evaluate_guided_journey_16a
+from app.fresh_journey_17c import FreshJourney17C, evaluate_fresh_journey_17c
 from app.config import get_settings
 from app.schemas.intent import IntentRequest, IntentAnalysisResponse
 from app.services.intent_service import (
@@ -153,6 +154,15 @@ def extract_intent_17b(
     except (IntentModelError, IntentOutputError) as exc:
         # Errors contain no model response body or untrusted customer text.
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.post("/api/v1/demo/fresh-journey")
+def fresh_journey_17c(payload: FreshJourney17C, user_id: Identity, response: Response):
+    """Firebase-protected what-if endpoint; OFF unless explicitly enabled."""
+    response.headers["Cache-Control"] = "no-store"
+    if os.environ.get("FRESH_JOURNEY_17C_ENABLED", "false").strip().lower() != "true":
+        raise HTTPException(status_code=503, detail="Fresh what-if journey is disabled")
+    return evaluate_fresh_journey_17c(payload)
 
 
 @app.post("/api/v1/demo/guided-journey")

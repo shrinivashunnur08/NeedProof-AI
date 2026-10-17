@@ -167,3 +167,8 @@ export async function requestCloudVerificationPlan(
   }
   return body as CloudVerificationPlan;
 }
+
+// 17C: same Firebase Auth + App Check flow used by every protected cloud action.
+export function requestCloudFreshJourney17C(payload: unknown, signal?: AbortSignal): Promise<unknown> {
+  return authorizedPost("/api/v1/demo/fresh-journey", payload, signal);
+}

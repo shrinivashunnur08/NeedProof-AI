@@ -1,0 +1,721 @@
+{
+  "provenance": "AUTHOR_CREATED_FICTIONAL_18A",
+  "purpose": "Offline local validation only. No real customer, merchant or independent ground truth.",
+  "cases": [
+    {
+      "id": "P01",
+      "category": "within_budget_report",
+      "input": {
+        "product_query": "65W USB-C PD charger",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 500,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "PROVISIONAL_VERIFICATION_NEEDED"
+      }
+    },
+    {
+      "id": "P02",
+      "category": "within_budget_report",
+      "input": {
+        "product_query": "USB C laptop charger",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 543,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "PROVISIONAL_VERIFICATION_NEEDED"
+      }
+    },
+    {
+      "id": "P03",
+      "category": "within_budget_report",
+      "input": {
+        "product_query": "Wireless office mouse",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 586,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "PROVISIONAL_VERIFICATION_NEEDED"
+      }
+    },
+    {
+      "id": "P04",
+      "category": "within_budget_report",
+      "input": {
+        "product_query": "Mechanical keyboard",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 629,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "PROVISIONAL_VERIFICATION_NEEDED"
+      }
+    },
+    {
+      "id": "P05",
+      "category": "within_budget_report",
+      "input": {
+        "product_query": "Compact laptop stand",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 672,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "PROVISIONAL_VERIFICATION_NEEDED"
+      }
+    },
+    {
+      "id": "P06",
+      "category": "within_budget_report",
+      "input": {
+        "product_query": "Electric kettle 1 litre",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 715,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "PROVISIONAL_VERIFICATION_NEEDED"
+      }
+    },
+    {
+      "id": "P07",
+      "category": "within_budget_report",
+      "input": {
+        "product_query": "Travel power adapter",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 758,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "PROVISIONAL_VERIFICATION_NEEDED"
+      }
+    },
+    {
+      "id": "P08",
+      "category": "within_budget_report",
+      "input": {
+        "product_query": "USB-C charging cable",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 801,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "PROVISIONAL_VERIFICATION_NEEDED"
+      }
+    },
+    {
+      "id": "P09",
+      "category": "within_budget_report",
+      "input": {
+        "product_query": "Noise reducing headphones",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 844,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "PROVISIONAL_VERIFICATION_NEEDED"
+      }
+    },
+    {
+      "id": "P10",
+      "category": "within_budget_report",
+      "input": {
+        "product_query": "Portable SSD storage",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 887,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "PROVISIONAL_VERIFICATION_NEEDED"
+      }
+    },
+    {
+      "id": "B01",
+      "category": "over_budget_report",
+      "input": {
+        "product_query": "65W USB-C PD charger",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 1050,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "MORE_EVIDENCE_NEEDED"
+      }
+    },
+    {
+      "id": "B02",
+      "category": "over_budget_report",
+      "input": {
+        "product_query": "USB C laptop charger",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 1120,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "MORE_EVIDENCE_NEEDED"
+      }
+    },
+    {
+      "id": "B03",
+      "category": "over_budget_report",
+      "input": {
+        "product_query": "Wireless office mouse",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 1190,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "MORE_EVIDENCE_NEEDED"
+      }
+    },
+    {
+      "id": "B04",
+      "category": "over_budget_report",
+      "input": {
+        "product_query": "Mechanical keyboard",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 1260,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "MORE_EVIDENCE_NEEDED"
+      }
+    },
+    {
+      "id": "B05",
+      "category": "over_budget_report",
+      "input": {
+        "product_query": "Compact laptop stand",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 1330,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "MORE_EVIDENCE_NEEDED"
+      }
+    },
+    {
+      "id": "B06",
+      "category": "over_budget_report",
+      "input": {
+        "product_query": "Electric kettle 1 litre",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 1400,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "MORE_EVIDENCE_NEEDED"
+      }
+    },
+    {
+      "id": "B07",
+      "category": "over_budget_report",
+      "input": {
+        "product_query": "Travel power adapter",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 1470,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "MORE_EVIDENCE_NEEDED"
+      }
+    },
+    {
+      "id": "B08",
+      "category": "over_budget_report",
+      "input": {
+        "product_query": "USB-C charging cable",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 1540,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "MORE_EVIDENCE_NEEDED"
+      }
+    },
+    {
+      "id": "S01",
+      "category": "reported_stockout",
+      "input": {
+        "product_query": "65W USB-C PD charger",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 500,
+        "simulated_report": "stockout",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "MORE_EVIDENCE_NEEDED"
+      }
+    },
+    {
+      "id": "S02",
+      "category": "reported_stockout",
+      "input": {
+        "product_query": "USB C laptop charger",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 532,
+        "simulated_report": "stockout",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "MORE_EVIDENCE_NEEDED"
+      }
+    },
+    {
+      "id": "S03",
+      "category": "reported_stockout",
+      "input": {
+        "product_query": "Wireless office mouse",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 564,
+        "simulated_report": "stockout",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "MORE_EVIDENCE_NEEDED"
+      }
+    },
+    {
+      "id": "S04",
+      "category": "reported_stockout",
+      "input": {
+        "product_query": "Mechanical keyboard",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 596,
+        "simulated_report": "stockout",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "MORE_EVIDENCE_NEEDED"
+      }
+    },
+    {
+      "id": "S05",
+      "category": "reported_stockout",
+      "input": {
+        "product_query": "Compact laptop stand",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 628,
+        "simulated_report": "stockout",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "MORE_EVIDENCE_NEEDED"
+      }
+    },
+    {
+      "id": "S06",
+      "category": "reported_stockout",
+      "input": {
+        "product_query": "Electric kettle 1 litre",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 660,
+        "simulated_report": "stockout",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "MORE_EVIDENCE_NEEDED"
+      }
+    },
+    {
+      "id": "S07",
+      "category": "reported_stockout",
+      "input": {
+        "product_query": "Travel power adapter",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 692,
+        "simulated_report": "stockout",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "MORE_EVIDENCE_NEEDED"
+      }
+    },
+    {
+      "id": "S08",
+      "category": "reported_stockout",
+      "input": {
+        "product_query": "USB-C charging cable",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 724,
+        "simulated_report": "stockout",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "MORE_EVIDENCE_NEEDED"
+      }
+    },
+    {
+      "id": "N01",
+      "category": "no_merchant",
+      "input": {
+        "product_query": "65W USB-C PD charger",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 700,
+        "simulated_report": "no_merchants",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "DISCOVERY_NEEDED"
+      }
+    },
+    {
+      "id": "N02",
+      "category": "no_merchant",
+      "input": {
+        "product_query": "USB C laptop charger",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 730,
+        "simulated_report": "no_merchants",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "DISCOVERY_NEEDED"
+      }
+    },
+    {
+      "id": "N03",
+      "category": "no_merchant",
+      "input": {
+        "product_query": "Wireless office mouse",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 760,
+        "simulated_report": "no_merchants",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "DISCOVERY_NEEDED"
+      }
+    },
+    {
+      "id": "N04",
+      "category": "no_merchant",
+      "input": {
+        "product_query": "Mechanical keyboard",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 790,
+        "simulated_report": "no_merchants",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "DISCOVERY_NEEDED"
+      }
+    },
+    {
+      "id": "N05",
+      "category": "no_merchant",
+      "input": {
+        "product_query": "Compact laptop stand",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 820,
+        "simulated_report": "no_merchants",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "DISCOVERY_NEEDED"
+      }
+    },
+    {
+      "id": "N06",
+      "category": "no_merchant",
+      "input": {
+        "product_query": "Electric kettle 1 litre",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 850,
+        "simulated_report": "no_merchants",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "state": "DISCOVERY_NEEDED"
+      }
+    },
+    {
+      "id": "C01",
+      "category": "conflicting_opt_in_fictional_documents",
+      "input": {
+        "product_query": "65W USB-C PD charger for laptop type 1",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 799,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "conflicting_fixtures"
+      },
+      "expect": {
+        "state": "RESEARCH_CONFLICT"
+      }
+    },
+    {
+      "id": "C02",
+      "category": "conflicting_opt_in_fictional_documents",
+      "input": {
+        "product_query": "65W USB-C PD charger for laptop type 2",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 849,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "conflicting_fixtures"
+      },
+      "expect": {
+        "state": "RESEARCH_CONFLICT"
+      }
+    },
+    {
+      "id": "C03",
+      "category": "conflicting_opt_in_fictional_documents",
+      "input": {
+        "product_query": "65W USB-C PD charger for laptop type 3",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 899,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "conflicting_fixtures"
+      },
+      "expect": {
+        "state": "RESEARCH_CONFLICT"
+      }
+    },
+    {
+      "id": "R01",
+      "category": "synthetic_stockout_revision",
+      "input": {
+        "product_query": "65W USB-C PD charger",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 899,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "fictional_merchant_update_17e": "stockout_after_report"
+      },
+      "expect": {
+        "state": "MORE_EVIDENCE_NEEDED"
+      }
+    },
+    {
+      "id": "R02",
+      "category": "synthetic_restock_revision",
+      "input": {
+        "product_query": "65W USB-C PD charger",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 899,
+        "simulated_report": "stockout",
+        "simulation_acknowledged": true,
+        "fictional_merchant_update_17e": "restock_after_stockout"
+      },
+      "expect": {
+        "state": "PROVISIONAL_VERIFICATION_NEEDED"
+      }
+    },
+    {
+      "id": "X01",
+      "category": "invalid_forged_or_out_of_bounds",
+      "input": {
+        "product_query": "65W USB-C PD charger",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 899,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": false
+      },
+      "expect": {
+        "validation_error": true
+      }
+    },
+    {
+      "id": "X02",
+      "category": "invalid_forged_or_out_of_bounds",
+      "input": {
+        "product_query": "65W USB-C PD charger",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": -10,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "validation_error": true
+      }
+    },
+    {
+      "id": "X03",
+      "category": "invalid_forged_or_out_of_bounds",
+      "input": {
+        "product_query": "65W USB-C PD charger",
+        "budget_inr": "1000",
+        "location_note": "Thane",
+        "reported_price_inr": 899,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "validation_error": true
+      }
+    },
+    {
+      "id": "X04",
+      "category": "invalid_forged_or_out_of_bounds",
+      "input": {
+        "product_query": "65W USB-C PD charger",
+        "budget_inr": true,
+        "location_note": "Thane",
+        "reported_price_inr": 899,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "validation_error": true
+      }
+    },
+    {
+      "id": "X05",
+      "category": "invalid_forged_or_out_of_bounds",
+      "input": {
+        "product_query": "65W USB-C PD charger",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 899,
+        "simulated_report": "merchant_verified",
+        "simulation_acknowledged": true
+      },
+      "expect": {
+        "validation_error": true
+      }
+    },
+    {
+      "id": "X06",
+      "category": "invalid_forged_or_out_of_bounds",
+      "input": {
+        "product_query": "65W USB-C PD charger",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 899,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "verified_by_merchant": true
+      },
+      "expect": {
+        "validation_error": true
+      }
+    },
+    {
+      "id": "X07",
+      "category": "invalid_forged_or_out_of_bounds",
+      "input": {
+        "product_query": "65W USB-C PD charger",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 899,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "actual_seller_document"
+      },
+      "expect": {
+        "validation_error": true
+      }
+    },
+    {
+      "id": "X08",
+      "category": "invalid_forged_or_out_of_bounds",
+      "input": {
+        "product_query": "USB cable",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 899,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "conflicting_fixtures"
+      },
+      "expect": {
+        "validation_error": true
+      }
+    },
+    {
+      "id": "X09",
+      "category": "invalid_forged_or_out_of_bounds",
+      "input": {
+        "product_query": "65W USB-C PD charger",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 899,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "fictional_merchant_update_17e": "restock_after_stockout"
+      },
+      "expect": {
+        "validation_error": true
+      }
+    },
+    {
+      "id": "X10",
+      "category": "invalid_forged_or_out_of_bounds",
+      "input": {
+        "product_query": "65W USB-C PD charger",
+        "budget_inr": 1000,
+        "location_note": "Thane",
+        "reported_price_inr": 899,
+        "simulated_report": "no_merchants",
+        "simulation_acknowledged": true,
+        "fictional_merchant_update_17e": "stockout_after_report"
+      },
+      "expect": {
+        "validation_error": true
+      }
+    }
+  ]
+}

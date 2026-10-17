@@ -17,6 +17,13 @@ const SAMPLE_PROMPTS: Record<string, string[]> = {
   mumbai: ["मुझे आज ₹1000 के अंदर 65W USB-C PD लैपटॉप चार्जर चाहिए", "Need a 65W USB-C charger under ₹1,000 today"],
 };
 const PERSONA: Record<string, string> = { singapore: "Maya", "sao-paulo": "Lucas", mumbai: "Asha" };
+const SAMPLE_PHOTOS = [
+  { file: "1_charger_65w_correct.jpg", label: "65W charger" },
+  { file: "2_charger_45w_wrong_wattage.jpg", label: "45W charger" },
+  { file: "3_fake_brand_appel.jpg", label: "Fake brand" },
+  { file: "4_mixer_grinder_wrong_item.jpg", label: "Mixer" },
+  { file: "5_cable_not_charger.jpg", label: "Cable" },
+];
 const BRIEF_LANGS = [
   { id: "en", label: "English" }, { id: "zh", label: "中文" }, { id: "pt", label: "Português" }, { id: "hi", label: "हिन्दी" },
 ];
@@ -122,6 +129,7 @@ function RequestTracker({ requestId }: { requestId: number }) {
             </div>
             {r.check_result.issues.length > 0 && <p className="mt-1 text-xs text-rose-300">{r.check_result.issues.join(" · ")}</p>}
             {r.check_result.matches.length > 0 && <p className="mt-1 text-xs text-emerald-300">{r.check_result.matches.join(" · ")}</p>}
+            {(r.check_result.cautions ?? []).length > 0 && <p className="mt-1 text-xs text-amber-200">{(r.check_result.cautions ?? []).join(" · ")}</p>}
           </li>
         ))}
       </ul>
@@ -238,6 +246,14 @@ function ReplyForm({ req, shopId, onDone }: { req: LoopRequest; shopId: string; 
     try { setPhoto(await photoToBase64(file)); setError(""); } catch (e) { setError(e instanceof Error ? e.message : "Could not read photo"); }
   }
 
+  async function loadSample(file: string) {
+    try {
+      const blob = await fetch(`/samples/${file}`).then((r) => r.blob());
+      setPhoto(await photoToBase64(new File([blob], file, { type: blob.type || "image/jpeg" })));
+      setError("");
+    } catch { setError("Could not load the sample photo"); }
+  }
+
   async function submit() {
     setBusy(true); setError("");
     try {
@@ -267,6 +283,12 @@ function ReplyForm({ req, shopId, onDone }: { req: LoopRequest; shopId: string; 
           {photo ? "Change photo" : "Send a shelfie: photo of the box or label"}
           <input id={`${id}-photo`} type="file" accept="image/*" capture="environment" className="sr-only" onChange={(e) => void onFile(e.target.files?.[0])} />
         </label>
+        <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
+          <span>Or try a sample:</span>
+          {SAMPLE_PHOTOS.map((p) => (
+            <button key={p.file} type="button" onClick={() => void loadSample(p.file)} className="rounded-full border border-slate-600 px-2 py-0.5 text-slate-200 hover:border-teal-400">{p.label}</button>
+          ))}
+        </div>
         {photo && <img src={photo.preview} alt="Photo to send" className="max-h-40 rounded-lg object-contain" />}
         <button type="button" onClick={() => void submit()} disabled={busy || !photo} className="rounded-lg bg-teal-500 px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-40">
           {busy ? "Gemini is reading the photo…" : photo ? "Send photo proof" : "Add a photo to send proof"}
@@ -279,6 +301,7 @@ function ReplyForm({ req, shopId, onDone }: { req: LoopRequest; shopId: string; 
           {result.check.matches.length > 0 && <p className="mt-2 text-xs text-emerald-300">✓ {result.check.matches.join(" · ")}</p>}
           {result.check.issues.length > 0 && <p className="mt-1 text-xs text-rose-300">✗ {result.check.issues.join(" · ")}</p>}
           {result.check.missing.length > 0 && <p className="mt-1 text-xs text-amber-200">? {result.check.missing.join(" · ")}</p>}
+          {(result.check.cautions ?? []).length > 0 && <p className="mt-1 text-xs text-amber-200">! {(result.check.cautions ?? []).join(" · ")}</p>}
           <div className="mt-2"><ClaimTable claim={result.claim} /></div>
           <p className="mt-2 text-[11px] text-slate-500">AI-read shop evidence. Stronger than a listing, still not independent verification.</p>
         </div>

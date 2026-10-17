@@ -155,6 +155,19 @@ def test_wrong_item_type_is_rejected_even_if_watts_are_higher():
     assert check_photo(req, sneaky, 49)["status"] == "PHOTO_CONFLICTS_WITH_REQUEST"
 
 
+def test_not_visible_details_are_cautions_not_conflicts():
+    req = {"product": "65W USB-C PD charger", "specs": {"wattage_w": 65, "connector": "USB-C"}, "budget": 60}
+    generic = PhotoClaim(is_product_photo=True, product_category="laptop charger", is_requested_item_type=True,
+                         wattage_w=65, connector="USB-C",
+                         concerns=["missing brand name", "missing safety marks", "missing model number"])
+    out = check_photo(req, generic, 40)
+    assert out["status"] == "PHOTO_MATCHES_REQUEST"
+    assert len(out["cautions"]) >= 3 and not out["issues"]
+    fake = PhotoClaim(is_product_photo=True, product_category="charger", wattage_w=65, connector="USB-C",
+                      concerns=["Brand printed as 'Appel'"])
+    assert check_photo(req, fake, 40)["status"] == "PHOTO_CONFLICTS_WITH_REQUEST"
+
+
 def test_check_photo_rules():
     req = {"specs": {"wattage_w": 65, "connector": "USB-C", "usb_pd": True}, "budget": 60}
     ok = check_photo(req, PhotoClaim(is_product_photo=True, wattage_w=65, connector="USB-C", usb_pd=True), 49)

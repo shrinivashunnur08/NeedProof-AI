@@ -16,7 +16,7 @@ export type ChatResult = {
   reply: string; mode: string; model: { latency_ms?: number; model?: string; backend?: string; error?: string };
   trace: TraceStep[]; offers: Offer[]; request: { id: number; shops_notified: number } | null;
 };
-export type PhotoCheck = { status: string; issues: string[]; missing: string[]; matches: string[] };
+export type PhotoCheck = { status: string; issues: string[]; missing: string[]; matches: string[]; cautions?: string[] };
 export type ShopResponse = {
   id: number; shop_id: string; shop_name: string; price: number | null; status: string;
   claim: Record<string, unknown>; check_result: PhotoCheck; created_at: string;

@@ -673,75 +673,101 @@ Customer request: ${JSON.stringify(submittedText)}
 
   return (
     <div className="min-h-dvh bg-[#080B12] text-slate-100 lg:flex">
-      <aside className="hidden w-[240px] shrink-0 flex-col border-r border-[#263247] bg-[#0D121C] px-4 py-6 lg:sticky lg:top-0 lg:flex lg:h-dvh">
-        <div className="flex items-center gap-3 px-2">
-          <span className="rounded-xl bg-sky-500/10 p-2 text-sky-400">
+      <aside
+        aria-label="NeedProof workspace sidebar"
+        className="hidden w-[240px] shrink-0 flex-col overflow-hidden border-r border-[#233348] bg-[#0B121D] px-3 py-4 lg:sticky lg:top-0 lg:flex lg:h-dvh"
+      >
+        <div className="flex shrink-0 items-center gap-2.5 rounded-xl px-2 py-1">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-sky-400/15 bg-sky-400/10 text-sky-400">
             <ShieldCheck size={22} />
           </span>
-          <div>
-            <h1 className="text-base font-bold">
+          <div className="min-w-0">
+            <h1 className="text-[15px] font-bold tracking-tight text-white">
               NeedProof <span className="text-sky-400">AI</span>
             </h1>
-            <p className="text-[10px] tracking-wider text-slate-500">
+            <p className="text-[9px] font-medium tracking-[0.11em] text-slate-500">
               COMMERCE INTELLIGENCE
             </p>
           </div>
         </div>
-        <p className="mb-3 mt-9 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+
+        <p className="mb-2 mt-5 shrink-0 px-2 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500 [@media(max-height:550px)]:mt-3">
           Workspace
         </p>
-        <nav aria-label="Showcase workspace" className="space-y-2">
-          <a href="#judge-replay-16c2" className="block rounded-lg border border-emerald-500/50 bg-emerald-900/20 px-3 py-3 text-xs font-bold text-emerald-200">Start guided demo</a>
-          <a href="#real-store-discovery" className="block rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-3 text-xs text-sky-300">Discover Real Stores</a>
-          {evidence13bEnabled && <a href="#merchant-evidence-desk" className="block rounded-lg border border-sky-500/20 px-3 py-3 text-xs text-sky-300">Merchant Desk</a>}
-          <a href="#evidence-workbench" className="flex items-center rounded-lg border border-sky-500/25 bg-sky-500/5 px-3 py-3 text-xs text-sky-200 hover:bg-sky-500/10">Evidence Intelligence</a>
+        <nav aria-label="Showcase workspace" className="flex shrink-0 flex-col gap-1.5 [@media(max-height:550px)]:gap-1">
+          <a
+            href="#judge-replay-16c2"
+            className="group flex min-h-[36px] items-center gap-2.5 rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-2.5 py-2 text-[11px] font-semibold text-emerald-200 transition-colors hover:border-emerald-400/70 hover:bg-emerald-400/15 [@media(max-height:550px)]:min-h-[32px] [@media(max-height:550px)]:py-1.5"
+          >
+            <Sparkles size={14} className="shrink-0 text-emerald-300" />
+            <span className="min-w-0 flex-1">Start guided demo</span>
+            <ArrowRight size={13} className="shrink-0 text-emerald-400/70 transition-transform group-hover:translate-x-0.5" />
+          </a>
+          <a
+            href="#real-store-discovery"
+            className="flex min-h-[36px] items-center gap-2.5 rounded-lg px-2.5 py-2 text-[11px] font-medium text-slate-300 transition-colors hover:bg-sky-500/10 hover:text-sky-200 [@media(max-height:550px)]:min-h-[32px] [@media(max-height:550px)]:py-1.5"
+          >
+            <MapPin size={14} className="shrink-0 text-sky-400" /> Discover Real Stores
+          </a>
+          {evidence13bEnabled && (
+            <a
+              href="#merchant-evidence-desk"
+              className="flex min-h-[36px] items-center gap-2.5 rounded-lg px-2.5 py-2 text-[11px] font-medium text-slate-300 transition-colors hover:bg-sky-500/10 hover:text-sky-200 [@media(max-height:550px)]:min-h-[32px] [@media(max-height:550px)]:py-1.5"
+            >
+              <ShoppingBag size={14} className="shrink-0 text-sky-400" /> Merchant Desk
+            </a>
+          )}
+          <a
+            href="#evidence-workbench"
+            className="flex min-h-[36px] items-center gap-2.5 rounded-lg px-2.5 py-2 text-[11px] font-medium text-slate-300 transition-colors hover:bg-sky-500/10 hover:text-sky-200 [@media(max-height:550px)]:min-h-[32px] [@media(max-height:550px)]:py-1.5"
+          >
+            <ShieldCheck size={14} className="shrink-0 text-sky-400" /> Evidence Intelligence
+          </a>
           <a
             href="#customer-request"
-            className="flex items-center gap-2 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-3 text-xs font-semibold text-sky-300"
+            className="flex min-h-[36px] items-center gap-2.5 rounded-lg border border-sky-400/25 bg-sky-400/[0.08] px-2.5 py-2 text-[11px] font-semibold text-sky-200 transition-colors hover:bg-sky-400/[0.14] [@media(max-height:550px)]:min-h-[32px] [@media(max-height:550px)]:py-1.5"
           >
-            <BrainCircuit size={15} /> Demand Studio
+            <BrainCircuit size={14} className="shrink-0 text-sky-400" /> Demand Studio
           </a>
           <a
             href="#adaptive-demo"
-            className="flex items-center gap-2 rounded-lg border border-slate-700 px-3 py-3 text-xs text-slate-300 hover:bg-slate-800"
+            className="flex min-h-[36px] items-center gap-2.5 rounded-lg px-2.5 py-2 text-[11px] font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white [@media(max-height:550px)]:min-h-[32px] [@media(max-height:550px)]:py-1.5"
           >
-            <FlaskConical size={15} /> Scenario Lab
+            <FlaskConical size={14} className="shrink-0 text-slate-400" /> Scenario Lab
           </a>
           <a
             href="#journey-history"
-            className="flex items-center gap-2 rounded-lg border border-slate-700 px-3 py-3 text-xs text-slate-300 hover:bg-slate-800"
+            className="flex min-h-[36px] items-center gap-2.5 rounded-lg px-2.5 py-2 text-[11px] font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white [@media(max-height:550px)]:min-h-[32px] [@media(max-height:550px)]:py-1.5"
           >
-            <Clock3 size={15} /> Saved Journey
+            <Clock3 size={14} className="shrink-0 text-slate-400" /> Saved Journey
           </a>
         </nav>
-        <div className="mt-7 border-t border-slate-800 pt-5">
-          <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+
+        <section aria-label="Local capabilities" className="mt-4 shrink-0 border-t border-slate-800/80 pt-3 [@media(max-height:650px)]:hidden">
+          <p className="px-2 text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500">
             Local full-stack modules
           </p>
-          <p className="mt-2 px-3 text-xs leading-7 text-slate-500">
-            Real store discovery
-            <br />
-            Merchant evidence
-            <br />
-            Commerce optimizer
-            <br />
-            Merchant portal
-            <br />
-            Assurance desk
+          <div className="mt-2 grid grid-cols-2 gap-1.5 px-1 text-[10px] text-slate-400">
+            <span className="rounded-md bg-white/[0.035] px-2 py-1">Store discovery</span>
+            <span className="rounded-md bg-white/[0.035] px-2 py-1">Merchant evidence</span>
+            <span className="rounded-md bg-white/[0.035] px-2 py-1">Optimization</span>
+            <span className="rounded-md bg-white/[0.035] px-2 py-1">Merchant portal</span>
+            <span className="col-span-2 rounded-md bg-white/[0.035] px-2 py-1">Assurance desk</span>
+          </div>
+          <p className="mt-2 px-2 text-[10px] leading-[15px] text-amber-200/70">
+            Merchant operations require local FastAPI. Cloud decisions are opt-in.
           </p>
-          <p className="mt-2 px-3 text-[11px] leading-5 text-amber-200/75">
-            Merchant operations still require the local FastAPI backend; the
-            isolated decision API runs on Cloud Run when enabled.
-          </p>
-        </div>
-        <div className="mt-auto rounded-xl border border-[#273449] bg-[#101829] p-3">
-          <p className="flex items-center gap-2 text-xs font-semibold text-sky-300">
-            <Sparkles size={14} /> Firebase Spark Showcase
-          </p>
-          <p className="mt-2 text-[11px] leading-5 text-slate-400">
-            Live Gemini · Cloud Run decision engine when configured · Synthetic
-            merchant evidence
-          </p>
+        </section>
+
+        <div className="mt-auto shrink-0 pt-3 [@media(max-height:550px)]:pt-1.5">
+          <div className="rounded-xl border border-sky-400/15 bg-gradient-to-br from-[#112638] to-[#101A29] px-3 py-2.5 [@media(max-height:550px)]:py-2">
+            <p className="flex items-center gap-2 text-[11px] font-semibold text-sky-200">
+              <Sparkles size={13} className="text-sky-400" /> Firebase Spark Showcase
+            </p>
+            <p className="mt-1 text-[10px] leading-[15px] text-slate-400 [@media(max-height:480px)]:hidden">
+              Gemini via Firebase · Cloud decisions opt-in · Merchant claims unverified
+            </p>
+          </div>
         </div>
       </aside>
 

@@ -1,0 +1,889 @@
+{
+  "schema": "NEEDPROOF_SYNTHETIC_BENCHMARK_17F_V1",
+  "dataset_version": "1.0",
+  "creation_method": "Hand-curated scenario templates, authored policy expectations, synthetic stores and documents. Not independently labeled, not a real shopper study.",
+  "scenario_count": 40,
+  "labels_independently_validated": false,
+  "cases": [
+    {
+      "case_id": "unverified_offer-01",
+      "family": "unverified_offer",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "65W USB-C PD laptop charger",
+        "location_note": "Thane",
+        "budget_inr": 1000,
+        "reported_price_inr": 720,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "PROVISIONAL_VERIFICATION_NEEDED",
+        "first_verification_action": "CHECK_COMPATIBILITY",
+        "provisional_candidate_allowed": true,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "In-budget fictional positive stock permits only a provisional offer; no independent specification or inventory proof."
+    },
+    {
+      "case_id": "unverified_offer-02",
+      "family": "unverified_offer",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "45W USB-C PD travel charger",
+        "location_note": "Dombivli",
+        "budget_inr": 850,
+        "reported_price_inr": 660,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "PROVISIONAL_VERIFICATION_NEEDED",
+        "first_verification_action": "CHECK_COMPATIBILITY",
+        "provisional_candidate_allowed": true,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "In-budget fictional positive stock permits only a provisional offer; no independent specification or inventory proof."
+    },
+    {
+      "case_id": "unverified_offer-03",
+      "family": "unverified_offer",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "100W USB-C PD notebook charger",
+        "location_note": "Powai",
+        "budget_inr": 2200,
+        "reported_price_inr": 1780,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "PROVISIONAL_VERIFICATION_NEEDED",
+        "first_verification_action": "CHECK_COMPATIBILITY",
+        "provisional_candidate_allowed": true,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "In-budget fictional positive stock permits only a provisional offer; no independent specification or inventory proof."
+    },
+    {
+      "case_id": "unverified_offer-04",
+      "family": "unverified_offer",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "65W USB-C PD charger adapter",
+        "location_note": "Navi Mumbai",
+        "budget_inr": 1400,
+        "reported_price_inr": 899,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "PROVISIONAL_VERIFICATION_NEEDED",
+        "first_verification_action": "CHECK_COMPATIBILITY",
+        "provisional_candidate_allowed": true,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "In-budget fictional positive stock permits only a provisional offer; no independent specification or inventory proof."
+    },
+    {
+      "case_id": "unverified_offer-05",
+      "family": "unverified_offer",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "90W USB-C PD wall charger",
+        "location_note": "Kalyan",
+        "budget_inr": 1800,
+        "reported_price_inr": 1600,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "PROVISIONAL_VERIFICATION_NEEDED",
+        "first_verification_action": "CHECK_COMPATIBILITY",
+        "provisional_candidate_allowed": true,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "In-budget fictional positive stock permits only a provisional offer; no independent specification or inventory proof."
+    },
+    {
+      "case_id": "unverified_offer-06",
+      "family": "unverified_offer",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "30W USB-C PD charger",
+        "location_note": "Bengaluru",
+        "budget_inr": 800,
+        "reported_price_inr": 590,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "PROVISIONAL_VERIFICATION_NEEDED",
+        "first_verification_action": "CHECK_COMPATIBILITY",
+        "provisional_candidate_allowed": true,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "In-budget fictional positive stock permits only a provisional offer; no independent specification or inventory proof."
+    },
+    {
+      "case_id": "unverified_offer-07",
+      "family": "unverified_offer",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "65W USB-C PD replacement charger",
+        "location_note": "Pune",
+        "budget_inr": 1300,
+        "reported_price_inr": 1050,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "PROVISIONAL_VERIFICATION_NEEDED",
+        "first_verification_action": "CHECK_COMPATIBILITY",
+        "provisional_candidate_allowed": true,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "In-budget fictional positive stock permits only a provisional offer; no independent specification or inventory proof."
+    },
+    {
+      "case_id": "unverified_offer-08",
+      "family": "unverified_offer",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "65W USB-C PD ultrabook charger",
+        "location_note": "Mumbai",
+        "budget_inr": 1500,
+        "reported_price_inr": 1320,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "PROVISIONAL_VERIFICATION_NEEDED",
+        "first_verification_action": "CHECK_COMPATIBILITY",
+        "provisional_candidate_allowed": true,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "In-budget fictional positive stock permits only a provisional offer; no independent specification or inventory proof."
+    },
+    {
+      "case_id": "matching_fixture-01",
+      "family": "matching_fixture",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "65W USB-C PD laptop charger",
+        "location_note": "Thane",
+        "budget_inr": 1100,
+        "reported_price_inr": 750,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "matching_fixture",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "PROVISIONAL_VERIFICATION_NEEDED",
+        "first_verification_action": "CHECK_COMPATIBILITY",
+        "provisional_candidate_allowed": true,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "Matching fictional excerpts do not authenticate real charger compatibility."
+    },
+    {
+      "case_id": "matching_fixture-02",
+      "family": "matching_fixture",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "45W USB-C PD travel charger",
+        "location_note": "Dombivli",
+        "budget_inr": 900,
+        "reported_price_inr": 650,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "matching_fixture",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "PROVISIONAL_VERIFICATION_NEEDED",
+        "first_verification_action": "CHECK_COMPATIBILITY",
+        "provisional_candidate_allowed": true,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "Matching fictional excerpts do not authenticate real charger compatibility."
+    },
+    {
+      "case_id": "matching_fixture-03",
+      "family": "matching_fixture",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "100W USB-C PD notebook charger",
+        "location_note": "Powai",
+        "budget_inr": 2300,
+        "reported_price_inr": 1800,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "matching_fixture",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "PROVISIONAL_VERIFICATION_NEEDED",
+        "first_verification_action": "CHECK_COMPATIBILITY",
+        "provisional_candidate_allowed": true,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "Matching fictional excerpts do not authenticate real charger compatibility."
+    },
+    {
+      "case_id": "matching_fixture-04",
+      "family": "matching_fixture",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "65W USB-C PD charger adapter",
+        "location_note": "Navi Mumbai",
+        "budget_inr": 1100,
+        "reported_price_inr": 890,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "matching_fixture",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "PROVISIONAL_VERIFICATION_NEEDED",
+        "first_verification_action": "CHECK_COMPATIBILITY",
+        "provisional_candidate_allowed": true,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "Matching fictional excerpts do not authenticate real charger compatibility."
+    },
+    {
+      "case_id": "matching_fixture-05",
+      "family": "matching_fixture",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "90W USB-C PD wall charger",
+        "location_note": "Kalyan",
+        "budget_inr": 1900,
+        "reported_price_inr": 1650,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "matching_fixture",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "PROVISIONAL_VERIFICATION_NEEDED",
+        "first_verification_action": "CHECK_COMPATIBILITY",
+        "provisional_candidate_allowed": true,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "Matching fictional excerpts do not authenticate real charger compatibility."
+    },
+    {
+      "case_id": "matching_fixture-06",
+      "family": "matching_fixture",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "30W USB-C PD charger",
+        "location_note": "Bengaluru",
+        "budget_inr": 850,
+        "reported_price_inr": 620,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "matching_fixture",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "PROVISIONAL_VERIFICATION_NEEDED",
+        "first_verification_action": "CHECK_COMPATIBILITY",
+        "provisional_candidate_allowed": true,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "Matching fictional excerpts do not authenticate real charger compatibility."
+    },
+    {
+      "case_id": "contradiction-01",
+      "family": "contradiction",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "65W USB-C PD laptop charger",
+        "location_note": "Pune",
+        "budget_inr": 1100,
+        "reported_price_inr": 750,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "conflicting_fixtures",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "RESEARCH_CONFLICT",
+        "first_verification_action": "RECONCILE_CONFLICT",
+        "provisional_candidate_allowed": false,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "One fictional source says USB PD supported, another says not supported; do not advance the offer."
+    },
+    {
+      "case_id": "contradiction-02",
+      "family": "contradiction",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "45W USB-C PD travel charger",
+        "location_note": "Mumbai",
+        "budget_inr": 900,
+        "reported_price_inr": 650,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "conflicting_fixtures",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "RESEARCH_CONFLICT",
+        "first_verification_action": "RECONCILE_CONFLICT",
+        "provisional_candidate_allowed": false,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "One fictional source says USB PD supported, another says not supported; do not advance the offer."
+    },
+    {
+      "case_id": "contradiction-03",
+      "family": "contradiction",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "100W USB-C PD notebook charger",
+        "location_note": "Thane",
+        "budget_inr": 2300,
+        "reported_price_inr": 1800,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "conflicting_fixtures",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "RESEARCH_CONFLICT",
+        "first_verification_action": "RECONCILE_CONFLICT",
+        "provisional_candidate_allowed": false,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "One fictional source says USB PD supported, another says not supported; do not advance the offer."
+    },
+    {
+      "case_id": "contradiction-04",
+      "family": "contradiction",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "65W USB-C PD charger adapter",
+        "location_note": "Dombivli",
+        "budget_inr": 1100,
+        "reported_price_inr": 890,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "conflicting_fixtures",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "RESEARCH_CONFLICT",
+        "first_verification_action": "RECONCILE_CONFLICT",
+        "provisional_candidate_allowed": false,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "One fictional source says USB PD supported, another says not supported; do not advance the offer."
+    },
+    {
+      "case_id": "contradiction-05",
+      "family": "contradiction",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "90W USB-C PD wall charger",
+        "location_note": "Powai",
+        "budget_inr": 1900,
+        "reported_price_inr": 1650,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "conflicting_fixtures",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "RESEARCH_CONFLICT",
+        "first_verification_action": "RECONCILE_CONFLICT",
+        "provisional_candidate_allowed": false,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "One fictional source says USB PD supported, another says not supported; do not advance the offer."
+    },
+    {
+      "case_id": "contradiction-06",
+      "family": "contradiction",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "30W USB-C PD charger",
+        "location_note": "Navi Mumbai",
+        "budget_inr": 850,
+        "reported_price_inr": 620,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "conflicting_fixtures",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "RESEARCH_CONFLICT",
+        "first_verification_action": "RECONCILE_CONFLICT",
+        "provisional_candidate_allowed": false,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "One fictional source says USB PD supported, another says not supported; do not advance the offer."
+    },
+    {
+      "case_id": "contradiction-07",
+      "family": "contradiction",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "65W USB-C PD replacement charger",
+        "location_note": "Kalyan",
+        "budget_inr": 1400,
+        "reported_price_inr": 990,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "conflicting_fixtures",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "RESEARCH_CONFLICT",
+        "first_verification_action": "RECONCILE_CONFLICT",
+        "provisional_candidate_allowed": false,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "One fictional source says USB PD supported, another says not supported; do not advance the offer."
+    },
+    {
+      "case_id": "stockout-01",
+      "family": "stockout",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "512GB portable SSD",
+        "location_note": "Bengaluru",
+        "budget_inr": 6000,
+        "reported_price_inr": 4600,
+        "simulated_report": "stockout",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "MORE_EVIDENCE_NEEDED",
+        "first_verification_action": "REFRESH_ALTERNATIVES",
+        "provisional_candidate_allowed": false,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "Fictional zero units excludes the offer; no confirmed available merchant remains."
+    },
+    {
+      "case_id": "stockout-02",
+      "family": "stockout",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "Bluetooth computer mouse",
+        "location_note": "Pune",
+        "budget_inr": 1200,
+        "reported_price_inr": 850,
+        "simulated_report": "stockout",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "MORE_EVIDENCE_NEEDED",
+        "first_verification_action": "REFRESH_ALTERNATIVES",
+        "provisional_candidate_allowed": false,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "Fictional zero units excludes the offer; no confirmed available merchant remains."
+    },
+    {
+      "case_id": "stockout-03",
+      "family": "stockout",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "Dual-band Wi-Fi router",
+        "location_note": "Mumbai",
+        "budget_inr": 4000,
+        "reported_price_inr": 3200,
+        "simulated_report": "stockout",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "MORE_EVIDENCE_NEEDED",
+        "first_verification_action": "REFRESH_ALTERNATIVES",
+        "provisional_candidate_allowed": false,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "Fictional zero units excludes the offer; no confirmed available merchant remains."
+    },
+    {
+      "case_id": "stockout-04",
+      "family": "stockout",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "USB-C docking station",
+        "location_note": "Thane",
+        "budget_inr": 7500,
+        "reported_price_inr": 5200,
+        "simulated_report": "stockout",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "MORE_EVIDENCE_NEEDED",
+        "first_verification_action": "REFRESH_ALTERNATIVES",
+        "provisional_candidate_allowed": false,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "Fictional zero units excludes the offer; no confirmed available merchant remains."
+    },
+    {
+      "case_id": "stockout-05",
+      "family": "stockout",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "Wireless keyboard",
+        "location_note": "Dombivli",
+        "budget_inr": 1500,
+        "reported_price_inr": 990,
+        "simulated_report": "stockout",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "MORE_EVIDENCE_NEEDED",
+        "first_verification_action": "REFRESH_ALTERNATIVES",
+        "provisional_candidate_allowed": false,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "Fictional zero units excludes the offer; no confirmed available merchant remains."
+    },
+    {
+      "case_id": "stockout-06",
+      "family": "stockout",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "Noise cancelling headphones",
+        "location_note": "Powai",
+        "budget_inr": 9000,
+        "reported_price_inr": 7000,
+        "simulated_report": "stockout",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "MORE_EVIDENCE_NEEDED",
+        "first_verification_action": "REFRESH_ALTERNATIVES",
+        "provisional_candidate_allowed": false,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "Fictional zero units excludes the offer; no confirmed available merchant remains."
+    },
+    {
+      "case_id": "over_budget-01",
+      "family": "over_budget",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "USB-C docking station",
+        "location_note": "Navi Mumbai",
+        "budget_inr": 3000,
+        "reported_price_inr": 5100,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "MORE_EVIDENCE_NEEDED",
+        "first_verification_action": "REFRESH_ALTERNATIVES",
+        "provisional_candidate_allowed": false,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "Fictional price exceeds budget, so there is no eligible provisional offer."
+    },
+    {
+      "case_id": "over_budget-02",
+      "family": "over_budget",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "Wireless keyboard",
+        "location_note": "Kalyan",
+        "budget_inr": 600,
+        "reported_price_inr": 920,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "MORE_EVIDENCE_NEEDED",
+        "first_verification_action": "REFRESH_ALTERNATIVES",
+        "provisional_candidate_allowed": false,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "Fictional price exceeds budget, so there is no eligible provisional offer."
+    },
+    {
+      "case_id": "over_budget-03",
+      "family": "over_budget",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "Noise cancelling headphones",
+        "location_note": "Bengaluru",
+        "budget_inr": 2500,
+        "reported_price_inr": 6500,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "MORE_EVIDENCE_NEEDED",
+        "first_verification_action": "REFRESH_ALTERNATIVES",
+        "provisional_candidate_allowed": false,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "Fictional price exceeds budget, so there is no eligible provisional offer."
+    },
+    {
+      "case_id": "over_budget-04",
+      "family": "over_budget",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "External monitor",
+        "location_note": "Pune",
+        "budget_inr": 4000,
+        "reported_price_inr": 6200,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "MORE_EVIDENCE_NEEDED",
+        "first_verification_action": "REFRESH_ALTERNATIVES",
+        "provisional_candidate_allowed": false,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "Fictional price exceeds budget, so there is no eligible provisional offer."
+    },
+    {
+      "case_id": "over_budget-05",
+      "family": "over_budget",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "HDMI converter",
+        "location_note": "Mumbai",
+        "budget_inr": 250,
+        "reported_price_inr": 450,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "MORE_EVIDENCE_NEEDED",
+        "first_verification_action": "REFRESH_ALTERNATIVES",
+        "provisional_candidate_allowed": false,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "Fictional price exceeds budget, so there is no eligible provisional offer."
+    },
+    {
+      "case_id": "no_merchants-01",
+      "family": "no_merchants",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "USB-C hub",
+        "location_note": "Thane",
+        "budget_inr": 1800,
+        "reported_price_inr": 1200,
+        "simulated_report": "no_merchants",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "DISCOVERY_NEEDED",
+        "first_verification_action": "DISCOVER_MERCHANTS",
+        "provisional_candidate_allowed": false,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "No fictional merchant report was provided; discovery is required before assessing offers."
+    },
+    {
+      "case_id": "no_merchants-02",
+      "family": "no_merchants",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "Gaming keyboard",
+        "location_note": "Dombivli",
+        "budget_inr": 2900,
+        "reported_price_inr": 2300,
+        "simulated_report": "no_merchants",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "DISCOVERY_NEEDED",
+        "first_verification_action": "DISCOVER_MERCHANTS",
+        "provisional_candidate_allowed": false,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "No fictional merchant report was provided; discovery is required before assessing offers."
+    },
+    {
+      "case_id": "no_merchants-03",
+      "family": "no_merchants",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "Portable hard drive",
+        "location_note": "Powai",
+        "budget_inr": 4500,
+        "reported_price_inr": 3400,
+        "simulated_report": "no_merchants",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "DISCOVERY_NEEDED",
+        "first_verification_action": "DISCOVER_MERCHANTS",
+        "provisional_candidate_allowed": false,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "No fictional merchant report was provided; discovery is required before assessing offers."
+    },
+    {
+      "case_id": "no_merchants-04",
+      "family": "no_merchants",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "Laptop stand",
+        "location_note": "Navi Mumbai",
+        "budget_inr": 2200,
+        "reported_price_inr": 1300,
+        "simulated_report": "no_merchants",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "none"
+      },
+      "expected": {
+        "workflow_state": "DISCOVERY_NEEDED",
+        "first_verification_action": "DISCOVER_MERCHANTS",
+        "provisional_candidate_allowed": false,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "No fictional merchant report was provided; discovery is required before assessing offers."
+    },
+    {
+      "case_id": "revision_restock-01",
+      "family": "revision_restock",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "Wireless keyboard",
+        "location_note": "Kalyan",
+        "budget_inr": 1800,
+        "reported_price_inr": 900,
+        "simulated_report": "stockout",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "restock_after_stockout"
+      },
+      "expected": {
+        "workflow_state": "PROVISIONAL_VERIFICATION_NEEDED",
+        "first_verification_action": "CHECK_COMPATIBILITY",
+        "provisional_candidate_allowed": true,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "The updated fictional positive report permits provisional consideration only; still not verified inventory."
+    },
+    {
+      "case_id": "revision_restock-02",
+      "family": "revision_restock",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "Noise cancelling headphones",
+        "location_note": "Bengaluru",
+        "budget_inr": 9000,
+        "reported_price_inr": 7200,
+        "simulated_report": "stockout",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "restock_after_stockout"
+      },
+      "expected": {
+        "workflow_state": "PROVISIONAL_VERIFICATION_NEEDED",
+        "first_verification_action": "CHECK_COMPATIBILITY",
+        "provisional_candidate_allowed": true,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "The updated fictional positive report permits provisional consideration only; still not verified inventory."
+    },
+    {
+      "case_id": "revision_stockout-01",
+      "family": "revision_stockout",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "65W USB-C PD laptop charger",
+        "location_note": "Pune",
+        "budget_inr": 1000,
+        "reported_price_inr": 720,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "stockout_after_report"
+      },
+      "expected": {
+        "workflow_state": "MORE_EVIDENCE_NEEDED",
+        "first_verification_action": "REFRESH_ALTERNATIVES",
+        "provisional_candidate_allowed": false,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "A newer fictional zero-stock report supersedes a fictional positive-stock report."
+    },
+    {
+      "case_id": "revision_stockout-02",
+      "family": "revision_stockout",
+      "fixture_origin": "CURATED_FICTIONAL_SCENARIO",
+      "input": {
+        "product_query": "45W USB-C PD travel charger",
+        "location_note": "Mumbai",
+        "budget_inr": 850,
+        "reported_price_inr": 650,
+        "simulated_report": "reported_offer",
+        "simulation_acknowledged": true,
+        "synthetic_documents": "not_submitted",
+        "fictional_merchant_update_17e": "stockout_after_report"
+      },
+      "expected": {
+        "workflow_state": "MORE_EVIDENCE_NEEDED",
+        "first_verification_action": "REFRESH_ALTERNATIVES",
+        "provisional_candidate_allowed": false,
+        "purchase_allowed": false
+      },
+      "ground_truth_rationale": "A newer fictional zero-stock report supersedes a fictional positive-stock report."
+    }
+  ]
+}

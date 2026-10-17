@@ -133,7 +133,10 @@ function AssistantTurn({ turn }: { turn: Turn }) {
   const r = turn.result;
   return (
     <div className="max-w-[46rem] rounded-2xl rounded-tl-sm border border-slate-700/60 bg-slate-800/60 p-4">
-      <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-slate-100">{turn.text}</p>
+      <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-slate-100">
+        {turn.text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+          part.startsWith("**") && part.endsWith("**") ? <strong key={i}>{part.slice(2, -2)}</strong> : part.replace(/^\* /gm, "• "))}
+      </p>
       {r && r.offers.length > 0 && <ul className="mt-3 space-y-2">{r.offers.map((o) => <OfferCard key={o.shop_id + o.listing} offer={o} />)}</ul>}
       {r?.request && <RequestTracker requestId={r.request.id} />}
       {r && (

@@ -44,3 +44,7 @@ backup_*/
 # Operating system
 .DS_Store
 Thumbs.db
+
+# Commerce loop generated files
+backend/demand_events.ndjson
+backend/commerce_loop.ndjson

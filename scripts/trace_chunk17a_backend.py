@@ -20,14 +20,51 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 
-# This executable is IN-PROCESS only. Block socket connections even if a
-# future imported SDK inadvertently tries to reach a paid cloud endpoint.
+# An in-process TestClient does not access a hosted service. On Windows,
+# asyncio/AnyIO builds its internal socketpair over 127.0.0.1. Reject external
+# TCP destinations while allowing local loopback for the event-loop wake-up.
+# This guard is a defensive smoke-test measure, not an OS-level egress sandbox.
+import ipaddress
 import socket
-def _deny_outbound(*_args, **_kwargs):
-    raise RuntimeError("Chunk 17A local trace blocks ALL outbound socket connections")
-socket.create_connection = _deny_outbound
-socket.socket.connect = _deny_outbound
-socket.socket.connect_ex = _deny_outbound
+
+_original_connect_17a = socket.socket.connect
+_original_connect_ex_17a = socket.socket.connect_ex
+_original_create_connection_17a = socket.create_connection
+
+
+def _is_loopback_address_17a(address: object) -> bool:
+    if not isinstance(address, tuple) or not address:
+        return False
+    host = address[0]
+    if not isinstance(host, str):
+        return False
+    try:
+        return ipaddress.ip_address(host.split("%", 1)[0]).is_loopback
+    except ValueError:
+        return False  # Deny domain names: don't initiate a DNS lookup.
+
+
+def _local_only_connect(self: socket.socket, address: object) -> None:
+    if not _is_loopback_address_17a(address):
+        raise RuntimeError("Chunk 17A blocks non-loopback TCP connections")
+    return _original_connect_17a(self, address)
+
+
+def _local_only_connect_ex(self: socket.socket, address: object) -> int:
+    if not _is_loopback_address_17a(address):
+        raise RuntimeError("Chunk 17A blocks non-loopback TCP connections")
+    return _original_connect_ex_17a(self, address)
+
+
+def _local_only_create_connection(address: object, *args, **kwargs):
+    if not _is_loopback_address_17a(address):
+        raise RuntimeError("Chunk 17A blocks non-loopback TCP connections")
+    return _original_create_connection_17a(address, *args, **kwargs)
+
+
+socket.socket.connect = _local_only_connect
+socket.socket.connect_ex = _local_only_connect_ex
+socket.create_connection = _local_only_create_connection
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND = ROOT / "backend"

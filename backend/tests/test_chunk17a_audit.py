@@ -116,5 +116,7 @@ def test_script_and_trace_are_additive_only():
     trace = (ROOT / 'scripts/trace_chunk17a_backend.py').read_text(encoding='utf-8')
     assert 'frontend/.env.production.local' in script  # only existence check
     assert "(root / 'frontend/.env.production.local').exists()" in script
-    assert 'socket.socket.connect = _deny_outbound' in trace
+    assert 'socket.socket.connect = _local_only_connect' in trace
+    assert 'socket.socket.connect_ex = _local_only_connect_ex' in trace
+    assert 'socket.create_connection = _local_only_create_connection' in trace
     assert 'LOCAL_TEST_IDENTITY_NOT_REAL_AUTH' in trace

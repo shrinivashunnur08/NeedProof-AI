@@ -1,0 +1,13 @@
+{
+  "schema": "NEEDPROOF_18C_RELEASE_CLAIMS_V1",
+  "evidence_class": "OFFLINE_AUTHOR_CREATED_FICTIONAL",
+  "purchase_authorization_enabled": false,
+  "external_validation_claims": {
+    "live_gemini_verified": false,
+    "secure_hosted_e2e_verified": false,
+    "real_merchant_inventory_verified": false,
+    "independent_user_pilot_completed": false,
+    "actual_cost_and_roi_measured": false
+  },
+  "note": "Truthful offline claims. Do not edit these booleans to force a green gate; real evidence must first be gathered and independently reviewed in a separate release process."
+}

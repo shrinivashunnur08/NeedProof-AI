@@ -1,0 +1,55 @@
+{
+  "schema": "needproof_17a_business_hypotheses_v1",
+  "project": "NeedProof AI",
+  "status": "UNVALIDATED_HYPOTHESES",
+  "target_market": "Local electronics retail, starting with urgent, specification-sensitive purchases",
+  "primary_persona": "A shopper who needs a compatible laptop charger today, and wants to avoid a wasted store visit",
+  "secondary_persona": "A local electronics merchant who can confirm stock, provide product evidence, and receive qualified enquiries",
+  "flagship_scenario": "Compatible 65W USB-C PD laptop charger under INR 1000 near Thane",
+  "problem_claim": "Local recommendations can rely on unsupported availability and compatibility claims, causing uncertainty and potentially wasted visits",
+  "value_proposition": "Show what evidence supports a local purchasing option, what remains unverified, and which next check is most useful",
+  "differentiation_hypothesis": "Evidence provenance, actionable uncertainty, next-best-proof selection, and auditable replanning are more useful than a lowest-price-only recommendation",
+  "commercial_hypothesis": "Merchants may pay for qualified leads or verification-and-insights tools if the workflow reduces effort and brings measurable incremental value",
+  "business_questions": [
+    "How frequently do shoppers encounter a store-level stock or compatibility mismatch?",
+    "How much time does a typical shopper spend confirming availability before visiting?",
+    "Would a shopper choose a verified-but-slightly-higher-priced option?",
+    "Can a merchant submit or update evidence in less than two minutes?",
+    "What would persuade a merchant to keep claims current?",
+    "Who would pay for verification and what is the willingness to pay?",
+    "What is the cost per verified decision, including AI, infrastructure, and merchant effort?",
+    "What changes when merchant evidence conflicts or expires?"
+  ],
+  "comparison_baselines": [
+    "cheapest_offer_without_verification",
+    "simple_if_then_evidence_rules",
+    "needproof_full_evidence_planner"
+  ],
+  "metrics": [
+    {"id":"unsupported_recommendation_rate","label":"Unsupported recommendation rate","formula":"unsupported recommended options / all recommended options", "unit":"fraction", "status":"NOT_MEASURED", "value":null, "evidence_source":null},
+    {"id":"correct_abstention_rate","label":"Correct safe abstention rate","formula":"correctly withheld unsafe/unsupported recommendations / unsafe or unsupported cases", "unit":"fraction", "status":"NOT_MEASURED", "value":null, "evidence_source":null},
+    {"id":"useful_decision_rate","label":"Useful decision rate","formula":"cases with correct actionable decision / all evaluated cases", "unit":"fraction", "status":"NOT_MEASURED", "value":null, "evidence_source":null},
+    {"id":"median_time_to_decision_seconds","label":"Time to decision","formula":"median elapsed seconds from customer request to decision", "unit":"seconds", "status":"NOT_MEASURED", "value":null, "evidence_source":null},
+    {"id":"merchant_submission_seconds","label":"Merchant effort to submit evidence","formula":"median seconds needed for a consenting merchant to provide and update an evidence claim", "unit":"seconds", "status":"NOT_MEASURED", "value":null, "evidence_source":null},
+    {"id":"unit_cost_per_journey_inr","label":"Measured unit cost per decision","formula":"attributable model, hosting and workflow spending / completed decisions", "unit":"INR", "status":"NOT_MEASURED", "value":null, "evidence_source":null},
+    {"id":"prevented_wasted_visits","label":"Observed prevented wasted trips","formula":"observed avoided trips with independent counterfactual or appropriately qualified estimate", "unit":"count", "status":"NOT_MEASURED", "value":null, "evidence_source":null}
+  ],
+  "business_risks": [
+    {"risk":"Merchants do not participate or do not refresh claims", "mitigation":"Consent-based small pilot; measure time per update and freshness", "status":"OPEN"},
+    {"risk":"Merchant assertion mistaken for independently verified stock", "mitigation":"Explicit source classification; no unverified purchase authorization", "status":"OPEN"},
+    {"risk":"Google Shopping and inventory networks have existing distribution", "mitigation":"Benchmark next-best-proof and contradiction handling rather than generic discovery", "status":"OPEN"},
+    {"risk":"Model and API calls make economics unattractive", "mitigation":"Measure service cost per journey with controlled usage", "status":"OPEN"},
+    {"risk":"Benchmarks reward refusal instead of useful outcomes", "mitigation":"Measure correct abstention alongside useful decision coverage", "status":"OPEN"},
+    {"risk":"Pilot results are not representative", "mitigation":"Mark sample size, participant selection, and limitations", "status":"OPEN"}
+  ],
+  "success_criteria": [
+    "One fresh Google AI request is schema validated (17B; live testing requires approval)",
+    "One newly supplied evidence change causes real Python recomputation (17C)",
+    "Every claim has a source, timestamp, and verification type (17D)",
+    "A meaningful next verification is selected and justified (17E)",
+    "Reproducible baseline benchmark reports both improvements and failures (17F)",
+    "A consenting merchant/shopper pilot tests usability if feasible (18A)",
+    "Measured latency, reliability, and unit economics are reported (18B)",
+    "Presentation clearly separates live behavior, emulation, and replay (18C)"
+  ]
+}

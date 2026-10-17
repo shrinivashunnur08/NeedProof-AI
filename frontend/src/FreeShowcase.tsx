@@ -4,6 +4,8 @@ import {
   useMemo,
   useRef,
   useState,
+  lazy,
+  Suspense,
   type ReactNode,
 } from "react";
 import {
@@ -31,16 +33,16 @@ import {
 import DecisionSpotlight from "./components/DecisionSpotlight";
 import EvidenceWorkbench from "./components/EvidenceWorkbench";
 import RealStoresDiscovery from "./components/RealStoresDiscovery";
-import MerchantEvidenceDesk from "./components/MerchantEvidenceDesk";
-import GroundedProductLab from "./components/GroundedProductLab";
-import ProductResearch13C2 from "./components/ProductResearch13C2";
-import EvidencePlanner14A1 from "./components/EvidencePlanner14A1";
-import BasketOptimizer14A2 from "./components/BasketOptimizer14A2";
-import DecisionOrchestrator14A3 from "./components/DecisionOrchestrator14A3";
-import RetailForecast14B1 from "./components/RetailForecast14B1";
-import RetailInsights14B2 from "./components/RetailInsights14B2";
-import InventoryReview14B3 from "./components/InventoryReview14B3";
-import BusinessCommandCenter14B4 from "./components/BusinessCommandCenter14B4";
+
+
+
+
+
+
+
+
+
+
 import { biCommandCenter14b4Enabled } from "./lib/biCommandCenter14b4";
 import { inventoryReview14b3Enabled } from "./lib/inventoryReview14b3";
 import { retailInsights14b2Enabled } from "./lib/retailInsights14b2";
@@ -60,6 +62,17 @@ import {
   type SavedJourney,
 } from "./lib/journeyStore";
 import type { DecisionResult } from "./components/AdaptiveDecisionPanel";
+
+const MerchantEvidenceDesk = lazy(() => import("./components/MerchantEvidenceDesk"));
+const GroundedProductLab = lazy(() => import("./components/GroundedProductLab"));
+const ProductResearch13C2 = lazy(() => import("./components/ProductResearch13C2"));
+const EvidencePlanner14A1 = lazy(() => import("./components/EvidencePlanner14A1"));
+const BasketOptimizer14A2 = lazy(() => import("./components/BasketOptimizer14A2"));
+const DecisionOrchestrator14A3 = lazy(() => import("./components/DecisionOrchestrator14A3"));
+const RetailForecast14B1 = lazy(() => import("./components/RetailForecast14B1"));
+const RetailInsights14B2 = lazy(() => import("./components/RetailInsights14B2"));
+const InventoryReview14B3 = lazy(() => import("./components/InventoryReview14B3"));
+const BusinessCommandCenter14B4 = lazy(() => import("./components/BusinessCommandCenter14B4"));
 
 type ExtractedIntent = {
   requested_product: string;
@@ -1137,6 +1150,7 @@ Customer request: ${JSON.stringify(submittedText)}
           />
 
 
+          <Suspense fallback={<p role="status" className="text-sm text-slate-400">Loading optional intelligence tools...</p>}>
           {productGrounding13c1Enabled && (
             <GroundedProductLab
               requestedProduct={isCurrent && intent ? intent.requested_product : null}
@@ -1188,6 +1202,7 @@ Customer request: ${JSON.stringify(submittedText)}
           )}
 
           <MerchantEvidenceDesk />
+          </Suspense>
 
 <EvidenceWorkbench
             requestedProduct={isCurrent && intent ? intent.requested_product : null}

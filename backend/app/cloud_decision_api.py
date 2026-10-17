@@ -25,6 +25,7 @@ from app.retail_forecast_14b1 import ForecastInput14B1, evaluate_retail_forecast
 from app.retail_segments_14b2 import CommerceInsightsInput14B2, evaluate_commerce_insights_14b2
 from app.inventory_intelligence_14b3 import InventoryInput14B3, evaluate_inventory_14b3
 from app.bi_command_center_14b4 import BIInput14B4, evaluate_bi_command_center_14b4
+from app.api_guard_15a import BoundedAPIGuard15A
 from app.merchant_evidence_13b import router as evidence_13b_router
 
 
@@ -63,6 +64,10 @@ async def reject_oversized_bodies(request: Request, call_next):
         except ValueError:
             return JSONResponse({"detail": "Invalid content length"}, status_code=400)
     return await call_next(request)
+
+
+# Outermost application middleware: covers requests with missing Content-Length.
+app.add_middleware(BoundedAPIGuard15A)
 
 
 @lru_cache(maxsize=1)

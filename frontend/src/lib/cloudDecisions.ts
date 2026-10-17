@@ -15,6 +15,16 @@ let model: ReturnType<typeof getGenerativeModel> | null = null;
 
 export const cloudApiUrl = (import.meta.env.VITE_CLOUD_DECISION_API_URL ?? "").trim().replace(/\/$/, "");
 
+/** Check required public web-client configuration without contacting Firebase. */
+export function firebaseShowcaseConfigured(): boolean {
+  return Boolean(
+    import.meta.env.VITE_FIREBASE_PROJECT_ID &&
+    import.meta.env.VITE_FIREBASE_API_KEY &&
+    import.meta.env.VITE_FIREBASE_APP_ID &&
+    import.meta.env.VITE_APPCHECK_SITE_KEY
+  );
+}
+
 export function firebaseShowcaseClients(): Clients {
   if (cached) return cached;
   const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
@@ -22,7 +32,7 @@ export function firebaseShowcaseClients(): Clients {
   const appId = import.meta.env.VITE_FIREBASE_APP_ID;
   const siteKey = import.meta.env.VITE_APPCHECK_SITE_KEY;
   if (!projectId || !apiKey || !appId || !siteKey) {
-    throw new Error("Firebase configuration is incomplete. Check .env.production.local.");
+    throw new Error("Firebase web configuration is incomplete. Configure this Vite environment before using Gemini or Firestore.");
   }
   const app = initializeApp({
     apiKey,

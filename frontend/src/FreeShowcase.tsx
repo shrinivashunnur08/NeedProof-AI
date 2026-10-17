@@ -10,6 +10,7 @@ import {
 } from "react";
 import {
   cloudApiUrl,
+  firebaseShowcaseConfigured,
   getShowcaseGeminiModel,
   requestCloudReplan,
   requestCloudVerificationPlan,
@@ -172,6 +173,7 @@ export default function FreeShowcase() {
     "reference",
   );
   const sequence = useRef(0);
+  const firebaseReady = firebaseShowcaseConfigured();
   const remoteEnabled = cloudApiUrl.length > 0;
   const [remoteDecision, setRemoteDecision] = useState<DecisionResult | null>(
     null,
@@ -188,7 +190,11 @@ export default function FreeShowcase() {
   );
   const [savedAt, setSavedAt] = useState("");
   const [storeBusy, setStoreBusy] = useState(false);
-  const [storeStatus, setStoreStatus] = useState("Checking saved journey...");
+  const [storeStatus, setStoreStatus] = useState(
+    firebaseReady
+      ? "Checking saved journey..."
+      : "Offline preview · Firebase journey saving is not configured."
+  );
   const [storeError, setStoreError] = useState("");
   const userTouched = useRef(false);
 
@@ -233,6 +239,8 @@ export default function FreeShowcase() {
   // A previously saved journey is restored automatically in the same browser
   // identity. Never overwrite a request the user started editing while loading.
   useEffect(() => {
+    // No Firebase calls or authentication prompts in the unconfigured offline preview.
+    if (!firebaseReady) return;
     let alive = true;
     loadJourney()
       .then((saved) => {
@@ -261,7 +269,7 @@ export default function FreeShowcase() {
     };
     // Only check once; restoreSnapshot is intentionally a local operation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [firebaseReady]);
 
   useEffect(() => {
     if (!loading) return;
@@ -762,10 +770,10 @@ Customer request: ${JSON.stringify(submittedText)}
         <div className="mt-auto shrink-0 pt-3 [@media(max-height:550px)]:pt-1.5">
           <div className="rounded-xl border border-sky-400/15 bg-gradient-to-br from-[#112638] to-[#101A29] px-3 py-2.5 [@media(max-height:550px)]:py-2">
             <p className="flex items-center gap-2 text-[11px] font-semibold text-sky-200">
-              <Sparkles size={13} className="text-sky-400" /> Firebase Spark Showcase
+              <Sparkles size={13} className="text-sky-400" /> {firebaseReady ? "Firebase Spark Showcase" : "Offline Judge Preview"}
             </p>
             <p className="mt-1 text-[10px] leading-[15px] text-slate-400 [@media(max-height:480px)]:hidden">
-              Gemini via Firebase · Cloud decisions opt-in · Merchant claims unverified
+              {firebaseReady ? "Gemini via Firebase · Cloud decisions opt-in · Merchant claims unverified" : "Synthetic decision replay · No Firebase connection"}
             </p>
           </div>
         </div>
@@ -780,7 +788,7 @@ Customer request: ${JSON.stringify(submittedText)}
             <p className="text-sm font-semibold">Demand Studio</p>
           </div>
           <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 px-3 py-1.5 text-[11px] text-emerald-300">
-            <CheckCircle2 size={13} /> Firebase showcase
+            <CheckCircle2 size={13} /> {firebaseReady ? "Firebase configured" : "Offline preview"}
           </span>
         </header>
 
@@ -814,15 +822,16 @@ Customer request: ${JSON.stringify(submittedText)}
           </nav>
           <div>
             <p className="mb-2 inline-flex items-center gap-2 rounded-full border border-sky-500/25 bg-sky-500/10 px-3 py-1 text-[11px] text-sky-300">
-              <Sparkles size={13} /> Gemini via Firebase AI Logic
+              <Sparkles size={13} /> {firebaseReady ? "Gemini via Firebase AI Logic" : "Offline evidence walkthrough"}
             </p>
             <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
               Understand the need.{" "}
               <span className="text-sky-400">Before the decision.</span>
             </h1>
             <p className="mt-2 text-sm text-slate-400">
-              Live customer-intent intelligence with a separate, fictional
-              merchant decision scenario.
+              {firebaseReady
+                ? "Firebase-powered intent analysis with a separate fictional merchant scenario."
+                : "Explore the evidence decisions offline. Live Gemini and saved journeys require Firebase configuration."}
             </p>
           </div>
 
@@ -861,12 +870,12 @@ Customer request: ${JSON.stringify(submittedText)}
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h2 className="flex items-center gap-2 text-sm font-semibold">
-                  <Clock3 size={16} className="text-sky-400" /> Firestore
-                  Journey History
+                  <Clock3 size={16} className="text-sky-400" /> {firebaseReady ? "Firestore Journey History" : "Journey Timeline · Offline Preview"}
                 </h2>
                 <p className="mt-1 text-xs leading-5 text-slate-400">
-                  Private to this browser's Firebase anonymous account. Save
-                  only when you choose; no writing on every keystroke.
+                  {firebaseReady
+                    ? "Private to this browser's Firebase anonymous account. Save only when you choose; no writing on every keystroke."
+                    : "Events remain in this page session. Firebase saving is unavailable until the web app is configured."}
                 </p>
                 <p className="mt-2 text-[11px] text-sky-300" aria-live="polite">
                   {storeStatus}
@@ -883,7 +892,7 @@ Customer request: ${JSON.stringify(submittedText)}
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  disabled={storeBusy}
+                  disabled={storeBusy || !firebaseReady}
                   onClick={() => void saveCurrentJourney()}
                   className="rounded-lg bg-sky-500 px-3 py-2 text-xs font-semibold text-slate-950 disabled:opacity-50"
                 >
@@ -891,7 +900,7 @@ Customer request: ${JSON.stringify(submittedText)}
                 </button>
                 <button
                   type="button"
-                  disabled={storeBusy}
+                  disabled={storeBusy || !firebaseReady}
                   onClick={() => void restoreSavedJourney()}
                   className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-200 disabled:opacity-50"
                 >
@@ -899,7 +908,7 @@ Customer request: ${JSON.stringify(submittedText)}
                 </button>
                 <button
                   type="button"
-                  disabled={storeBusy}
+                  disabled={storeBusy || !firebaseReady}
                   onClick={() => void removeSavedJourney()}
                   className="rounded-lg border border-rose-500/25 px-3 py-2 text-xs text-rose-200 disabled:opacity-50"
                 >
@@ -917,8 +926,9 @@ Customer request: ${JSON.stringify(submittedText)}
                 </p>
                 {journeyEvents.length === 0 ? (
                   <p className="mt-2 text-xs text-slate-500">
-                    Extract with Gemini or start a demo; then Save journey to
-                    preserve the events in Firestore.
+                    {firebaseReady
+                      ? "Extract with Gemini or start a demo; then Save journey to preserve events in Firestore."
+                      : "Start the fictional guided demo to explore decisions. Session events are not saved to Firestore in offline preview."}
                   </p>
                 ) : (
                   <ol className="mt-3 max-h-48 space-y-2 overflow-y-auto pr-2">
@@ -991,7 +1001,7 @@ Customer request: ${JSON.stringify(submittedText)}
                 <div>
                   <h2 className="text-sm font-semibold">Customer request</h2>
                   <p className="text-[11px] text-slate-500">
-                    Live Gemini interpretation · No fabricated merchant facts
+                    {firebaseReady ? "Live Gemini interpretation · No fabricated merchant facts" : "Gemini is not connected · Offline decision demo available"}
                   </p>
                 </div>
               </div>
@@ -1040,7 +1050,7 @@ Customer request: ${JSON.stringify(submittedText)}
               </div>
               <button
                 type="button"
-                disabled={loading || request.trim().length < 8}
+                disabled={!firebaseReady || loading || request.trim().length < 8}
                 onClick={() => void analyze()}
                 className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-sky-500 px-4 py-3 text-sm font-semibold text-slate-950 hover:bg-sky-400 disabled:opacity-50"
               >
@@ -1051,7 +1061,7 @@ Customer request: ${JSON.stringify(submittedText)}
                 )}
                 {loading
                   ? "Extracting customer intelligence..."
-                  : "Extract with live Gemini"}
+                  : firebaseReady ? "Extract with live Gemini" : "Gemini not configured"}
                 {!loading && <ArrowRight size={15} />}
               </button>
               {loading && (
@@ -1080,9 +1090,9 @@ Customer request: ${JSON.stringify(submittedText)}
                 </p>
               )}
               <p className="mt-4 border-t border-slate-800 pt-3 text-[11px] leading-5 text-slate-500">
-                This request is analyzed by Gemini. Merchant inventory,
-                authenticity, delivery and prices are not checked by the AI
-                extraction.
+                {firebaseReady
+                  ? "This request is analyzed by Gemini. Merchant inventory, authenticity, delivery and prices are not checked by AI extraction."
+                  : "Offline preview: Gemini extraction is unavailable. Use Start guided demo for the engine-derived fictional walkthrough."}
               </p>
             </section>
 
@@ -1105,8 +1115,9 @@ Customer request: ${JSON.stringify(submittedText)}
                       : "Awaiting customer intelligence"}
                   </h3>
                   <p className="mt-2 max-w-xs text-xs leading-5 text-slate-500">
-                    Submit the request to see structured requirements and
-                    missing information.
+                    {firebaseReady
+                      ? "Submit the request to see structured requirements and missing information."
+                      : "Configure Firebase to enable AI extraction, or explore the offline guided evidence replay above."}
                   </p>
                 </div>
               ) : (

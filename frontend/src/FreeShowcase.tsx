@@ -43,6 +43,7 @@ import RealStoresDiscovery from "./components/RealStoresDiscovery";
 
 
 
+import { guidedJourney16aEnabled } from "./lib/guidedJourney16a";
 import { biCommandCenter14b4Enabled } from "./lib/biCommandCenter14b4";
 import { inventoryReview14b3Enabled } from "./lib/inventoryReview14b3";
 import { retailInsights14b2Enabled } from "./lib/retailInsights14b2";
@@ -73,6 +74,7 @@ const RetailForecast14B1 = lazy(() => import("./components/RetailForecast14B1"))
 const RetailInsights14B2 = lazy(() => import("./components/RetailInsights14B2"));
 const InventoryReview14B3 = lazy(() => import("./components/InventoryReview14B3"));
 const BusinessCommandCenter14B4 = lazy(() => import("./components/BusinessCommandCenter14B4"));
+const GuidedJourney16A = lazy(() => import("./components/GuidedJourney16A"));
 
 type ExtractedIntent = {
   requested_product: string;
@@ -1151,6 +1153,10 @@ Customer request: ${JSON.stringify(submittedText)}
 
 
           <Suspense fallback={<p role="status" className="text-sm text-slate-400">Loading optional intelligence tools...</p>}>
+          {guidedJourney16aEnabled && (
+            <GuidedJourney16A onEvent={recordEvent} />
+          )}
+
           {productGrounding13c1Enabled && (
             <GroundedProductLab
               requestedProduct={isCurrent && intent ? intent.requested_product : null}

@@ -26,6 +26,7 @@ from app.retail_segments_14b2 import CommerceInsightsInput14B2, evaluate_commerc
 from app.inventory_intelligence_14b3 import InventoryInput14B3, evaluate_inventory_14b3
 from app.bi_command_center_14b4 import BIInput14B4, evaluate_bi_command_center_14b4
 from app.api_guard_15a import BoundedAPIGuard15A
+from app.guided_journey_16a import GuidedJourneyInput16A, evaluate_guided_journey_16a
 from app.merchant_evidence_13b import router as evidence_13b_router
 
 
@@ -119,6 +120,14 @@ Identity = Annotated[str, Depends(require_firebase_client)]
 if os.environ.get("MERCHANT_EVIDENCE_STORAGE", "").strip().lower() == "firestore":
     from app.evidence_firestore_13b2 import router as evidence_13b_router
 app.include_router(evidence_13b_router)
+
+
+@app.post("/api/v1/demo/guided-journey")
+def guided_journey_16a(payload: GuidedJourneyInput16A, user_id: Identity, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    if os.environ.get("GUIDED_JOURNEY_16A_ENABLED", "false").strip().lower() != "true":
+        raise HTTPException(status_code=503, detail="Guided journey is disabled")
+    return evaluate_guided_journey_16a(payload)
 
 
 @app.post("/api/v1/analytics/command-center")

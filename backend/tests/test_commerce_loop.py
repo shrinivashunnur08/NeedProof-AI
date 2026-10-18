@@ -471,6 +471,10 @@ def test_agent_plans_basket_for_several_items(client):
     body = client.post("/api/v2/loop/agent/chat", json={"city": "singapore", "history": [
         {"role": "user", "text": "I need a 65W USB-C PD charger, a USB-C cable and a power bank under S$120"}]}).json()
     assert body["mode"] != "clarify" and body["basket"]["status"] == "OPTIMAL"
+    # Each basket item reaches the shops as its own request.
+    assert len(body["requests"]) == 3 and body["request"]["id"] == body["requests"][0]["id"]
+    inbox = client.get("/api/v2/loop/cities/singapore/requests").json()
+    assert {r["product"] for r in inbox} >= {"65W USB-C PD charger", "USB-C cable", "power bank"}
     assert any(t["tool"] == "plan_basket" for t in body["trace"])
     pt = client.post("/api/v2/loop/agent/chat", json={"city": "singapore", "history": [
         {"role": "user", "text": "我需要一个65W充电器和一个充电宝"}]}).json()

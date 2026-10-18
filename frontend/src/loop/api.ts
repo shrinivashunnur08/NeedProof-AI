@@ -32,6 +32,7 @@ export type TraceStep = { tool: string; args: Record<string, unknown>; result: s
 export type ChatResult = {
   reply: string; mode: string; model: { latency_ms?: number; model?: string; backend?: string; error?: string };
   trace: TraceStep[]; offers: Offer[]; request: { id: number; shops_notified: number } | null;
+  requests?: { id: number; shops_notified: number; product: string }[];
   intent?: Intent; intent_model?: { mode?: string; latency_ms?: number }; nearby?: NearbyShop[];
   location?: { city: City; lat?: number; lng?: number; label?: string };
   remembered?: string[]; profile?: Profile | null; basket?: Basket | null; proof_plan?: ProofPlan | null; addon?: { item: string; share_pct: number; note: string } | null;

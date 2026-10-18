@@ -495,7 +495,7 @@ function OfferCard({ offer, live }: { offer: Offer; live?: ShopResponse }) {
 function RequestTracker({ requestId, req }: { requestId: number; req: LoopRequest | null }) {
   return (
     <div className="mt-3 rounded-xl border border-teal-500/30 bg-teal-500/5 p-3" aria-live="polite">
-      <p className="text-sm font-semibold text-teal-200">Request #{requestId} sent to nearby shops · {req?.status === "ANSWERED" ? "photo proof received" : "waiting for photo proof"} <span className="ml-1 inline-block h-2 w-2 animate-pulse rounded-full bg-teal-300 align-middle" aria-hidden="true" /> <span className="text-xs font-normal text-slate-400">live</span></p>
+      <p className="text-sm font-semibold text-teal-200">Request #{requestId}{req?.product ? ` (${req.product})` : ""} sent to nearby shops · {req?.status === "ANSWERED" ? "photo proof received" : "waiting for photo proof"} <span className="ml-1 inline-block h-2 w-2 animate-pulse rounded-full bg-teal-300 align-middle" aria-hidden="true" /> <span className="text-xs font-normal text-slate-400">live</span></p>
       {req && req.responses.length === 0 && <p className="mt-1 text-xs text-slate-400">No replies yet. Open the Shop tab in another window to reply as a shop.</p>}
       <ul className="mt-2 space-y-2">
         {req?.responses.map((r) => (
@@ -521,13 +521,19 @@ function RequestTracker({ requestId, req }: { requestId: number; req: LoopReques
 function AssistantTurn({ turn, version }: { turn: Turn; version: number }) {
   const r = turn.result;
   const requestId = r?.request?.id;
+  const extraIds = (r?.requests ?? []).map((x) => x.id).filter((id) => id !== requestId).join(",");
   const [req, setReq] = useState<LoopRequest | null>(null);
+  const [extra, setExtra] = useState<LoopRequest[]>([]);
   useEffect(() => {
     if (!requestId) return;
     let alive = true;
     api.request(requestId).then((x) => { if (alive) setReq(x); }).catch(() => undefined);
+    if (extraIds) {
+      Promise.all(extraIds.split(",").map((id) => api.request(Number(id))))
+        .then((xs) => { if (alive) setExtra(xs); }).catch(() => undefined);
+    }
     return () => { alive = false; };
-  }, [requestId, version]);
+  }, [requestId, extraIds, version]);
   const latestByShop = new Map<string, ShopResponse>();
   for (const x of req?.responses ?? []) latestByShop.set(x.shop_id, x);
   // A shop's reply is about one product: apply it only to that listing (or, for a plain photo reply,
@@ -564,6 +570,7 @@ function AssistantTurn({ turn, version }: { turn: Turn; version: number }) {
         ]} />
       )}
       {r?.request && <RequestTracker requestId={r.request.id} req={req} />}
+      {extra.map((x) => <RequestTracker key={x.id} requestId={x.id} req={x} />)}
       {r?.addon && (
         <p className="mt-3 rounded-lg border border-violet-400/30 bg-violet-500/10 px-3 py-2 text-sm text-violet-100">
           Tip for you: {r.addon.note}. Ask the shop if you need one too. <span className="text-xs text-slate-400">(basket analysis, 14B.2)</span>

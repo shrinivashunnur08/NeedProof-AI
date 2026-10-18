@@ -99,7 +99,7 @@ class ShopperAgent:
                 usable = item["stock"] > 0 and specs["ok"] and not over_budget
                 offers.append({
                     "shop_id": shop["id"], "shop": shop["name"], "area": shop["area"],
-                    "distance_km": self._distance(shop),
+                    "distance_km": self._distance(shop), "lat": shop.get("lat"), "lng": shop.get("lng"),
                     "listing": item["product"], "price": Money(item["price"], item["currency"]).format(),
                     "price_amount": item["price"], "currency": item["currency"],
                     "listed_stock": item["stock"], "spec_check": specs, "over_budget": over_budget,
@@ -109,12 +109,13 @@ class ShopperAgent:
         self.offers = offers
         listed = {o["shop_id"] for o in offers}
         nearby = [{"shop_id": s["id"], "shop": s["name"], "area": s["area"], "distance_km": self._distance(s),
+                   "lat": s.get("lat"), "lng": s.get("lng"),
                    "source": s["source"], "photo_proof": self._photo_proof(city_id, s["id"], product)}
                   for s in store.shops_in_city(city_id) if s["id"] not in listed and s["source"] != "demo"]
         nearby.sort(key=lambda x: x["distance_km"] if x["distance_km"] is not None else 99)
         self.nearby = nearby[:12]
         result = {"city": CITIES[city_id]["name"], "currency": CITIES[city_id]["currency"],
-                  "offers": [{k: v for k, v in o.items() if k not in {"price_amount"}} for o in offers],
+                  "offers": [{k: v for k, v in o.items() if k not in {"price_amount", "lat", "lng"}} for o in offers],
                   "nearby_shops_without_online_listing": [{k: n[k] for k in ("shop", "area", "distance_km")}
                                                           for n in self.nearby[:8]],
                   "note": "Listings are shop claims. photo_proof shows whether a shop has sent photo evidence. "

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import "./google-theme.css";
 import {
   api, photoToBase64, fileToBase64, type Draft, type InventoryItem, type InventoryUpload,
   type Brief, type ChatResult, type City, type Insights, type Intent, type LoopRequest, type NearbyShop, type Offer,
@@ -142,6 +143,44 @@ function IntentCard({ intent, mode, latency }: { intent: Intent; mode?: string; 
   );
 }
 
+/* Google Maps: Static API image with numbered pins (key restricted to this site) + Directions links. */
+const mapsConfig = { key: "" };
+
+function directionsUrl(lat: number, lng: number): string {
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+}
+
+function DirectionsLink({ lat, lng }: { lat?: number | null; lng?: number | null }) {
+  if (lat == null || lng == null) return null;
+  return <a href={directionsUrl(lat, lng)} target="_blank" rel="noreferrer" className="text-xs font-semibold text-teal-300 hover:underline">Directions ↗</a>;
+}
+
+type Pin = { id: string; name: string; lat: number; lng: number; verified: boolean };
+
+function ShopMap({ origin, pins }: { origin?: { lat?: number | null; lng?: number | null; label?: string | null } | null; pins: Pin[] }) {
+  const shown = pins.slice(0, 9);
+  if (!mapsConfig.key || shown.length === 0) return null;
+  const params = new URLSearchParams({ size: "640x280", scale: "2", maptype: "roadmap", key: mapsConfig.key });
+  const parts: string[] = [];
+  if (origin?.lat != null && origin?.lng != null) parts.push(`markers=${encodeURIComponent(`color:blue|label:Y|${origin.lat},${origin.lng}`)}`);
+  shown.forEach((p, i) => parts.push(`markers=${encodeURIComponent(`color:${p.verified ? "green" : "red"}|label:${i + 1}|${p.lat},${p.lng}`)}`));
+  const src = `https://maps.googleapis.com/maps/api/staticmap?${params.toString()}&${parts.join("&")}`;
+  return (
+    <figure className="mt-3 overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/40">
+      <img src={src} alt={`Map of ${shown.length} shops near ${origin?.label ?? "you"}`} className="h-56 w-full object-cover" loading="lazy" />
+      <figcaption className="flex flex-wrap gap-x-4 gap-y-1 p-3 text-xs text-slate-300">
+        <span><span className="font-semibold text-sky-300">Y</span> you</span>
+        {shown.map((p, i) => (
+          <span key={p.id} className="flex items-center gap-1.5">
+            <span className={`font-semibold ${p.verified ? "text-emerald-300" : "text-rose-300"}`}>{i + 1}</span>{p.name}
+            <DirectionsLink lat={p.lat} lng={p.lng} />
+          </span>
+        ))}
+      </figcaption>
+    </figure>
+  );
+}
+
 function NearbyList({ shops, live }: { shops: NearbyShop[]; live: Map<string, ShopResponse> }) {
   if (shops.length === 0) return null;
   return (
@@ -155,6 +194,7 @@ function NearbyList({ shops, live }: { shops: NearbyShop[]; live: Map<string, Sh
               <span className="min-w-0 truncate text-slate-100">{n.shop}<span className="text-slate-500"> · {n.area}</span></span>
               <span className="flex shrink-0 items-center gap-1.5">
                 {n.distance_km != null && <span className="font-mono text-xs text-slate-400">{n.distance_km.toFixed(1)} km</span>}
+                <DirectionsLink lat={n.lat} lng={n.lng} />
                 {reply && <StatusChip status={reply.status} />}
               </span>
             </li>
@@ -325,7 +365,7 @@ function OfferCard({ offer, live }: { offer: Offer; live?: ShopResponse }) {
     <li className="rounded-xl border border-slate-700/70 bg-slate-900/60 p-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="font-semibold text-slate-100">{offer.shop} <span className="font-normal text-slate-400">· {offer.area}{offer.distance_km != null ? ` · ${offer.distance_km.toFixed(1)} km` : ""}</span></p>
-        <p className="font-mono text-sm text-slate-100">{offer.price}</p>
+        <p className="flex items-center gap-3"><DirectionsLink lat={offer.lat} lng={offer.lng} /><span className="font-mono text-sm text-slate-100">{offer.price}</span></p>
       </div>
       <p className="mt-0.5 text-sm text-slate-300">{offer.listing}</p>
       <div className="mt-2 flex flex-wrap gap-1.5">
@@ -400,6 +440,16 @@ function AssistantTurn({ turn, version }: { turn: Turn; version: number }) {
       </p>
       {r && r.offers.length > 0 && <ul className="mt-3 space-y-2">{r.offers.map((o) => <OfferCard key={o.shop_id + o.listing} offer={o} live={latestByShop.get(o.shop_id)} />)}</ul>}
       {r?.nearby && <NearbyList shops={r.nearby} live={latestByShop} />}
+      {r && (r.offers.length > 0 || (r.nearby ?? []).length > 0) && (
+        <ShopMap origin={r.location?.lat != null ? r.location : r.location ? { lat: r.location.city.lat, lng: r.location.city.lng, label: r.location.city.name } : null} pins={[
+          ...r.offers.filter((o, i, a) => o.lat != null && o.lng != null && a.findIndex((x) => x.shop_id === o.shop_id) === i)
+            .map((o) => ({ id: o.shop_id, name: o.shop, lat: o.lat as number, lng: o.lng as number,
+              verified: (latestByShop.get(o.shop_id)?.status ?? o.photo_proof) === "PHOTO_MATCHES_REQUEST" })),
+          ...(r.nearby ?? []).filter((n) => n.lat != null && n.lng != null)
+            .map((n) => ({ id: n.shop_id, name: n.shop, lat: n.lat as number, lng: n.lng as number,
+              verified: latestByShop.get(n.shop_id)?.status === "PHOTO_MATCHES_REQUEST" })),
+        ]} />
+      )}
       {r?.request && <RequestTracker requestId={r.request.id} req={req} />}
       {r?.addon && (
         <p className="mt-3 rounded-lg border border-violet-400/30 bg-violet-500/10 px-3 py-2 text-sm text-violet-100">
@@ -1218,7 +1268,7 @@ export default function LoopApp() {
   }, [locateBy]);
 
   useEffect(() => {
-    api.status().then((s) => { setCities((prev) => [...s.cities, ...prev.filter((p) => !s.cities.some((c) => c.id === p.id))]); setProviders(s.providers); })
+    api.status().then((s) => { setCities((prev) => [...s.cities, ...prev.filter((p) => !s.cities.some((c) => c.id === p.id))]); setProviders(s.providers); mapsConfig.key = s.maps_key ?? ""; })
       .catch(() => setError("Backend not reachable. Start FastAPI on port 8000."));
   }, []);
   // Detect the shopper's location once, unless the link already names a city.
@@ -1240,8 +1290,8 @@ export default function LoopApp() {
   const otherWindow = `${window.location.pathname}?role=${role === "shop" ? "shopper" : "shop"}&city=${cityId}`;
 
   return (
-    <div className="min-h-dvh bg-[#0a0f17] text-slate-100">
-      <header className="border-b border-slate-800 bg-[#0b111b]">
+    <div className="np-google min-h-dvh bg-slate-950 text-slate-100">
+      <header className="border-b border-slate-800 bg-slate-950">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-3 px-4 py-4">
           <div className="min-w-0">
             <p className="text-lg font-bold tracking-tight">NeedProof <span className="font-normal text-slate-400">· Know it's in stock before you go</span></p>
@@ -1273,7 +1323,7 @@ export default function LoopApp() {
         <nav aria-label="Role" className="mx-auto flex max-w-5xl flex-wrap gap-1 overflow-x-auto px-4">
           {tabs.map((t) => (
             <button key={t.id} type="button" onClick={() => setRole(t.id)} aria-current={role === t.id ? "page" : undefined}
-              className={`whitespace-nowrap border-b-2 px-3 pb-2 pt-1 text-sm ${role === t.id ? "border-teal-400 text-white" : "border-transparent text-slate-400 hover:text-slate-200"}`}>
+              className={`whitespace-nowrap border-b-2 px-3 pb-2 pt-1 text-sm ${role === t.id ? "border-teal-400 font-semibold text-teal-300" : "border-transparent text-slate-400 hover:text-slate-200"}`}>
               {t.label} <span className="hidden text-xs text-slate-500 xl:inline">· {t.hint}</span>
             </button>
           ))}

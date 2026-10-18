@@ -48,6 +48,8 @@ def status():
     from app.commerce_loop.guard import usage
 
     return {"providers": get_providers().public_status(), "limits": usage(),
+            # Browser key for the Maps Static API, restricted by HTTP referrer to this site.
+            "maps_key": setting("MAPS_BROWSER_KEY", ""),
             "cities": [c for c in CITIES.values() if c.get("demo")],
             "discovery": setting("DISCOVERY", "osm").lower(),
             "data_note": "Shops and listings are fictional demo data."}

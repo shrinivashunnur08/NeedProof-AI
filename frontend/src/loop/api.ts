@@ -5,7 +5,7 @@ export type Intent = {
   quantity: number | null; urgency: string | null; location_text: string | null; language: string;
   missing_info: string[]; clarifying_question: string | null;
 };
-export type NearbyShop = { shop_id: string; shop: string; area: string; distance_km: number | null; source: string; photo_proof: string };
+export type NearbyShop = { shop_id: string; shop: string; area: string; distance_km: number | null; source: string; photo_proof: string; lat?: number | null; lng?: number | null };
 export type Located = {
   city: City; label: string; lat: number; lng: number; shops_found: number; source: string;
   nearest: { id: string; name: string; area: string; distance_km?: number }[]; note: string;
@@ -20,6 +20,7 @@ export type Providers = {
 export type SpecCheck = { ok: boolean; issues: string[]; matches: string[] };
 export type Offer = {
   shop_id: string; shop: string; area: string; distance_km?: number | null; listing: string; price: string; currency: string;
+  lat?: number | null; lng?: number | null;
   listed_stock: number; spec_check: SpecCheck; over_budget: boolean; usable: boolean; photo_proof: string;
   decision: {
     workflow_state: string; state_text: string; next_best_proof: string | null; purchase_allowed: boolean;
@@ -122,7 +123,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  status: () => call<{ providers: Providers; cities: City[]; discovery: string }>("/status"),
+  status: () => call<{ providers: Providers; cities: City[]; discovery: string; maps_key?: string }>("/status"),
   chat: (city: string, history: { role: "user" | "assistant"; text: string }[], loc?: ShopperLocation | null,
          shopper?: { id: string; name: string }) =>
     call<ChatResult>("/agent/chat", { method: "POST", body: JSON.stringify({

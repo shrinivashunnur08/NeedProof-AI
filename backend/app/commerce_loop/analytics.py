@@ -114,6 +114,14 @@ def shop_analytics(city: str, shop_id: str | None = None) -> dict:
     sales = _sales_history(shop["id"], city)
     inventory_rows = _inventory_history(shop["id"], sales)
     on_hand = inventory_rows[-1]["closing_units"]
+    # The shop's own uploaded inventory (if any) is the source of truth for stock on hand today.
+    uploaded = next((i for i in store.inventory_for(shop["id"])
+                     if store.product_key(i["product"], i["specs"]) == "65w usb-c pd charger"), None)
+    if uploaded is not None:
+        on_hand = uploaded["stock"]
+        last = inventory_rows[-1]
+        last["closing_units"] = on_hand
+        last["reported_stockout"] = on_hand == 0
 
     forecast = evaluate_retail_forecast_14b1(ForecastInput14B1(
         product_label=SKUS["CHG65"], history=sales, horizon_days=7, on_hand_units=on_hand,
@@ -162,7 +170,9 @@ def shop_analytics(city: str, shop_id: str | None = None) -> dict:
                      "method": "14B.2: anonymous RFM features, k-means with minimum cohort size"},
         "baskets": {"rules": rules, "basket_count": insights["basket_analysis"].get("basket_count"),
                     "method": "14B.2: pair support, confidence, lift with Wilson lower bound"},
-        "data_note": "Shop sales, stock and customers are synthetic for demo shops, scaled to this city's live request volume.",
+        "stock_source": "uploaded inventory" if uploaded is not None else "sales history",
+        "data_note": ("Stock on hand comes from this shop's uploaded inventory. " if uploaded is not None else "")
+                     + "Sales history and customers are seeded for onboarded shops and scale with this city's live requests.",
     }
 
 

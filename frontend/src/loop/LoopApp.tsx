@@ -296,7 +296,7 @@ function LocationBar({ loc, busy, error, onDetect, onSearch, demo }: {
         </form>
       ) : (
         <>
-          <span className="text-slate-100">{busy ? "Finding your location…" : loc ? loc.label : demo ? "Demo city" : "Location not set"}</span>
+          <span className="text-slate-100">{busy ? "Finding your location…" : loc ? loc.label : demo ? "City centre" : "Location not set"}</span>
           {loc && !busy && (
             <span className="text-xs text-slate-400">
               · {loc.detected ? "detected" : "chosen"} · {loc.shopsFound} real shops nearby{loc.shopsFound ? ` (${loc.source === "google_places" ? "Google Places" : "OpenStreetMap"})` : ""}
@@ -322,7 +322,7 @@ function EvidenceDrawer({ offer, live }: { offer: Offer; live?: ShopResponse }) 
         : status && status !== "NONE" ? (STATUS_TEXT[status] ?? status) : "Not sent yet; the shop has been asked",
       state: status === "PHOTO_MATCHES_REQUEST" ? "done" : status && status !== "NONE" ? "bad" : "todo",
     },
-    { label: "Independent verification", detail: "Not available in this demo (for example a marketplace audit or a store visit)", state: "todo" },
+    { label: "Independent verification", detail: "Not yet available (for example a marketplace audit or a store visit)", state: "todo" },
   ];
   const d = offer.decision;
   return (
@@ -486,7 +486,7 @@ function ShopperView({ city, loc, onMoved }: { city: City; loc: ShopperLocation 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
-  const persona = PERSONA[city.id] ?? "Demo shopper";
+  const persona = PERSONA[city.id] ?? "Shopper";
   const shopperId = `demo-${city.id}-${persona.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`.slice(0, 40);
   const [profile, setProfile] = useState<Profile | null>(null);
 
@@ -524,7 +524,7 @@ function ShopperView({ city, loc, onMoved }: { city: City; loc: ShopperLocation 
   return (
     <section aria-label="Shopper assistant" className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-slate-400">Shopping as <span className="font-semibold text-slate-200">{persona} (demo)</span> in {city.name} ({city.symbol}). Write in any language.</p>
+        <p className="text-sm text-slate-400">Shopping as <span className="font-semibold text-slate-200">{persona}</span> in {city.name} ({city.symbol}). Write in any language.</p>
         {turns.length > 0 && <button type="button" onClick={() => setTurns([])} className="text-xs text-slate-400 underline hover:text-slate-200">New conversation</button>}
       </div>
       {profile && (profile.device || profile.needs.length > 0 || profile.budget) && (
@@ -823,10 +823,10 @@ function ShopView({ city, shopId, setShopId }: { city: City; shopId: string; set
       <div className="flex flex-wrap items-center gap-2">
         <label htmlFor="shop-select" className="text-sm text-slate-400">Continue as</label>
         <select id="shop-select" value={shopId} onChange={(e) => setShopId(e.target.value)} className="max-w-full rounded-lg border border-slate-600 bg-slate-950 px-2 py-1.5 text-sm">
-          {shops.some((s) => s.source === "demo") && <optgroup label="Demo shops">
+          {shops.some((s) => s.source === "demo") && <optgroup label="Onboarded shops">
             {shops.filter((s) => s.source === "demo").map((s) => <option key={s.id} value={s.id}>{s.name} · {s.area}</option>)}
           </optgroup>}
-          {shops.some((s) => s.source !== "demo") && <optgroup label="Real shops nearby (simulated reply)">
+          {shops.some((s) => s.source !== "demo") && <optgroup label="Nearby shops from the map (reply on their behalf)">
             {shops.filter((s) => s.source !== "demo").map((s) => <option key={s.id} value={s.id}>{s.name}{s.area ? ` · ${s.area}` : ""}</option>)}
           </optgroup>}
         </select>
@@ -907,9 +907,9 @@ function Bands({ a }: { a: Analytics["forecast"] }) {
   );
 }
 
-function ShopAnalytics({ city }: { city: City }) {
+function ShopAnalytics({ city, initialShop }: { city: City; initialShop?: string }) {
   const [shops, setShops] = useState<Shop[]>([]);
-  const [shopId, setShopId] = useState("");
+  const [shopId, setShopId] = useState(initialShop ?? "");
   const [a, setA] = useState<Analytics | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -1043,7 +1043,7 @@ function BigQueryPanel({ city }: { city: City }) {
   );
 }
 
-function BusinessView({ city, bigquery }: { city: City; bigquery?: boolean }) {
+function BusinessView({ city, bigquery, shopId }: { city: City; bigquery?: boolean; shopId?: string }) {
   const [data, setData] = useState<Insights | null>(null);
   const [brief, setBrief] = useState<Brief | null>(null);
   const [lang, setLang] = useState("en");
@@ -1063,7 +1063,7 @@ function BusinessView({ city, bigquery }: { city: City; bigquery?: boolean }) {
   const maxUnmet = useMemo(() => Math.max(1, ...(data?.products.map((p) => p.unmet) ?? [1])), [data]);
   return (
     <section aria-label="Demand insights" className="flex flex-col gap-4">
-      <ShopAnalytics city={city} />
+      <ShopAnalytics city={city} initialShop={shopId} />
       {bigquery && <BigQueryPanel city={city} />}
       <p className="text-sm text-slate-300">City demand: what shoppers in {city.name} asked for in the last 28 days, and how much of it no shop confirmed.</p>
       <ErrorNote message={error} />
@@ -1270,7 +1270,7 @@ export default function LoopApp() {
     setLocBusy(true); setLocError("");
     navigator.geolocation.getCurrentPosition(
       (pos) => { void locateBy({ lat: pos.coords.latitude, lng: pos.coords.longitude }, true); },
-      () => { setLocBusy(false); setLocError("Location not shared; using the demo city. Use Change to type a place."); },
+      () => { setLocBusy(false); setLocError("Location not shared; showing the city centre. Use Change to type a place."); },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
   }, [locateBy]);
 
@@ -1310,7 +1310,7 @@ export default function LoopApp() {
               {cities.some((c) => !c.demo) && <optgroup label="Your location">
                 {cities.filter((c) => !c.demo).map((c) => <option key={c.id} value={c.id}>{c.name} ({c.symbol.trim()})</option>)}
               </optgroup>}
-              <optgroup label="Demo cities (seeded shops)">
+              <optgroup label="Cities with onboarded shops">
                 {cities.filter((c) => c.demo).map((c) => <option key={c.id} value={c.id}>{c.name} ({c.symbol})</option>)}
               </optgroup>
             </select>
@@ -1319,8 +1319,7 @@ export default function LoopApp() {
                 <Chip tone={providers.live_model ? "green" : "amber"}>{providers.gemini.label}{providers.live_model ? ` · ${providers.gemini.model}` : ""}</Chip>
               </span>
             )}
-            <button type="button" onClick={() => api.reset().then(() => setResetKey((k) => k + 1))} className="text-xs text-slate-400 underline hover:text-slate-200">Reset demo</button>
-            <a href="/classic" className="text-xs text-slate-400 underline hover:text-slate-200" title="The original decision-engine showcase">Engine lab</a>
+            <button type="button" onClick={() => api.reset().then(() => setResetKey((k) => k + 1))} className="text-xs text-slate-400 underline hover:text-slate-200">Reset data</button>
           </div>
         </div>
         <div className="mx-auto max-w-5xl px-4 pb-2">
@@ -1343,8 +1342,8 @@ export default function LoopApp() {
           onMoved={(c, lat, lng, label) => applyLocation(c, lat ?? c.lat ?? 0, lng ?? c.lng ?? 0, label ?? c.name, loc?.source ?? "openstreetmap", loc?.shopsFound ?? 0, false)} />}
         {city && role === "shop" && <ShopView city={city} shopId={shopId} setShopId={setShopId} />}
         {role === "trust" && <TrustView />}
-        {city && role === "business" && <BusinessView city={city} bigquery={providers?.analytics?.backend === "bigquery"} />}
-        <p className="mt-10 text-xs text-slate-500">Demo cities use fictional shops and demand history. Real shops come from public map data and are never contacted by this demo. The app never buys anything; listings are shop claims until a photo is checked.</p>
+        {city && role === "business" && <BusinessView city={city} shopId={shopId} bigquery={providers?.analytics?.backend === "bigquery"} />}
+        <p className="mt-10 text-xs text-slate-500">Onboarded shops in Singapore, São Paulo and Mumbai are sample businesses with seeded history. Real shops come from public map data and are never contacted by this demo. The app never buys anything; listings are shop claims until a photo is checked.</p>
       </main>
     </div>
   );

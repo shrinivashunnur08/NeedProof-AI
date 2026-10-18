@@ -82,9 +82,9 @@ def test_agent_finds_offers_and_asks_shops(client):
     assert body["intent"]["wattage_w"] == 65 and body["intent"]["budget_amount"] == 60
     assert body["intent"]["budget_currency"] == "SGD" and body["intent"]["urgency"] == "today"
     shops = {o["shop"]: o for o in body["offers"]}
-    assert shops["Harbour Tech (demo)"]["usable"] is True
-    assert shops["Lion City Mobiles (demo)"]["usable"] is False  # listed but out of stock
-    marina = shops["Marina Gadgets (demo)"]
+    assert shops["Harbour Tech"]["usable"] is True
+    assert shops["Lion City Mobiles"]["usable"] is False  # listed but out of stock
+    marina = shops["Marina Gadgets"]
     assert marina["usable"] is False and "below the required 65W" in marina["spec_check"]["issues"][0]
     for o in body["offers"]:
         assert o["decision"]["purchase_allowed"] is False

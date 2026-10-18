@@ -48,15 +48,15 @@ CREATE TABLE IF NOT EXISTS demand_events (
 """
 
 SHOPS = [
-    ("sg-harbour", "singapore", "Harbour Tech (demo)", "Bugis"),
-    ("sg-lioncity", "singapore", "Lion City Mobiles (demo)", "Orchard"),
-    ("sg-marina", "singapore", "Marina Gadgets (demo)", "Jurong East"),
-    ("sp-paulista", "sao-paulo", "Paulista Eletrônicos (demo)", "Bela Vista"),
-    ("sp-centro", "sao-paulo", "Loja Centro Tech (demo)", "Centro"),
-    ("sp-vila", "sao-paulo", "Vila Digital (demo)", "Vila Mariana"),
-    ("mu-seaface", "mumbai", "Seaface Electronics (demo)", "Worli"),
-    ("mu-gateway", "mumbai", "Gateway Mobiles (demo)", "Andheri"),
-    ("mu-metro", "mumbai", "Metro Gadget Hub (demo)", "Dadar"),
+    ("sg-harbour", "singapore", "Harbour Tech", "Bugis"),
+    ("sg-lioncity", "singapore", "Lion City Mobiles", "Orchard"),
+    ("sg-marina", "singapore", "Marina Gadgets", "Jurong East"),
+    ("sp-paulista", "sao-paulo", "Paulista Eletrônicos", "Bela Vista"),
+    ("sp-centro", "sao-paulo", "Loja Centro Tech", "Centro"),
+    ("sp-vila", "sao-paulo", "Vila Digital", "Vila Mariana"),
+    ("mu-seaface", "mumbai", "Seaface Electronics", "Worli"),
+    ("mu-gateway", "mumbai", "Gateway Mobiles", "Andheri"),
+    ("mu-metro", "mumbai", "Metro Gadget Hub", "Dadar"),
 ]
 
 CHARGER_65 = {"wattage_w": 65, "connector": "USB-C", "usb_pd": True}
@@ -122,6 +122,7 @@ def _migrate(c: sqlite3.Connection) -> None:
     for col, ddl in (("lat", "REAL"), ("lng", "REAL"), ("source", "TEXT NOT NULL DEFAULT 'demo'"), ("address", "TEXT")):
         if col not in have:
             c.execute(f"ALTER TABLE shops ADD COLUMN {col} {ddl}")
+    c.execute("UPDATE shops SET name=REPLACE(name, ' (demo)', '') WHERE name LIKE '% (demo)'")
     have_resp = {r[1] for r in c.execute("PRAGMA table_info(responses)").fetchall()}
     for col in ("message", "evidence_class", "inventory_id"):
         if col not in have_resp:

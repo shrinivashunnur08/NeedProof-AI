@@ -141,7 +141,7 @@ ENGINES = [
      "used_in": "Business → Review priorities", "status": "live", "run": _run_command},
     {"id": "research", "chunk": "13C.1 · 13C.2", "name": "Spec-sheet check (product research)",
      "what": "Finds the cited passages in a spec sheet and checks voltage, power and USB PD against the device.",
-     "used_in": "Engine room only for now (needs a spec sheet from the shop)", "status": "available", "run": _run_research},
+     "used_in": "Trust report → Engines section only for now (needs a spec sheet from the shop)", "status": "available", "run": _run_research},
     {"id": "benchmark", "chunk": "17F", "name": "Benchmarks",
      "what": "Seeded comparison of NeedProof's policies against simple alternatives.",
      "used_in": "Trust report → Decision engine benchmarks", "status": "live", "run": _run_benchmark},

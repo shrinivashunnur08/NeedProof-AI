@@ -12,7 +12,7 @@ function RouteLoading() {
     <div
       role="status"
       aria-live="polite"
-      className="flex min-h-dvh items-center justify-center bg-[#090E18] px-4 text-sm text-slate-300"
+      className="flex min-h-dvh items-center justify-center bg-white px-4 text-sm text-gray-600"
     >
       Loading NeedProof…
     </div>
@@ -36,7 +36,7 @@ export default function NeedProofRouter() {
   if (/^\/app\/?$/.test(path) || (path === "/" && !hostedShowcase)) {
     return <Suspense fallback={<RouteLoading />}><LoopApp /></Suspense>;
   }
-  // The old engine lab now lives inside the app as the Engine room.
+  // The old engine lab now lives inside the app: Trust report → Engines behind each screen.
   if (path.startsWith("/classic") && !hostedShowcase) {
     window.location.replace("/?role=engines");
     return null;

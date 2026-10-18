@@ -1436,8 +1436,8 @@ function EngineRoom() {
   return (
     <section aria-label="Engine room" className="flex flex-col gap-4">
       <div>
-        <h1 className="text-xl font-semibold text-slate-50">Engine room</h1>
-        <p className="mt-1 text-sm text-slate-400">The NeedProof engines built before this app, what each one decides, and where it runs in the Shopper, Shop and Business screens. <b>Run</b> executes the engine now on the app's live data.</p>
+        <h2 className="text-lg font-semibold text-slate-50">Engines behind each screen</h2>
+        <p className="mt-1 text-sm text-slate-400">The NeedProof engines, what each one decides, and where it runs in the Shopper, Shop and Business screens. <b>Run</b> executes the engine now on the app's live data.</p>
       </div>
       <ul className="grid gap-3 md:grid-cols-2">
         {cat.engines.map((e) => {
@@ -1484,7 +1484,8 @@ const STRATEGY: Record<string, string> = {
   NEEDPROOF_ORTOOLS: "NeedProof optimiser (OR-Tools)", CHEAPEST_FIRST: "Cheapest item first", SINGLE_MERCHANT: "One shop only",
 };
 
-function TrustView() {
+function TrustView({ focusEngines = false }: { focusEngines?: boolean }) {
+  const enginesRef = useRef<HTMLDivElement>(null);
   const [t, setT] = useState<TrustReport | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -1492,6 +1493,9 @@ function TrustView() {
     api.trust().then((x) => { if (alive) setT(x); }).catch((e) => { if (alive) setError(e instanceof Error ? e.message : "Could not load"); });
     return () => { alive = false; };
   }, []);
+  useEffect(() => {
+    if (t && focusEngines) enginesRef.current?.scrollIntoView({ block: "start" });
+  }, [t, focusEngines]);
   if (error) return <ErrorNote message={error} />;
   if (!t) return <p className="text-sm text-slate-400">Loading the trust report…</p>;
   const card = "rounded-xl border border-slate-700 bg-slate-900/40 p-4";
@@ -1593,6 +1597,10 @@ function TrustView() {
         <p className="font-semibold">Limits, stated plainly</p>
         <ul className="mt-1 list-disc space-y-1 pl-5 text-amber-100/90">{t.limits.map((l) => <li key={l}>{l}</li>)}</ul>
       </div>
+
+      <div ref={enginesRef} id="engines" className="scroll-mt-4 border-t border-slate-800 pt-5">
+        <EngineRoom />
+      </div>
     </section>
   );
 }
@@ -1657,7 +1665,6 @@ export default function LoopApp() {
     { id: "shop", label: "Shop", hint: "Reply with photo proof" },
     { id: "business", label: "Business", hint: "Unmet demand" },
     { id: "trust", label: "Trust report", hint: "How it decides" },
-    { id: "engines", label: "Engine room", hint: "The engines behind each screen" },
   ];
   const otherWindow = `${window.location.pathname}?role=${role === "shop" ? "shopper" : "shop"}&city=${cityId}`;
 
@@ -1693,8 +1700,8 @@ export default function LoopApp() {
         </div>
         <nav aria-label="Role" className="mx-auto flex max-w-5xl flex-wrap gap-1 overflow-x-auto px-4">
           {tabs.map((t) => (
-            <button key={t.id} type="button" onClick={() => setRole(t.id)} aria-current={role === t.id ? "page" : undefined}
-              className={`whitespace-nowrap border-b-2 px-3 pb-2 pt-1 text-sm ${role === t.id ? "border-teal-400 font-semibold text-teal-300" : "border-transparent text-slate-400 hover:text-slate-200"}`}>
+            <button key={t.id} type="button" onClick={() => setRole(t.id)} aria-current={(role === "engines" ? "trust" : role) === t.id ? "page" : undefined}
+              className={`whitespace-nowrap border-b-2 px-3 pb-2 pt-1 text-sm ${(role === "engines" ? "trust" : role) === t.id ? "border-teal-400 font-semibold text-teal-300" : "border-transparent text-slate-400 hover:text-slate-200"}`}>
               {t.label} <span className="hidden text-xs text-slate-500 xl:inline">· {t.hint}</span>
             </button>
           ))}
@@ -1707,7 +1714,7 @@ export default function LoopApp() {
           onMoved={(c, lat, lng, label) => applyLocation(c, lat ?? c.lat ?? 0, lng ?? c.lng ?? 0, label ?? c.name, loc?.source ?? "openstreetmap", loc?.shopsFound ?? 0, false)} />}
         {city && role === "shop" && <ShopView city={city} shopId={shopId} setShopId={setShopId} onOpenBusiness={() => setRole("business")} />}
         {role === "trust" && <TrustView />}
-        {role === "engines" && <EngineRoom />}
+        {role === "engines" && <TrustView focusEngines />}
         {city && role === "business" && <BusinessView city={city} shopId={shopId} bigquery={providers?.analytics?.backend === "bigquery"} />}
         <p className="mt-10 text-xs text-slate-500">Onboarded shops in Singapore, São Paulo and Mumbai are sample businesses with seeded history. Real shops come from public map data and are never contacted by NeedProof. The app never buys anything; listings are shop claims until a photo is checked.</p>
       </main>

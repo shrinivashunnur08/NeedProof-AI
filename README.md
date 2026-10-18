@@ -17,7 +17,7 @@ Three minutes:
 4. Ask for several items at once: *"a 65W charger, a USB-C cable and a power bank, S$120 total"*: the OR-Tools basket planner picks the cheapest mix of shops.
 5. Ask again later with *"I need a laptop charger again"*: NeedProof remembers the wattage and budget (**Forget me** deletes it).
 6. **Business** tab: forecast, stock risk, customer groups, bought-together rules and review priorities for the selected shop, plus the **BigQuery ML** forecast and a brief written by Gemini **inside BigQuery**.
-7. **Trust report** and **Engine room**: how each answer is decided, live model tests, safeguards, and every NeedProof engine with a **Run** button on live data.
+7. **Trust report**: how each answer is decided, live model tests, safeguards, and at the bottom every NeedProof engine with a **Run** button on live data.
 
 *Reset data* clears the shared data. Shops in Singapore, São Paulo and Mumbai are fictional; *Detect* switches to your real location and real nearby shops from OpenStreetMap.
 
@@ -62,7 +62,7 @@ cd frontend && npm install && npm run dev         # http://127.0.0.1:5173
 ```
 Without a key the app runs with a mock model. More: [`docs/COMMERCE_LOOP.md`](docs/COMMERCE_LOOP.md).
 
-The original Firebase showcase is still available: **[Live Firebase Showcase](https://needproof-ai-showcase.web.app)**; its engines now run inside the app under *Engine room*.
+The original Firebase showcase is still available: **[Live Firebase Showcase](https://needproof-ai-showcase.web.app)**; its engines now run inside the app (Trust report → Engines behind each screen).
 
 ## The Problem
 

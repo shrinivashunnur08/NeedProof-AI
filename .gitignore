@@ -48,3 +48,6 @@ Thumbs.db
 # Commerce loop generated files
 backend/demand_events.ndjson
 backend/commerce_loop.ndjson
+
+# Shop inventory photos uploaded in the demo
+backend/media/

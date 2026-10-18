@@ -282,3 +282,69 @@ def test_profile_remembers_and_forgets(client):
         "city": "singapore", "shopper_id": sid,
         "history": [{"role": "user", "text": "I need a laptop charger"}]}).json()
     assert fresh["mode"] == "clarify" and fresh["remembered"] == []
+
+
+def _new_request(client, text="65W USB-C PD charger under S$60"):
+    body = client.post("/api/v2/loop/agent/chat", json={
+        "city": "singapore", "history": [{"role": "user", "text": text}]}).json()
+    return body["request"]["id"]
+
+
+def test_inventory_sample_draft_and_approved_reply(client, monkeypatch, tmp_path):
+    up = client.post("/api/v2/loop/shops/sg-marina/inventory/sample").json()
+    assert up["items"] == 5 and up["with_photo"] == 3
+    inv = client.get("/api/v2/loop/shops/sg-marina/inventory").json()
+    assert inv[0]["image_url"] and client.get(inv[0]["image_url"]).status_code == 200
+    rid = _new_request(client)
+    draft = client.get(f"/api/v2/loop/requests/{rid}/draft", params={"shop_id": "sg-marina"}).json()
+    assert draft["needs_human_approval"] and draft["draft"]["product"].startswith("65W")
+    assert all("mixer" not in c["product"].lower() for c in draft["candidates"])
+    assert draft["candidates"][0]["inventory_id"] == draft["draft"]["inventory_id"]
+    # Unapproved drafts are refused.
+    refused = client.post(f"/api/v2/loop/requests/{rid}/reply", json={
+        "shop_id": "sg-marina", "inventory_id": draft["draft"]["inventory_id"], "approved_by_shopkeeper": False})
+    assert refused.status_code == 409
+    sent = client.post(f"/api/v2/loop/requests/{rid}/reply", json={
+        "shop_id": "sg-marina", "inventory_id": draft["draft"]["inventory_id"], "price": 49, "stock": 7,
+        "message": draft["draft"]["message"]}).json()
+    # Mock model cannot read photos, so a catalog photo is never auto-verified.
+    assert sent["check"]["status"] == "PHOTO_NOT_CHECKED"
+    assert sent["evidence_class"] == "SHOP_CATALOG_PHOTO_READ_BY_AI"
+    req = client.get(f"/api/v2/loop/requests/{rid}").json()
+    assert req["responses"][-1]["message"].startswith("Yes, we have")
+    # The upload also replaces what shopper searches see for that shop.
+    offers = client.post("/api/v2/loop/agent/chat", json={
+        "city": "singapore", "history": [{"role": "user", "text": "65W USB-C PD charger under S$60"}]}).json()["offers"]
+    assert any(o["shop_id"] == "sg-marina" and "VoltPro" in o["listing"] for o in offers)
+    assert not any("adapter" in o["listing"].lower() for o in offers)
+
+
+def test_inventory_xlsx_upload_maps_headers(client):
+    import base64
+    import io
+
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["Item name", "Make", "Qty", "Selling price", "Image"])
+    ws.append(["Anker 65W USB-C PD charger", "Anker", 4, "S$52", "x.jpg"])
+    ws.append(["", "", "", "", ""])
+    ws.append(["Mixer grinder 750W", "Philips", 2, 89, ""])
+    buf = io.BytesIO()
+    wb.save(buf)
+    res = client.post("/api/v2/loop/shops/sg-harbour/inventory", json={
+        "filename": "stock.xlsx", "sheet_base64": base64.b64encode(buf.getvalue()).decode()}).json()
+    assert res["items"] == 2 and res["columns"]["price"] == "Selling price" and res["columns"]["stock"] == "Qty"
+    assert any("x.jpg" in p for p in res["problems"])
+    inv = client.get("/api/v2/loop/shops/sg-harbour/inventory").json()
+    assert inv[0]["specs"]["wattage_w"] == 65 and inv[0]["price"] == 52 and inv[0]["stock"] == 4
+    rid = _new_request(client)
+    draft = client.get(f"/api/v2/loop/requests/{rid}/draft", params={"shop_id": "sg-harbour"}).json()
+    assert draft["draft"]["product"].startswith("Anker") and len(draft["candidates"]) == 1
+    assert any("photo" in c.lower() for c in draft["draft"]["caveats"])
+    bad = client.post("/api/v2/loop/shops/sg-harbour/inventory", json={
+        "filename": "x.csv", "sheet_base64": base64.b64encode(b"foo,bar\n1,2\n").decode()})
+    assert bad.status_code == 422
+    assert client.get("/api/v2/loop/inventory/template.xlsx").status_code == 200
+    assert client.get("/api/v2/loop/media/sg-harbour/..%2F..%2Fsecret").status_code == 404

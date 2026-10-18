@@ -7,3 +7,5 @@ sqlalchemy>=2,<3
 pydantic-settings>=2,<3
 cloud-sql-python-connector[pg8000]>=1.12,<2
 google-cloud-firestore>=2.14,<3
+
+openpyxl>=3.1,<4

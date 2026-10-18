@@ -21,6 +21,10 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS shops (
   id TEXT PRIMARY KEY, city TEXT NOT NULL, name TEXT NOT NULL, area TEXT NOT NULL,
   lat REAL, lng REAL, source TEXT NOT NULL DEFAULT 'demo', address TEXT);
+CREATE TABLE IF NOT EXISTS inventory (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, shop_id TEXT NOT NULL, sku TEXT, product TEXT NOT NULL, brand TEXT,
+  specs TEXT NOT NULL, price REAL NOT NULL, currency TEXT NOT NULL, stock INTEGER NOT NULL, image_file TEXT,
+  updated_at TEXT);
 CREATE TABLE IF NOT EXISTS shopper_profiles (
   id TEXT PRIMARY KEY, city TEXT, name TEXT, device TEXT, budget REAL, currency TEXT, language TEXT,
   needs TEXT NOT NULL DEFAULT '[]', updated_at TEXT);
@@ -118,6 +122,10 @@ def _migrate(c: sqlite3.Connection) -> None:
     for col, ddl in (("lat", "REAL"), ("lng", "REAL"), ("source", "TEXT NOT NULL DEFAULT 'demo'"), ("address", "TEXT")):
         if col not in have:
             c.execute(f"ALTER TABLE shops ADD COLUMN {col} {ddl}")
+    have_resp = {r[1] for r in c.execute("PRAGMA table_info(responses)").fetchall()}
+    for col in ("message", "evidence_class", "inventory_id"):
+        if col not in have_resp:
+            c.execute(f"ALTER TABLE responses ADD COLUMN {col} {'INTEGER' if col == 'inventory_id' else 'TEXT'}")
     have_req = {r[1] for r in c.execute("PRAGMA table_info(requests)").fetchall()}
     if "shopper_id" not in have_req:
         c.execute("ALTER TABLE requests ADD COLUMN shopper_id TEXT")
@@ -154,7 +162,7 @@ def upsert_shops(city: str, shops: list[dict]) -> int:
 def reset() -> None:
     with _LOCK:
         c = conn()
-        for table in ("shops", "listings", "requests", "responses", "demand_events", "shopper_profiles"):
+        for table in ("shops", "listings", "requests", "responses", "demand_events", "shopper_profiles", "inventory"):
             c.execute(f"DELETE FROM {table}")
         _seed(c)
 
@@ -199,7 +207,9 @@ def product_key(product: str, specs: dict | None = None) -> str:
     if watt is None:
         m = re.search(r"(\d{2,3})\s*w\b", text)
         watt = int(m.group(1)) if m else None
-    if any(w in words for w in ("charger", "carregador", "adapter", "चार्जर")) or "充电" in product or "चार्जर" in product:
+    if ("travel" in words or "plug" in words) and ("adapter" in words or "adaptor" in words) and "charger" not in words:
+        return "travel adapter"
+    if any(w in words for w in ("charger", "carregador", "adapter", "adaptor", "चार्जर")) or "充电" in product or "चार्जर" in product:
         return f"{watt}w usb-c pd charger" if watt else "usb-c charger"
     if "cable" in words or "cabo" in words:
         return "usb-c cable 100w"
@@ -276,6 +286,39 @@ def open_requests(city: str) -> list[dict]:
     return out
 
 
+def replace_inventory(shop_id: str, currency: str, items: list[dict]) -> None:
+    """Uploaded sheet becomes the shop's inventory and its listings (what shoppers' searches see)."""
+    with _LOCK:
+        c = conn()
+        c.execute("DELETE FROM inventory WHERE shop_id=?", (shop_id,))
+        c.execute("DELETE FROM listings WHERE shop_id=?", (shop_id,))
+        ts = now_iso()
+        c.executemany(
+            "INSERT INTO inventory (shop_id, sku, product, brand, specs, price, currency, stock, image_file, updated_at)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?)",
+            [(shop_id, i["sku"], i["product"], i["brand"], json.dumps(i["specs"]), i["price"], currency, i["stock"],
+              i["image_file"], ts) for i in items])
+        c.executemany("INSERT INTO listings (shop_id, product, specs, price, currency, stock) VALUES (?,?,?,?,?,?)",
+                      [(shop_id, (f"{i['brand']} " if i["brand"] else "") + i["product"], json.dumps(i["specs"]),
+                        i["price"], currency, i["stock"]) for i in items])
+        c.commit()
+
+
+def inventory_for(shop_id: str) -> list[dict]:
+    out = rows("SELECT * FROM inventory WHERE shop_id=? ORDER BY id", (shop_id,))
+    for item in out:
+        item["specs"] = json.loads(item["specs"])
+    return out
+
+
+def inventory_item(item_id: int) -> dict | None:
+    found = rows("SELECT * FROM inventory WHERE id=?", (item_id,))
+    if not found:
+        return None
+    found[0]["specs"] = json.loads(found[0]["specs"])
+    return found[0]
+
+
 def get_profile(shopper_id: str) -> dict | None:
     found = rows("SELECT * FROM shopper_profiles WHERE id=?", (shopper_id,))
     if not found:
@@ -315,11 +358,13 @@ def responses_for(request_id: int) -> list[dict]:
 
 
 def add_response(request_id: int, shop_id: str, price: float | None, currency: str | None, stock: int | None,
-                 claim: dict, check: dict, status: str) -> int:
+                 claim: dict, check: dict, status: str, *, message: str | None = None,
+                 evidence_class: str | None = None, inventory_id: int | None = None) -> int:
     rid = execute(
-        "INSERT INTO responses (request_id, shop_id, price, currency, stock, claim, check_result, status, created_at)"
-        " VALUES (?,?,?,?,?,?,?,?,?)",
-        (request_id, shop_id, price, currency, stock, json.dumps(claim), json.dumps(check), status, now_iso()))
+        "INSERT INTO responses (request_id, shop_id, price, currency, stock, claim, check_result, status, created_at,"
+        " message, evidence_class, inventory_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        (request_id, shop_id, price, currency, stock, json.dumps(claim), json.dumps(check), status, now_iso(),
+         message, evidence_class, inventory_id))
     if status == "PHOTO_MATCHES_REQUEST":
         execute("UPDATE requests SET status='ANSWERED' WHERE id=?", (request_id,))
         req = rows("SELECT * FROM requests WHERE id=?", (request_id,))[0]

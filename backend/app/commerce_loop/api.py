@@ -9,7 +9,7 @@ import os
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.commerce_loop import store
@@ -154,6 +154,9 @@ class PhotoReplyIn(BaseModel):
     image_base64: str | None = Field(default=None, max_length=8_000_000)
     image_mime: str | None = None
     mock_hint: dict | None = Field(default=None, description="Test-only: fields the mock model returns")
+    inventory_id: int | None = Field(default=None, description="Inventory row the shopkeeper approved from a draft")
+    message: str | None = Field(default=None, max_length=500)
+    approved_by_shopkeeper: bool = Field(default=True, description="Drafts are only sent after a person approves")
 
 
 @router.post("/requests/{request_id}/reply")
@@ -175,10 +178,113 @@ def reply_with_photo(request_id: int, body: PhotoReplyIn):
         if len(data) > MAX_IMAGE_BYTES:
             raise HTTPException(status_code=413, detail="Photo must be under 5 MB")
         image = (data, body.image_mime)
-    result = read_photo(req, image, body.price, mock_hint=body.mock_hint)
+    catalog = False
+    item = None
+    if body.inventory_id is not None:
+        if not body.approved_by_shopkeeper:
+            raise HTTPException(status_code=409, detail="A drafted reply must be approved by the shopkeeper first")
+        from app.commerce_loop.inventory import catalog_image
+
+        item = store.inventory_item(body.inventory_id)
+        if not item or item["shop_id"] != body.shop_id:
+            raise HTTPException(status_code=404, detail="Inventory item not found for this shop")
+        if image is None:
+            image = catalog_image(item)
+            catalog = image is not None
+    result = read_photo(req, image, body.price, mock_hint=body.mock_hint, catalog=catalog)
     response_id = store.add_response(request_id, body.shop_id, body.price, CITIES[req["city"]]["currency"],
-                                     body.stock, result["claim"], result["check"], result["check"]["status"])
+                                     body.stock, result["claim"], result["check"], result["check"]["status"],
+                                     message=body.message, evidence_class=result.get("evidence_class"),
+                                     inventory_id=item["id"] if item else None)
     return {"response_id": response_id, **result}
+
+
+# ---------------- shop inventory ----------------
+class UploadImage(BaseModel):
+    name: str = Field(max_length=120)
+    data: str = Field(max_length=7_000_000)
+    mime: str
+
+
+class InventoryUploadIn(BaseModel):
+    filename: str = Field(max_length=120)
+    sheet_base64: str = Field(max_length=4_000_000)
+    images: list[UploadImage] = Field(default_factory=list, max_length=60)
+
+
+def _shop_or_404(shop_id: str) -> dict:
+    shop = store.shop(shop_id)
+    if not shop:
+        raise HTTPException(status_code=404, detail="Shop not found")
+    return shop
+
+
+@router.post("/shops/{shop_id}/inventory")
+def upload_inventory(shop_id: str, body: InventoryUploadIn):
+    from app.commerce_loop.inventory import import_inventory
+
+    _shop_or_404(shop_id)
+    try:
+        sheet = base64.b64decode(body.sheet_base64.split(",")[-1], validate=True)
+        images = [(i.name, base64.b64decode(i.data.split(",")[-1], validate=True), i.mime) for i in body.images]
+    except (binascii.Error, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="File is not valid base64") from exc
+    if sum(len(d) for _, d, _ in images) > 40 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Photos must total under 40 MB; upload in batches")
+    try:
+        return import_inventory(shop_id, (sheet, body.filename), images)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/shops/{shop_id}/inventory/sample")
+def sample_inventory(shop_id: str):
+    from app.commerce_loop.inventory import import_sample
+
+    _shop_or_404(shop_id)
+    return import_sample(shop_id)
+
+
+@router.get("/shops/{shop_id}/inventory")
+def list_inventory(shop_id: str):
+    from app.commerce_loop.inventory import _image_url
+
+    _shop_or_404(shop_id)
+    return [{**i, "image_url": _image_url(i)} for i in store.inventory_for(shop_id)]
+
+
+@router.get("/inventory/template.xlsx")
+def inventory_template():
+    from app.commerce_loop.inventory import template_xlsx
+
+    return Response(template_xlsx(), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": 'attachment; filename="needproof_inventory_template.xlsx"'})
+
+
+@router.get("/media/{shop_id}/{name}")
+def media(shop_id: str, name: str):
+    from app.commerce_loop.inventory import _safe, media_dir
+
+    if _safe(name) != name or _safe(shop_id) != shop_id:
+        raise HTTPException(status_code=404, detail="Not found")
+    path = media_dir(shop_id) / name
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse(path, headers={"Cache-Control": "private, max-age=300"})
+
+
+@router.get("/requests/{request_id}/draft")
+def request_draft(request_id: int, shop_id: str):
+    """AI search over this shop's inventory -> a reply draft. Never sent without the shopkeeper's approval."""
+    from app.commerce_loop.inventory import draft_reply
+
+    req = store.get_request(request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+    shop = _shop_or_404(shop_id)
+    if shop["city"] != req["city"]:
+        raise HTTPException(status_code=403, detail="This shop cannot see a request in another city")
+    return draft_reply(req, shop_id)
 
 
 @router.get("/shoppers/{shopper_id}")

@@ -103,8 +103,18 @@ def _mock_claim(request: dict, hint: dict | None) -> PhotoClaim:
 
 
 def read_photo(request: dict, image: tuple[bytes, str] | None, shop_price: float | None,
-               gemini: Gemini | None = None, mock_hint: dict | None = None) -> dict:
+               gemini: Gemini | None = None, mock_hint: dict | None = None, catalog: bool = False) -> dict:
     """Never returns a match without a model actually reading a photo (except explicit test hints)."""
+    result = _read_photo(request, image, shop_price, gemini, mock_hint)
+    if catalog and image is not None:
+        result["evidence_class"] = "SHOP_CATALOG_PHOTO_READ_BY_AI"
+        result["check"].setdefault("cautions", []).insert(
+            0, "Catalog photo from the shop's inventory sheet, not a fresh shelf photo; ask for one if it matters")
+    return result
+
+
+def _read_photo(request: dict, image: tuple[bytes, str] | None, shop_price: float | None,
+                gemini: Gemini | None, mock_hint: dict | None) -> dict:
     gemini = gemini or Gemini()
     meta: dict = {}
     evidence = "SHOP_PHOTO_READ_BY_AI_NOT_INDEPENDENTLY_VERIFIED"

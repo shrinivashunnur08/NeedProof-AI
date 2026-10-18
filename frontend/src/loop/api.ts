@@ -55,6 +55,22 @@ export type PhotoCheck = { status: string; issues: string[]; missing: string[]; 
 export type ShopResponse = {
   id: number; shop_id: string; shop_name: string; price: number | null; status: string;
   claim: Record<string, unknown>; check_result: PhotoCheck; created_at: string;
+  message?: string | null; evidence_class?: string | null; inventory_id?: number | null;
+};
+export type InventoryItem = {
+  id: number; shop_id: string; sku: string | null; product: string; brand: string | null; specs: Record<string, unknown>;
+  price: number; currency: string; stock: number; image_file: string | null; image_url: string | null;
+};
+export type InventoryUpload = { items: number; with_photo: number; columns: Record<string, string>; problems: string[]; currency: string };
+export type DraftCandidate = {
+  inventory_id: number; product: string; brand: string | null; price_text: string; stock: number; score: number;
+  spec_issues: string[]; within_budget: boolean; image_url: string | null;
+};
+export type Draft = {
+  request_id: number; shop_id: string; has_inventory: boolean; needs_human_approval: boolean; mode: string;
+  model?: { latency_ms?: number; error?: string }; reason: string; candidates: DraftCandidate[];
+  draft: null | { inventory_id: number; product: string; brand: string | null; price: number; price_text: string;
+    stock: number; image_url: string | null; message: string; caveats: string[] };
 };
 export type LoopRequest = {
   id: number; city: string; product: string; specs: Record<string, unknown>; budget: number | null;
@@ -105,15 +121,31 @@ export const api = {
   request: (id: number) => call<LoopRequest>(`/requests/${id}`),
   cityRequests: (city: string) => call<LoopRequest[]>(`/cities/${city}/requests`),
   shops: (city: string) => call<Shop[]>(`/cities/${city}/shops`),
-  reply: (id: number, body: { shop_id: string; price?: number; stock?: number; image_base64?: string; image_mime?: string }) =>
-    call<{ claim: Record<string, unknown>; check: PhotoCheck; mode: string; model: { latency_ms?: number; error?: string } }>(
+  reply: (id: number, body: { shop_id: string; price?: number; stock?: number; image_base64?: string; image_mime?: string;
+    inventory_id?: number; message?: string; approved_by_shopkeeper?: boolean }) =>
+    call<{ claim: Record<string, unknown>; check: PhotoCheck; mode: string; model: { latency_ms?: number; error?: string }; evidence_class?: string }>(
       `/requests/${id}/reply`, { method: "POST", body: JSON.stringify(body) }),
   insights: (city: string) => call<Insights>(`/cities/${city}/insights`),
   brief: (city: string, language: string, shopId?: string) =>
     call<Brief>(`/cities/${city}/brief`, { method: "POST", body: JSON.stringify({ language, shop_id: shopId || null }) }),
+  inventory: (shopId: string) => call<InventoryItem[]>(`/shops/${shopId}/inventory`),
+  uploadInventory: (shopId: string, body: { filename: string; sheet_base64: string; images: { name: string; data: string; mime: string }[] }) =>
+    call<InventoryUpload>(`/shops/${shopId}/inventory`, { method: "POST", body: JSON.stringify(body) }),
+  sampleInventory: (shopId: string) => call<InventoryUpload>(`/shops/${shopId}/inventory/sample`, { method: "POST" }),
+  draft: (requestId: number, shopId: string) => call<Draft>(`/requests/${requestId}/draft?shop_id=${encodeURIComponent(shopId)}`),
+  templateUrl: `${BASE}/inventory/template.xlsx`,
   reset: () => call<{ reset: boolean }>("/demo/reset", { method: "POST" }),
   exportBq: () => call<{ rows: number; next: string }>("/analytics/export", { method: "POST" }),
 };
+
+export function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(",").pop() ?? "");
+    r.onerror = () => reject(new Error(`Could not read ${file.name}`));
+    r.readAsDataURL(file);
+  });
+}
 
 /** Shrink phone photos before upload so they stay well under the 5 MB limit. */
 export async function photoToBase64(file: File): Promise<{ data: string; mime: string; preview: string }> {

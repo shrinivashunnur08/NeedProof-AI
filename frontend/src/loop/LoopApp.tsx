@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  api, photoToBase64,
+  api, photoToBase64, fileToBase64, type Draft, type InventoryItem, type InventoryUpload,
   type Brief, type ChatResult, type City, type Insights, type Intent, type LoopRequest, type NearbyShop, type Offer,
   type PhotoCheck, type ShopResponse, type ShopperLocation,
   type Providers, type Shop, type Analytics, type Profile,
@@ -360,7 +360,9 @@ function RequestTracker({ requestId, req }: { requestId: number; req: LoopReques
               <span className="font-semibold text-slate-100">{r.shop_name}</span>
               {r.price != null && <span className="font-mono text-slate-300">{r.price}</span>}
               <StatusChip status={r.status} />
+              {r.evidence_class === "SHOP_CATALOG_PHOTO_READ_BY_AI" && <Chip tone="amber">Catalog photo</Chip>}
             </div>
+            {r.message && <p className="mt-1 text-sm text-slate-200">“{r.message}”</p>}
             {typeof r.claim.analysis_summary === "string" && <p className="mt-1 text-xs text-slate-300"><span className="text-indigo-200">Gemini Vision:</span> {r.claim.analysis_summary}</p>}
             {r.check_result.issues.length > 0 && <p className="mt-1 text-xs text-rose-300">{r.check_result.issues.join(" · ")}</p>}
             {r.check_result.matches.length > 0 && <p className="mt-1 text-xs text-emerald-300">{r.check_result.matches.join(" · ")}</p>}
@@ -577,11 +579,163 @@ function ReplyForm({ req, shopId, onDone }: { req: LoopRequest; shopId: string; 
   );
 }
 
+function InventoryPanel({ shopId, onChanged }: { shopId: string; onChanged: () => void }) {
+  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [sheet, setSheet] = useState<File | null>(null);
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [summary, setSummary] = useState<InventoryUpload | null>(null);
+  const [reload, setReload] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    api.inventory(shopId).then((x) => { if (alive) setItems(x); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [shopId, reload]);
+
+  async function run(fn: () => Promise<InventoryUpload>) {
+    setBusy(true); setError("");
+    try { setSummary(await fn()); setReload((n) => n + 1); onChanged(); setSheet(null); setPhotos([]); }
+    catch (e) { setError(e instanceof Error ? e.message : "Upload failed"); }
+    finally { setBusy(false); }
+  }
+  async function upload() {
+    if (!sheet) return;
+    await run(async () => {
+      const images = await Promise.all(photos.map(async (f) => {
+        const p = await photoToBase64(f);
+        return { name: f.name, data: p.data, mime: p.mime };
+      }));
+      return api.uploadInventory(shopId, { filename: sheet.name, sheet_base64: await fileToBase64(sheet), images });
+    });
+  }
+  return (
+    <details className="rounded-xl border border-slate-700 bg-slate-900/40 p-3" open={items.length === 0}>
+      <summary className="cursor-pointer select-none text-sm font-semibold text-slate-100">
+        Inventory · {items.length ? `${items.length} items, ${items.filter((i) => i.image_url).length} with photos` : "not uploaded yet"}
+        <span className="ml-2 text-xs font-normal text-slate-400">AI drafts replies from it; you approve every reply</span>
+      </summary>
+      <div className="mt-3 flex flex-col gap-3">
+        <div className="flex flex-wrap items-end gap-2 text-sm">
+          <label className="text-xs text-slate-400">Sheet (.xlsx or .csv)
+            <input type="file" accept=".xlsx,.csv" onChange={(e) => setSheet(e.target.files?.[0] ?? null)} className="mt-1 block text-xs text-slate-300 file:mr-2 file:rounded file:border-0 file:bg-slate-700 file:px-2 file:py-1 file:text-slate-100" />
+          </label>
+          <label className="text-xs text-slate-400">Product photos (named in the sheet)
+            <input type="file" accept="image/*" multiple onChange={(e) => setPhotos(Array.from(e.target.files ?? []))} className="mt-1 block text-xs text-slate-300 file:mr-2 file:rounded file:border-0 file:bg-slate-700 file:px-2 file:py-1 file:text-slate-100" />
+          </label>
+          <button type="button" onClick={() => void upload()} disabled={busy || !sheet} className="rounded-lg bg-teal-500 px-3 py-1.5 font-semibold text-slate-950 disabled:opacity-40">{busy ? "Uploading…" : `Upload${photos.length ? ` + ${photos.length} photos` : ""}`}</button>
+          <a href={api.templateUrl} className="rounded-lg border border-slate-600 px-3 py-1.5 text-slate-200 hover:border-teal-400">Download template</a>
+          <button type="button" onClick={() => void run(() => api.sampleInventory(shopId))} disabled={busy} className="rounded-lg border border-slate-600 px-3 py-1.5 text-slate-200 hover:border-teal-400">Load sample inventory</button>
+        </div>
+        <ErrorNote message={error} />
+        {summary && (
+          <p className="text-xs text-slate-300">Imported {summary.items} items ({summary.with_photo} with photos). Columns read: {Object.entries(summary.columns).map(([k, v]) => `${k} ← "${v}"`).join(", ")}.
+            {summary.problems.length > 0 && <span className="block text-amber-200">{summary.problems.join(" · ")}</span>}</p>
+        )}
+        {items.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[520px] text-xs">
+              <thead className="text-left text-slate-500"><tr><th className="py-1">Photo</th><th>Product</th><th>Specs</th><th>Price</th><th>Stock</th></tr></thead>
+              <tbody>{items.map((i) => (
+                <tr key={i.id} className="border-t border-slate-800 text-slate-300">
+                  <td className="py-1">{i.image_url ? <img src={i.image_url} alt="" className="h-9 w-9 rounded object-cover" /> : <span className="text-slate-600">–</span>}</td>
+                  <td className="text-slate-100">{i.brand ? `${i.brand} ` : ""}{i.product}</td>
+                  <td>{Object.entries(i.specs).map(([k, v]) => `${k.replace("_w", "")}: ${String(v)}`).join(" · ")}</td>
+                  <td className="font-mono">{i.currency} {i.price}</td><td className="font-mono">{i.stock}</td>
+                </tr>))}</tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </details>
+  );
+}
+
+function DraftCard({ req, shopId, invVersion, onDone, onManual }: { req: LoopRequest; shopId: string; invVersion: number; onDone: () => void; onManual: () => void }) {
+  const [d, setD] = useState<Draft | null>(null);
+  const [pick, setPick] = useState<number | null>(null);
+  const [price, setPrice] = useState("");
+  const [stock, setStock] = useState("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState<{ claim: Record<string, unknown>; check: PhotoCheck; mode: string; model: { latency_ms?: number } } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api.draft(req.id, shopId).then((x) => {
+      if (!alive) return;
+      setD(x);
+      if (x.draft) { setPick(x.draft.inventory_id); setPrice(String(x.draft.price)); setStock(String(x.draft.stock)); setMessage(x.draft.message); }
+    }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [req.id, shopId, invVersion]);
+
+  if (!d) return <p className="mt-2 text-xs text-slate-500">Searching your inventory…</p>;
+  if (!d.draft) {
+    return (
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+        <span>{d.reason}</span>
+        <button type="button" onClick={onManual} className="rounded-lg border border-teal-500/60 px-3 py-1.5 text-sm text-teal-200 hover:bg-teal-500/10">I have this: reply with photo</button>
+      </div>
+    );
+  }
+  const chosen = d.candidates.find((c) => c.inventory_id === pick) ?? d.candidates[0];
+  async function approve() {
+    setBusy(true); setError("");
+    try {
+      setResult(await api.reply(req.id, { shop_id: shopId, inventory_id: chosen.inventory_id, price: price ? Number(price) : undefined,
+        stock: stock ? Number(stock) : undefined, message, approved_by_shopkeeper: true }));
+      onDone();
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not send"); } finally { setBusy(false); }
+  }
+  return (
+    <div className="mt-3 rounded-xl border border-violet-400/40 bg-violet-500/5 p-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-violet-200">
+        AI draft from your inventory · {d.mode === "gemini" ? `Gemini ${d.model?.latency_ms ?? "?"} ms` : "inventory search"} · waiting for your approval
+      </p>
+      <div className="mt-2 grid gap-3 md:grid-cols-[96px_1fr]">
+        {chosen.image_url ? <img src={chosen.image_url} alt={chosen.product} className="h-24 w-24 rounded-lg object-cover" /> : <div className="flex h-24 w-24 items-center justify-center rounded-lg border border-dashed border-slate-600 text-[11px] text-slate-500">no photo</div>}
+        <div className="flex flex-col gap-2 text-sm">
+          <p className="text-slate-300">{d.reason}</p>
+          {d.candidates.length > 1 && (
+            <label className="text-xs text-slate-400">Item
+              <select value={chosen.inventory_id} onChange={(e) => {
+                const c = d.candidates.find((x) => x.inventory_id === Number(e.target.value));
+                setPick(Number(e.target.value)); if (c) setStock(String(c.stock));
+              }} className="ml-2 rounded border border-slate-600 bg-slate-950 px-2 py-1 text-sm text-slate-100">
+                {d.candidates.map((c) => <option key={c.inventory_id} value={c.inventory_id}>{c.brand ? `${c.brand} ` : ""}{c.product} · {c.price_text} · {c.stock} in stock{c.spec_issues.length ? " ⚠" : ""}</option>)}
+              </select>
+            </label>
+          )}
+          <div className="flex gap-2">
+            <label className="w-28 text-xs text-slate-400">Price ({req.currency})<input value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" className="mt-1 w-full rounded border border-slate-600 bg-slate-950 px-2 py-1 text-sm text-slate-100" /></label>
+            <label className="w-20 text-xs text-slate-400">Stock<input value={stock} onChange={(e) => setStock(e.target.value)} inputMode="numeric" className="mt-1 w-full rounded border border-slate-600 bg-slate-950 px-2 py-1 text-sm text-slate-100" /></label>
+          </div>
+          <label className="text-xs text-slate-400">Message to shopper (edit before sending)
+            <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={2} maxLength={500} className="mt-1 w-full rounded border border-slate-600 bg-slate-950 px-2 py-1 text-sm text-slate-100" />
+          </label>
+          {d.draft.caveats.length > 0 && <p className="text-xs text-amber-200">Check: {d.draft.caveats.join(" · ")}</p>}
+          {!result && (
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => void approve()} disabled={busy} className="rounded-lg bg-teal-500 px-3 py-1.5 text-sm font-semibold text-slate-950 disabled:opacity-40">{busy ? "Gemini is checking the photo…" : "Approve & send"}</button>
+              <button type="button" onClick={onManual} className="rounded-lg border border-slate-600 px-3 py-1.5 text-sm text-slate-200 hover:border-teal-400">Send a fresh photo instead</button>
+            </div>
+          )}
+          <ErrorNote message={error} />
+        </div>
+      </div>
+      {busy && !result && <div className="mt-2"><AnalysingSteps /></div>}
+      {result && <div className="mt-2"><PhotoAnalysis claim={result.claim} check={result.check} mode={result.mode} latency={result.model?.latency_ms} /></div>}
+    </div>
+  );
+}
+
 function ShopView({ city, shopId, setShopId }: { city: City; shopId: string; setShopId: (id: string) => void }) {
   const [shops, setShops] = useState<Shop[]>([]);
   const [requests, setRequests] = useState<LoopRequest[]>([]);
   const [open, setOpen] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const [invVersion, setInvVersion] = useState(0);
 
   useEffect(() => {
     api.shops(city.id).then((s) => {
@@ -618,6 +772,7 @@ function ShopView({ city, shopId, setShopId }: { city: City; shopId: string; set
         )}
       </div>
       <ErrorNote message={error} />
+      {shopId && <InventoryPanel key={shopId} shopId={shopId} onChanged={() => setInvVersion((n) => n + 1)} />}
       <p className="text-sm text-slate-300">Shopper requests near <span className="font-semibold">{shop?.name ?? "your shop"}</span> in {city.name}. Reply with a photo so Gemini can check it.</p>
       {requests.length === 0 && <p className="rounded-xl border border-slate-700 p-4 text-sm text-slate-400">No requests yet. Ask for something in the Shopper tab (or another window) and it appears here within seconds.</p>}
       <ul className="flex flex-col gap-3">
@@ -638,9 +793,15 @@ function ShopView({ city, shopId, setShopId }: { city: City; shopId: string; set
                 {Object.entries(r.specs).map(([k, v]) => `${k.replace("_w", "").replaceAll("_", " ")}: ${String(v)}`).join(" · ") || "No specific specs"}
                 {r.budget ? ` · budget ${r.currency} ${r.budget}` : ""} · language {r.language}
               </p>
+              {mine && (
+                <div className="mt-2">
+                  {mine.message && <p className="mb-1 text-sm text-slate-300">You sent: “{mine.message}”{mine.evidence_class === "SHOP_CATALOG_PHOTO_READ_BY_AI" ? " · with catalog photo" : ""}</p>}
+                  <PhotoAnalysis claim={mine.claim} check={mine.check_result} mode={Object.keys(mine.claim).length ? "gemini" : "none"} />
+                </div>
+              )}
               {!mine && (open === r.id
                 ? <ReplyForm req={r} shopId={shopId} onDone={load} />
-                : <button type="button" onClick={() => setOpen(r.id)} className="mt-2 rounded-lg border border-teal-500/60 px-3 py-1.5 text-sm text-teal-200 hover:bg-teal-500/10">I have this: reply with photo</button>)}
+                : <DraftCard req={r} shopId={shopId} invVersion={invVersion} onDone={load} onManual={() => setOpen(r.id)} />)}
             </li>
           );
         })}

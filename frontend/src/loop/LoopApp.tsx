@@ -53,26 +53,42 @@ const STATUS_TEXT: Record<string, string> = {
 };
 
 /** Live updates for a city: Server-Sent Events push, plus refresh on focus and a slow safety poll. */
-function useCityVersion(cityId: string): number {
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    const bump = () => setTick((t) => t + 1);
+/** One shared live connection per city (server-sent events + a 10 s poll), however many panels listen. */
+const citySubs = new Map<string, { listeners: Set<() => void>; stop: () => void }>();
+
+function subscribeCity(cityId: string, fn: () => void): () => void {
+  let sub = citySubs.get(cityId);
+  if (!sub) {
+    const listeners = new Set<() => void>();
+    const fire = () => listeners.forEach((l) => l());
     let source: EventSource | null = null;
     try {
       source = new EventSource(`/api/v2/loop/cities/${cityId}/events`);
-      source.addEventListener("change", bump);
+      source.addEventListener("change", fire);
     } catch { /* fall back to polling */ }
-    const onVisible = () => { if (document.visibilityState === "visible") bump(); };
-    window.addEventListener("focus", bump);
+    const onVisible = () => { if (document.visibilityState === "visible") fire(); };
+    window.addEventListener("focus", fire);
     document.addEventListener("visibilitychange", onVisible);
-    const poll = window.setInterval(bump, 10000);
-    return () => {
+    const poll = window.setInterval(fire, 10000);
+    sub = { listeners, stop: () => {
       source?.close();
-      window.removeEventListener("focus", bump);
+      window.removeEventListener("focus", fire);
       document.removeEventListener("visibilitychange", onVisible);
       window.clearInterval(poll);
-    };
-  }, [cityId]);
+    } };
+    citySubs.set(cityId, sub);
+  }
+  const s = sub;
+  s.listeners.add(fn);
+  return () => {
+    s.listeners.delete(fn);
+    if (s.listeners.size === 0) { s.stop(); citySubs.delete(cityId); }
+  };
+}
+
+function useCityVersion(cityId: string): number {
+  const [tick, setTick] = useState(0);
+  useEffect(() => subscribeCity(cityId, () => setTick((t) => t + 1)), [cityId]);
   return tick;
 }
 
@@ -372,10 +388,10 @@ function NearbyList({ shops, live, requestId }: { shops: NearbyShop[]; live: Map
         {shops.slice(0, 10).map((n) => {
           const reply = live.get(n.shop_id);
           return (
-            <li key={n.shop_id} className="flex min-w-0 items-center justify-between gap-2 rounded-lg bg-slate-900/70 px-2 py-1.5 text-sm">
-              <span className="min-w-0 truncate text-slate-100" title={n.address ?? undefined}>{n.shop}<span className="text-slate-500"> · {n.area}</span>
+            <li key={n.shop_id} className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-lg bg-slate-900/70 px-2 py-1.5 text-sm">
+              <span className="min-w-[12rem] flex-1 truncate text-slate-100" title={n.address ?? undefined}>{n.shop}<span className="text-slate-500"> · {n.area}</span>
                 {n.rating ? <span className="ml-1 text-xs text-amber-200">★{n.rating.toFixed(1)}{n.rating_count ? ` (${n.rating_count})` : ""}</span> : null}</span>
-              <span className="flex shrink-0 items-center gap-1.5">
+              <span className="flex shrink-0 flex-wrap items-center gap-1.5">
                 <MapsLink url={n.maps_url} />
                 {n.distance_km != null && <span className="font-mono text-xs text-slate-400">{n.distance_km.toFixed(1)} km</span>}
                 <DirectionsLink lat={n.lat} lng={n.lng} />
@@ -586,6 +602,12 @@ function OfferCard({ offer, live }: { offer: Offer; live?: ShopResponse }) {
   );
 }
 
+function formatPrice(amount: number, currency?: string | null): string {
+  if (!currency) return String(amount);
+  try { return new Intl.NumberFormat(currency === "INR" ? "en-IN" : undefined, { style: "currency", currency, maximumFractionDigits: 2 }).format(amount); }
+  catch { return `${currency} ${amount}`; }
+}
+
 function RequestTracker({ requestId, req }: { requestId: number; req: LoopRequest | null }) {
   return (
     <div className="mt-3 rounded-xl border border-teal-500/30 bg-teal-500/5 p-3" aria-live="polite">
@@ -597,7 +619,7 @@ function RequestTracker({ requestId, req }: { requestId: number; req: LoopReques
             <div className="flex flex-wrap items-center gap-2">
               {r.photo_url && <a href={r.photo_url} target="_blank" rel="noreferrer"><img src={r.photo_url} alt={`Photo from ${r.shop_name}`} className="h-16 w-16 rounded-lg object-cover" /></a>}
               <span className="font-semibold text-slate-100">{r.shop_name}</span>
-              {r.price != null && <span className="font-mono text-slate-300">{r.price}</span>}
+              {r.price != null && <span className="font-mono text-slate-300">{formatPrice(r.price, req?.currency)}</span>}
               <StatusChip status={r.status} />
               {r.evidence_class === "SHOP_CATALOG_PHOTO_READ_BY_AI" && <Chip tone="amber">Catalog photo</Chip>}
               <ShopSource source={r.shop_source} mapsUrl={r.shop_maps_url} rating={r.shop_rating} ratingCount={r.shop_rating_count} />
@@ -857,7 +879,9 @@ function ReplyForm({ req, shopId, onDone, replyToken }: { req: LoopRequest; shop
 
   async function loadSample(file: string) {
     try {
-      const blob = await fetch(`/samples/${file}`).then((r) => r.blob());
+      // Sample price tags in the request's currency (₹ for Indian cities, S$ otherwise).
+      const name = req.currency === "INR" ? file.replace(".jpg", "_inr.jpg") : file;
+      const blob = await fetch(`/samples/${name}`).then((r) => r.blob());
       setPhoto(await photoToBase64(new File([blob], file, { type: blob.type || "image/jpeg" })));
       setError("");
     } catch { setError("Could not load the sample photo"); }

@@ -50,7 +50,7 @@ class Gemini:
     def _http():
         from google.genai import types
 
-        return types.HttpOptions(timeout=int(setting("LOOP_GEMINI_TIMEOUT_MS", "40000")))
+        return types.HttpOptions(timeout=int(setting("LOOP_GEMINI_TIMEOUT_MS", "18000")))
 
     @staticmethod
     def _thinking():
@@ -66,7 +66,10 @@ class Gemini:
 
     def _generate(self, client, **kwargs):
         """Call Gemini. Retry without the thinking setting if the model rejects it (400), and back off
-        briefly on rate limits or transient errors (429/500/503), which free-tier keys hit in bursts."""
+        briefly on rate limits or transient errors (429/500/503), which free-tier keys hit in bursts.
+        A call that hangs past the deadline (504 / timeout) is retried once: a fresh call usually returns in
+        a few seconds, which beats waiting out one stuck request."""
+        timeouts = 0
         for attempt in range(3):
             try:
                 return client.models.generate_content(**kwargs)
@@ -78,6 +81,11 @@ class Gemini:
                     continue
                 if code in (429, 500, 503) and attempt < 2:
                     time.sleep(1.5 * (attempt + 1))
+                    continue
+                text = str(exc).casefold()
+                if (code == 504 or "deadline" in text or "timed out" in text or "timeout" in text) and timeouts == 0:
+                    timeouts += 1
+                    logger.warning("Gemini call timed out; retrying once")
                     continue
                 raise
         return client.models.generate_content(**kwargs)
@@ -149,12 +157,16 @@ class Gemini:
                                              parts=[types.Part(text=h["text"])]) for h in history if h.get("text")]
         steps, tokens_in, tokens_out = 0, 0, 0
         text = ""
-        for _ in range(max_steps):
+        call_ms: list[int] = []
+        for turn in range(max_steps):
+            t0 = time.perf_counter()
             try:
                 resp = self._generate(client, model=self.p.gemini_model, contents=contents, config=config)
             except Exception as exc:  # noqa: BLE001
-                logger.warning("Gemini agent call failed (%s)", type(exc).__name__)
+                print(f"[gemini] agent turn {turn + 1} failed after {round(time.perf_counter() - t0, 1)}s "
+                      f"(earlier turns ms={call_ms}, contents={len(contents)}): {_describe(exc)}", flush=True)
                 raise GeminiUnavailable(f"Gemini call failed: {_describe(exc)}") from exc
+            call_ms.append(round((time.perf_counter() - t0) * 1000))
             usage = getattr(resp, "usage_metadata", None)
             tokens_in += getattr(usage, "prompt_token_count", 0) or 0
             tokens_out += getattr(usage, "candidates_token_count", 0) or 0
@@ -176,7 +188,7 @@ class Gemini:
             contents.append(types.Content(role="user", parts=parts))
         meta = {"backend": self.p.gemini_backend, "model": self.p.gemini_model,
                 "latency_ms": round((time.perf_counter() - started) * 1000),
-                "input_tokens": tokens_in, "output_tokens": tokens_out, "tool_calls": steps}
+                "input_tokens": tokens_in, "output_tokens": tokens_out, "tool_calls": steps, "turn_ms": call_ms}
         return text, meta
 
     def _meta(self, resp, started: float) -> dict:

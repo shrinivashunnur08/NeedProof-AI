@@ -258,6 +258,58 @@ def list_inventory(shop_id: str):
     return [{**i, "image_url": _image_url(i)} for i in store.inventory_for(shop_id)]
 
 
+@router.get("/shops/{shop_id}/dashboard")
+def shop_dashboard(shop_id: str, days: int = 28):
+    """My shop: this shop's inventory, the demand that reached it, missed sales, sales and customers."""
+    from app.commerce_loop.myshop import dashboard
+
+    _shop_or_404(shop_id)
+    return dashboard(shop_id, max(1, min(days, 90)))
+
+
+class ShopBriefIn(BaseModel):
+    language: str = Field(default="en", max_length=10)
+
+
+@router.post("/shops/{shop_id}/brief", dependencies=[Depends(ai_call_guard)])
+def shop_brief_endpoint(shop_id: str, body: ShopBriefIn):
+    from app.commerce_loop.myshop import shop_brief
+
+    _shop_or_404(shop_id)
+    return shop_brief(shop_id, body.language)
+
+
+class InventoryEditIn(BaseModel):
+    price: float | None = Field(default=None, ge=0, le=10_000_000)
+    stock: int | None = Field(default=None, ge=0, le=100_000)
+
+
+@router.post("/shops/{shop_id}/inventory/{item_id}")
+def edit_inventory_item(shop_id: str, item_id: int, body: InventoryEditIn):
+    item = store.inventory_item(item_id)
+    if not item or item["shop_id"] != shop_id:
+        raise HTTPException(status_code=404, detail="Inventory item not found for this shop")
+    return store.update_inventory_item(item_id, price=body.price, stock=body.stock)
+
+
+class SaleIn(BaseModel):
+    inventory_id: int | None = None
+    request_id: int | None = None
+    qty: int = Field(default=1, ge=1, le=1000)
+    unit_price: float | None = Field(default=None, ge=0, le=10_000_000)
+
+
+@router.post("/shops/{shop_id}/sales")
+def record_sale(shop_id: str, body: SaleIn):
+    """The shopkeeper confirms a sale (e.g. the shopper came in); reduces stock and feeds the forecast."""
+    _shop_or_404(shop_id)
+    if body.inventory_id is not None:
+        item = store.inventory_item(body.inventory_id)
+        if not item or item["shop_id"] != shop_id:
+            raise HTTPException(status_code=404, detail="Inventory item not found for this shop")
+    return store.record_sale(shop_id, body.inventory_id, body.qty, body.request_id, body.unit_price)
+
+
 @router.get("/inventory/template.xlsx")
 def inventory_template():
     from app.commerce_loop.inventory import template_xlsx

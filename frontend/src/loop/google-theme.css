@@ -69,14 +69,14 @@
 }
 
 /* Filled buttons become Google pill buttons */
-.np-google button[class*="bg-teal-500"],
-.np-google button[class*="bg-sky-500"] {
+.np-google button[class*="bg-teal-500"]:not([class*="bg-teal-500/"]),
+.np-google button[class*="bg-sky-500"]:not([class*="bg-sky-500/"]) {
   border-radius: 9999px;
   color: #ffffff;
   font-weight: 500;
   letter-spacing: 0.01em;
 }
-.np-google button[class*="bg-teal-500"]:hover:not(:disabled) { background-color: #1765cc; box-shadow: 0 1px 3px rgba(60, 64, 67, 0.3); }
+.np-google button[class*="bg-teal-500"]:not([class*="bg-teal-500/"]):hover:not(:disabled) { background-color: #1765cc; box-shadow: 0 1px 3px rgba(60, 64, 67, 0.3); }
 
 /* Outlined buttons */
 .np-google button[class*="border-slate-600"],

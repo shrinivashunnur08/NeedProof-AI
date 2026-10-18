@@ -410,3 +410,36 @@ def test_trust_report(client):
     assert t["evals"] and all(x["passed"] == x["total"] for e in t["evals"] for x in e["tasks"])
     assert "EVSI_ONE_STEP" in t["benchmarks"]["evidence"]
     assert t["live"]["requests"] == 0
+
+
+def test_my_shop_dashboard_from_live_data(client):
+    client.post("/api/v2/loop/shops/sg-marina/inventory/sample")
+    # 1) a charger request Marina can serve -> answered after an approved draft
+    rid = _new_request(client)
+    d = client.get(f"/api/v2/loop/requests/{rid}/draft", params={"shop_id": "sg-marina"}).json()
+    client.post(f"/api/v2/loop/requests/{rid}/reply", json={
+        "shop_id": "sg-marina", "inventory_id": d["draft"]["inventory_id"], "price": 49, "stock": 7})
+    # 2) a request Marina could serve but did not answer -> missed
+    _new_request(client, "power bank 20000mAh under S$50")
+    # 3) something Marina does not stock -> missed sales
+    from app.commerce_loop import store
+    store.create_request("singapore", "100W USB-C charger", {"wattage_w": 100}, 120, "SGD", "en", "100W charger")
+    sale = client.post("/api/v2/loop/shops/sg-marina/sales", json={
+        "inventory_id": d["draft"]["inventory_id"], "request_id": rid, "qty": 2}).json()
+    assert sale["stock_left"] == 5
+    dash = client.get("/api/v2/loop/shops/sg-marina/dashboard").json()
+    k = dash["kpis"]
+    assert k["requests_reached"] == 3 and k["answered"] == 1 and k["units_sold"] == 2
+    assert dash["outcomes"]["missed"] == 1 and dash["outcomes"]["not_stocked"] == 1
+    assert dash["missed_sales"][0]["product"].startswith("100W")
+    charger = next(i for i in dash["inventory"] if i["sku"] == "VP-65C")
+    assert charger["stock"] == 5 and charger["sold"] == 2 and charger["asks"] >= 1
+    edited = client.post(f"/api/v2/loop/shops/sg-marina/inventory/{charger['id']}", json={"price": 45}).json()
+    assert edited["price"] == 45
+    offers = client.post("/api/v2/loop/agent/chat", json={"city": "singapore", "history": [
+        {"role": "user", "text": "65W USB-C PD charger under S$60"}]}).json()["offers"]
+    assert any(o["shop_id"] == "sg-marina" and o["price"] == "S$45" for o in offers)
+    brief = client.post("/api/v2/loop/shops/sg-marina/brief", json={"language": "en"}).json()
+    assert any("100W" in a for a in brief["brief"]["actions"])
+    a = client.get("/api/v2/loop/cities/singapore/analytics", params={"shop_id": "sg-marina"}).json()
+    assert a["confirmed_sales_today"] == 2 and a["inventory"]["on_hand"] == 5

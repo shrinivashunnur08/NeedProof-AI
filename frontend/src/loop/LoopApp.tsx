@@ -4,7 +4,7 @@ import {
   api, photoToBase64, fileToBase64, type Draft, type InventoryItem, type InventoryUpload,
   type Brief, type ChatResult, type City, type Insights, type Intent, type LoopRequest, type NearbyShop, type Offer,
   type PhotoCheck, type ShopResponse, type ShopperLocation,
-  type Providers, type Shop, type Analytics, type Profile, type BqForecast, type TrustReport,
+  type Providers, type Shop, type Analytics, type Profile, type BqForecast, type TrustReport, type ShopDashboard,
 } from "./api";
 
 type Role = "shopper" | "shop" | "business" | "trust";
@@ -636,7 +636,7 @@ function ReplyForm({ req, shopId, onDone }: { req: LoopRequest; shopId: string; 
   );
 }
 
-function InventoryPanel({ shopId, onChanged }: { shopId: string; onChanged: () => void }) {
+function InventoryPanel({ shopId, onChanged, hideTable = false }: { shopId: string; onChanged: () => void; hideTable?: boolean }) {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [sheet, setSheet] = useState<File | null>(null);
   const [photos, setPhotos] = useState<File[]>([]);
@@ -695,7 +695,7 @@ function InventoryPanel({ shopId, onChanged }: { shopId: string; onChanged: () =
           <p className="text-xs text-slate-300">Imported {summary.items} items ({summary.with_photo} with photos). Columns read: {Object.entries(summary.columns).map(([k, v]) => `${k} ← "${v}"`).join(", ")}.
             {summary.problems.length > 0 && <span className="block text-amber-200">{summary.problems.join(" · ")}</span>}</p>
         )}
-        {items.length > 0 && (
+        {items.length > 0 && !hideTable && (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[520px] text-xs">
               <thead className="text-left text-slate-500"><tr><th className="py-1">Photo</th><th>Product</th><th>Specs</th><th>Price</th><th>Stock</th></tr></thead>
@@ -793,12 +793,205 @@ function DraftCard({ req, shopId, invVersion, onDone, onManual }: { req: LoopReq
   );
 }
 
-function ShopView({ city, shopId, setShopId }: { city: City; shopId: string; setShopId: (id: string) => void }) {
+function SellButton({ shopId, inventoryId, requestId, onDone }: { shopId: string; inventoryId: number; requestId: number; onDone: () => void }) {
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <p className="mb-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+      <button type="button" disabled={busy} onClick={() => { setBusy(true); api.sell(shopId, { inventory_id: inventoryId, request_id: requestId, qty: 1 })
+        .then((x) => { setNote(`Sale recorded: ${x.product}, ${x.stock_left ?? "?"} left in stock`); onDone(); })
+        .catch((e) => setNote(e instanceof Error ? e.message : "Could not record")).finally(() => setBusy(false)); }}
+        className="rounded-full border border-slate-600 px-3 py-1 text-sm disabled:opacity-40">Shopper bought it: mark 1 sold</button>
+      {note && <span>{note}</span>}
+    </p>
+  );
+}
+
+const OUTCOME: Record<string, { label: string; tone: string; help: string }> = {
+  answered: { label: "Answered by you", tone: "bg-emerald-400", help: "You replied with proof" },
+  missed: { label: "Missed", tone: "bg-amber-400", help: "You had it in stock within budget but did not reply" },
+  out_of_stock: { label: "Out of stock", tone: "bg-rose-400", help: "You list it but had none left" },
+  over_budget: { label: "Over budget", tone: "bg-violet-400", help: "Your price was above the shopper's budget" },
+  not_stocked: { label: "Not stocked", tone: "bg-slate-500", help: "You have nothing that fits: a missed sale" },
+};
+
+function MyShopView({ shopId, version, invVersion, onInventoryChanged, onOpenBusiness }: {
+  shopId: string; version: number; invVersion: number; onInventoryChanged: () => void; onOpenBusiness: () => void;
+}) {
+  const [d, setD] = useState<ShopDashboard | null>(null);
+  const [error, setError] = useState("");
+  const [edits, setEdits] = useState<Record<number, { price?: string; stock?: string }>>({});
+  const [brief, setBrief] = useState<{ brief: { headline: string; actions: string[]; watch_out: string }; mode: string; model: { latency_ms?: number } } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [lang, setLang] = useState("en");
+  const [reload, setReload] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    api.dashboard(shopId).then((x) => { if (alive) { setD(x); setError(""); } })
+      .catch((e) => { if (alive) setError(e instanceof Error ? e.message : "Could not load"); });
+    return () => { alive = false; };
+  }, [shopId, version, invVersion, reload]);
+  async function save(id: number) {
+    const e = edits[id];
+    if (!e) return;
+    try {
+      await api.editItem(shopId, id, { price: e.price !== undefined && e.price !== "" ? Number(e.price) : undefined,
+        stock: e.stock !== undefined && e.stock !== "" ? Number(e.stock) : undefined });
+      setEdits((x) => { const n = { ...x }; delete n[id]; return n; });
+      onInventoryChanged(); setReload((n) => n + 1);
+    } catch (err) { setError(err instanceof Error ? err.message : "Save failed"); }
+  }
+  async function sell(id: number) {
+    try { await api.sell(shopId, { inventory_id: id, qty: 1 }); onInventoryChanged(); setReload((n) => n + 1); }
+    catch (err) { setError(err instanceof Error ? err.message : "Could not record sale"); }
+  }
+  const total = d ? Object.values(d.outcomes).reduce((a, b) => a + b, 0) : 0;
+  const card = "rounded-xl border border-slate-700 bg-slate-900/40 p-4";
+  return (
+    <section aria-label="My shop" className="flex flex-col gap-4">
+      <ErrorNote message={error} />
+      {d && (
+        <>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-lg font-semibold text-slate-50">{d.shop.name} <span className="text-sm font-normal text-slate-400">· {d.shop.area} · last {d.period_days} days</span></h2>
+            <button type="button" onClick={onOpenBusiness} className="text-sm text-teal-300 hover:underline">Forecast, customer groups and bought-together for this shop →</button>
+          </div>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+            {[
+              ["Requests near you", d.kpis.requests_reached, ""],
+              ["Answered by you", d.kpis.answered, d.kpis.reply_rate_pct != null ? `${d.kpis.reply_rate_pct}% of those you could serve` : ""],
+              ["Median reply time", d.kpis.median_reply_minutes != null ? `${d.kpis.median_reply_minutes} min` : "–", ""],
+              ["Sold through NeedProof", d.kpis.units_sold, d.kpis.revenue ?? ""],
+              ["Missed sales", d.kpis.missed_sales_requests, "asked for items you don't stock"],
+            ].map(([label, value, sub]) => (
+              <div key={String(label)} className={card}>
+                <p className="text-xs text-slate-400">{label}</p>
+                <p className="mt-1 text-2xl font-semibold text-slate-50">{value}</p>
+                {sub && <p className="text-[11px] text-slate-500">{sub}</p>}
+              </div>
+            ))}
+          </div>
+          <div className={card}>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">What happened to each request</p>
+            {total > 0 ? (
+              <>
+                <div className="mt-2 flex h-3 overflow-hidden rounded-full bg-slate-800">
+                  {Object.entries(OUTCOME).map(([k, o]) => d.outcomes[k] ? <div key={k} className={o.tone} style={{ width: `${(100 * d.outcomes[k]) / total}%` }} title={`${o.label}: ${d.outcomes[k]}`} /> : null)}
+                </div>
+                <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
+                  {Object.entries(OUTCOME).map(([k, o]) => (
+                    <li key={k} title={o.help} className="flex items-center gap-1.5"><span className={`h-2.5 w-2.5 rounded-full ${o.tone}`} />{o.label}: <span className="font-mono text-slate-200">{d.outcomes[k] ?? 0}</span></li>
+                  ))}
+                </ul>
+              </>
+            ) : <p className="mt-1 text-sm text-slate-400">No requests yet in this period.</p>}
+          </div>
+
+          <InventoryPanel shopId={shopId} hideTable onChanged={() => { onInventoryChanged(); setReload((n) => n + 1); }} />
+
+          {d.inventory.length > 0 && (
+            <div className={`${card} overflow-x-auto`}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">My stock and how it sells</p>
+              <table className="mt-2 w-full min-w-[720px] text-sm">
+                <thead className="text-left text-xs text-slate-500">
+                  <tr><th className="py-1">Item</th><th>Price</th><th>Stock</th><th>Asked</th><th>Sold</th><th>Budgets that fit</th><th /></tr>
+                </thead>
+                <tbody>
+                  {d.inventory.map((i) => {
+                    const e = edits[i.id] ?? {};
+                    return (
+                      <tr key={i.id} className="border-t border-slate-800 align-middle text-slate-300">
+                        <td className="py-1.5">
+                          <span className="flex items-center gap-2">
+                            {i.image_url ? <img src={i.image_url} alt="" className="h-8 w-8 rounded object-cover" /> : <span className="h-8 w-8 rounded bg-slate-800" />}
+                            <span className="text-slate-100">{i.brand ? `${i.brand} ` : ""}{i.product}</span>
+                            {i.low_stock && <Chip tone="red">{i.stock === 0 ? "Out of stock" : "Low for demand"}</Chip>}
+                          </span>
+                        </td>
+                        <td><input aria-label={`Price of ${i.product}`} value={e.price ?? String(i.price)} onChange={(ev) => setEdits((x) => ({ ...x, [i.id]: { ...x[i.id], price: ev.target.value } }))} className="w-20 rounded border border-slate-600 bg-slate-950 px-2 py-1 font-mono" inputMode="decimal" /></td>
+                        <td><input aria-label={`Stock of ${i.product}`} value={e.stock ?? String(i.stock)} onChange={(ev) => setEdits((x) => ({ ...x, [i.id]: { ...x[i.id], stock: ev.target.value } }))} className="w-16 rounded border border-slate-600 bg-slate-950 px-2 py-1 font-mono" inputMode="numeric" /></td>
+                        <td className="font-mono">{i.asks}</td>
+                        <td className="font-mono">{i.sold}</td>
+                        <td className="text-xs">{i.budget_fit_pct != null ? `${i.budget_fit_pct}% (median ${i.median_budget})` : "–"}</td>
+                        <td className="whitespace-nowrap text-right">
+                          {edits[i.id] ? <button type="button" onClick={() => void save(i.id)} className="rounded-full bg-teal-500 px-3 py-1 text-xs">Save</button>
+                            : <button type="button" onClick={() => void sell(i.id)} disabled={i.stock === 0} className="rounded-full border border-slate-600 px-3 py-1 text-xs disabled:opacity-40">Sold 1</button>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <p className="mt-1 text-[11px] text-slate-500">Price and stock changes update what shoppers see immediately. "Asked" counts requests this item could answer.</p>
+            </div>
+          )}
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className={card}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Missed sales: asked for, not stocked</p>
+              {d.missed_sales.length ? (
+                <ul className="mt-2 space-y-2 text-sm">{d.missed_sales.map((m) => (
+                  <li key={m.product} className="border-t border-slate-800 pt-2">
+                    <p className="text-slate-100">{m.product} <span className="font-mono text-xs text-rose-300">× {m.asks}</span></p>
+                    <p className="text-xs text-slate-400">{m.suggestion}</p>
+                  </li>))}</ul>
+              ) : <p className="mt-1 text-sm text-slate-400">None: everything shoppers asked for, you stock.</p>}
+            </div>
+            <div className={card}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Recent requests near you</p>
+              <ul className="mt-2 space-y-1.5 text-sm">{d.requests.slice(0, 8).map((r) => (
+                <li key={r.request_id} className="flex flex-wrap items-center gap-2 border-t border-slate-800 pt-1.5">
+                  <span className={`h-2.5 w-2.5 rounded-full ${OUTCOME[r.state]?.tone ?? "bg-slate-500"}`} title={OUTCOME[r.state]?.help} />
+                  <span className="text-slate-100">#{r.request_id} {r.product}</span>
+                  {r.budget && <span className="font-mono text-xs text-slate-400">≤ {r.budget}</span>}
+                  {r.returning_shopper && <Chip>Returning</Chip>}
+                  <span className="ml-auto text-xs text-slate-500">{OUTCOME[r.state]?.label}{r.matched_item ? ` · your ${r.matched_item}` : ""}</span>
+                </li>))}</ul>
+              <p className="mt-2 text-xs text-slate-400">Customers who got your replies: <span className="font-mono text-slate-200">{d.customers.known}</span> · returning <span className="font-mono text-slate-200">{d.customers.returning}</span></p>
+            </div>
+          </div>
+
+          <div className={card}>
+            <div className="flex flex-wrap items-end gap-2">
+              <p className="mr-auto text-xs font-semibold uppercase tracking-wide text-slate-300">This week's advice for {d.shop.name}</p>
+              <select aria-label="Advice language" value={lang} onChange={(e) => setLang(e.target.value)} className="rounded-lg border border-slate-600 bg-slate-950 px-2 py-1 text-sm">
+                {BRIEF_LANGS.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+              </select>
+              <button type="button" disabled={busy} onClick={() => { setBusy(true); api.shopBrief(shopId, lang).then(setBrief).catch((e) => setError(String(e))).finally(() => setBusy(false)); }}
+                className="rounded-lg bg-teal-500 px-3 py-1.5 text-sm font-semibold text-slate-950 disabled:opacity-40">{busy ? "Writing…" : "Ask Gemini for my shop"}</button>
+            </div>
+            {brief && (
+              <div className="mt-2">
+                <p className="font-semibold text-slate-100">{brief.brief.headline}</p>
+                <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-200">{brief.brief.actions.map((a) => <li key={a}>{a}</li>)}</ul>
+                <p className="mt-1 text-xs text-amber-200">{brief.brief.watch_out}</p>
+                <p className="mt-1 text-[11px] text-slate-500">{brief.mode === "gemini" ? `Gemini · ${brief.model.latency_ms} ms` : brief.mode} · from this shop's live numbers only</p>
+              </div>
+            )}
+          </div>
+          {d.sales.length > 0 && (
+            <p className="text-xs text-slate-400">Recent sales: {d.sales.map((s) => `${s.qty} × ${s.product}`).join(" · ")}</p>
+          )}
+          <p className="text-[11px] text-slate-500">{d.note}</p>
+        </>
+      )}
+    </section>
+  );
+}
+
+function ShopView({ city, shopId, setShopId, onOpenBusiness }: { city: City; shopId: string; setShopId: (id: string) => void; onOpenBusiness: () => void }) {
   const [shops, setShops] = useState<Shop[]>([]);
   const [requests, setRequests] = useState<LoopRequest[]>([]);
   const [open, setOpen] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [invVersion, setInvVersion] = useState(0);
+  const [sub, setSub] = useState<"inbox" | "myshop">("inbox");
+  const [invCount, setInvCount] = useState<number | null>(null);
+  useEffect(() => {
+    let alive = true;
+    if (shopId) api.inventory(shopId).then((x) => { if (alive) setInvCount(x.length); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [shopId, invVersion]);
 
   useEffect(() => {
     api.shops(city.id).then((s) => {
@@ -835,7 +1028,16 @@ function ShopView({ city, shopId, setShopId }: { city: City; shopId: string; set
         )}
       </div>
       <ErrorNote message={error} />
-      {shopId && <InventoryPanel key={shopId} shopId={shopId} onChanged={() => setInvVersion((n) => n + 1)} />}
+      <div role="tablist" aria-label="Shop views" className="flex w-fit gap-1 rounded-full border border-slate-700 p-1">
+        {([["inbox", "Requests inbox"], ["myshop", "My shop: stock, demand, sales"]] as const).map(([id, label]) => (
+          <button key={id} type="button" role="tab" aria-selected={sub === id} onClick={() => setSub(id)}
+            className={`rounded-full px-3 py-1.5 text-sm ${sub === id ? "bg-teal-500/15 font-semibold text-teal-300" : "text-slate-400 hover:text-slate-200"}`}>{label}</button>
+        ))}
+      </div>
+      {sub === "myshop" && shopId && <MyShopView key={shopId} shopId={shopId} version={version} invVersion={invVersion}
+        onInventoryChanged={() => setInvVersion((n) => n + 1)} onOpenBusiness={onOpenBusiness} />}
+      {sub === "inbox" && <>
+      {invCount === 0 && <p className="rounded-xl border border-violet-400/40 bg-violet-500/5 p-3 text-sm text-slate-300">Upload your stock in <button type="button" onClick={() => setSub("myshop")} className="font-semibold text-teal-300 underline">My shop</button> and NeedProof will draft a reply to every matching request for you to approve.</p>}
       <p className="text-sm text-slate-300">Shopper requests near <span className="font-semibold">{shop?.name ?? "your shop"}</span> in {city.name}. Reply with a photo so Gemini can check it.</p>
       {requests.length === 0 && <p className="rounded-xl border border-slate-700 p-4 text-sm text-slate-400">No requests yet. Ask for something in the Shopper tab (or another window) and it appears here within seconds.</p>}
       <ul className="flex flex-col gap-3">
@@ -858,6 +1060,7 @@ function ShopView({ city, shopId, setShopId }: { city: City; shopId: string; set
               </p>
               {mine && (
                 <div className="mt-2">
+                  {mine.inventory_id && <SellButton shopId={shopId} inventoryId={mine.inventory_id} requestId={r.id} onDone={() => setInvVersion((n) => n + 1)} />}
                   {mine.message && <p className="mb-1 text-sm text-slate-300">You sent: “{mine.message}”{mine.evidence_class === "SHOP_CATALOG_PHOTO_READ_BY_AI" ? " · with catalog photo" : ""}</p>}
                   <PhotoAnalysis claim={mine.claim} check={mine.check_result} mode={Object.keys(mine.claim).length ? "gemini" : "none"} />
                 </div>
@@ -869,6 +1072,7 @@ function ShopView({ city, shopId, setShopId }: { city: City; shopId: string; set
           );
         })}
       </ul>
+      </>}
     </section>
   );
 }
@@ -1340,10 +1544,10 @@ export default function LoopApp() {
         <ErrorNote message={error} />
         {city && role === "shopper" && <ShopperView city={city} loc={loc && loc.cityId === city.id ? loc : null}
           onMoved={(c, lat, lng, label) => applyLocation(c, lat ?? c.lat ?? 0, lng ?? c.lng ?? 0, label ?? c.name, loc?.source ?? "openstreetmap", loc?.shopsFound ?? 0, false)} />}
-        {city && role === "shop" && <ShopView city={city} shopId={shopId} setShopId={setShopId} />}
+        {city && role === "shop" && <ShopView city={city} shopId={shopId} setShopId={setShopId} onOpenBusiness={() => setRole("business")} />}
         {role === "trust" && <TrustView />}
         {city && role === "business" && <BusinessView city={city} shopId={shopId} bigquery={providers?.analytics?.backend === "bigquery"} />}
-        <p className="mt-10 text-xs text-slate-500">Onboarded shops in Singapore, São Paulo and Mumbai are sample businesses with seeded history. Real shops come from public map data and are never contacted by this demo. The app never buys anything; listings are shop claims until a photo is checked.</p>
+        <p className="mt-10 text-xs text-slate-500">Onboarded shops in Singapore, São Paulo and Mumbai are sample businesses with seeded history. Real shops come from public map data and are never contacted by NeedProof. The app never buys anything; listings are shop claims until a photo is checked.</p>
       </main>
     </div>
   );

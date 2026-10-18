@@ -74,6 +74,22 @@ export type TrustReport = {
   live: { requests: number; answered: number; drafts_approved: number; replies_by_status: Record<string, number> };
   limits: string[];
 };
+export type ShopDashboard = {
+  shop: { id: string; name: string; area: string; city: string; currency: string };
+  period_days: number;
+  kpis: { requests_reached: number; answered: number; could_serve: number; reply_rate_pct: number | null;
+    median_reply_minutes: number | null; units_sold: number; revenue: string | null; missed_sales_requests: number };
+  outcomes: Record<string, number>;
+  inventory: { id: number; product: string; brand: string | null; sku: string | null; specs: Record<string, unknown>;
+    price: number; price_text: string; stock: number; image_url: string | null; asks: number; sold: number;
+    budget_fit_pct: number | null; median_budget: string | null; low_stock: boolean; updated_at: string | null }[];
+  missed_sales: { product: string; asks: number; median_budget: string | null; suggestion: string }[];
+  requests: { request_id: number; product: string; budget: string | null; state: string; created_at: string;
+    matched_item: string | null; returning_shopper: boolean }[];
+  customers: { known: number; returning: number };
+  sales: { product: string; qty: number; price: string | null; at: string }[];
+  note: string;
+};
 export type InventoryItem = {
   id: number; shop_id: string; sku: string | null; product: string; brand: string | null; specs: Record<string, unknown>;
   price: number; currency: string; stock: number; image_file: string | null; image_url: string | null;
@@ -155,6 +171,14 @@ export const api = {
   bqForecast: (city: string) => call<BqForecast>(`/cities/${city}/bigquery/forecast`),
   bqBrief: (city: string) => call<{ bullets: string[]; engine: string; seconds: number; console_url: string }>(`/cities/${city}/bigquery/brief`, { method: "POST" }),
   trust: () => call<TrustReport>("/trust"),
+  dashboard: (shopId: string) => call<ShopDashboard>(`/shops/${shopId}/dashboard`),
+  shopBrief: (shopId: string, language: string) =>
+    call<{ brief: { headline: string; actions: string[]; watch_out: string }; mode: string; model: { latency_ms?: number } }>(
+      `/shops/${shopId}/brief`, { method: "POST", body: JSON.stringify({ language }) }),
+  editItem: (shopId: string, itemId: number, body: { price?: number; stock?: number }) =>
+    call<InventoryItem>(`/shops/${shopId}/inventory/${itemId}`, { method: "POST", body: JSON.stringify(body) }),
+  sell: (shopId: string, body: { inventory_id?: number; request_id?: number; qty: number }) =>
+    call<{ sale_id: number; product: string; qty: number; stock_left: number | null }>(`/shops/${shopId}/sales`, { method: "POST", body: JSON.stringify(body) }),
   reset: () => call<{ reset: boolean }>("/demo/reset", { method: "POST" }),
   exportBq: () => call<{ rows: number; next: string }>("/analytics/export", { method: "POST" }),
 };

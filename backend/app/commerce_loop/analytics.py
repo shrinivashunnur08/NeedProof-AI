@@ -10,6 +10,7 @@ city's real request volume in this app, so new requests move the numbers.
 from __future__ import annotations
 
 import random
+from collections import Counter
 from datetime import date, timedelta
 
 from app.commerce_loop import store
@@ -112,6 +113,15 @@ def shop_analytics(city: str, shop_id: str | None = None) -> dict:
     shop = next((s for s in shops if s["id"] == shop_id), shops[0] if shops else {"id": f"{city}-shop", "name": "Shop"})
     currency = CITIES[city]["currency"]
     sales = _sales_history(shop["id"], city)
+    # Confirmed sales of this charger in the app are added to the seeded history on their day.
+    real = Counter()
+    for sale in store.sales_for(shop["id"], DAYS):
+        item = store.inventory_item(sale["inventory_id"]) if sale["inventory_id"] else None
+        if item and store.product_key(item["product"], item["specs"]) == "65w usb-c pd charger":
+            real[sale["created_at"][:10]] += sale["qty"]
+    for row in sales:
+        row["units_sold"] += real.get(row["day"], 0)
+    today_real = real.get(date.today().isoformat(), 0)
     inventory_rows = _inventory_history(shop["id"], sales)
     on_hand = inventory_rows[-1]["closing_units"]
     # The shop's own uploaded inventory (if any) is the source of truth for stock on hand today.
@@ -171,6 +181,7 @@ def shop_analytics(city: str, shop_id: str | None = None) -> dict:
         "baskets": {"rules": rules, "basket_count": insights["basket_analysis"].get("basket_count"),
                     "method": "14B.2: pair support, confidence, lift with Wilson lower bound"},
         "stock_source": "uploaded inventory" if uploaded is not None else "sales history",
+        "confirmed_sales_today": today_real,
         "data_note": ("Stock on hand comes from this shop's uploaded inventory. " if uploaded is not None else "")
                      + "Sales history and customers are seeded for onboarded shops and scale with this city's live requests.",
     }

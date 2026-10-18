@@ -25,6 +25,9 @@ CREATE TABLE IF NOT EXISTS inventory (
   id INTEGER PRIMARY KEY AUTOINCREMENT, shop_id TEXT NOT NULL, sku TEXT, product TEXT NOT NULL, brand TEXT,
   specs TEXT NOT NULL, price REAL NOT NULL, currency TEXT NOT NULL, stock INTEGER NOT NULL, image_file TEXT,
   updated_at TEXT);
+CREATE TABLE IF NOT EXISTS sales (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, shop_id TEXT NOT NULL, inventory_id INTEGER, request_id INTEGER,
+  product TEXT NOT NULL, qty INTEGER NOT NULL, unit_price REAL, currency TEXT, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS shopper_profiles (
   id TEXT PRIMARY KEY, city TEXT, name TEXT, device TEXT, budget REAL, currency TEXT, language TEXT,
   needs TEXT NOT NULL DEFAULT '[]', updated_at TEXT);
@@ -163,7 +166,7 @@ def upsert_shops(city: str, shops: list[dict]) -> int:
 def reset() -> None:
     with _LOCK:
         c = conn()
-        for table in ("shops", "listings", "requests", "responses", "demand_events", "shopper_profiles", "inventory"):
+        for table in ("shops", "listings", "requests", "responses", "demand_events", "shopper_profiles", "inventory", "sales"):
             c.execute(f"DELETE FROM {table}")
         _seed(c)
 
@@ -303,6 +306,41 @@ def replace_inventory(shop_id: str, currency: str, items: list[dict]) -> None:
                       [(shop_id, (f"{i['brand']} " if i["brand"] else "") + i["product"], json.dumps(i["specs"]),
                         i["price"], currency, i["stock"]) for i in items])
         c.commit()
+
+
+def update_inventory_item(item_id: int, *, price: float | None = None, stock: int | None = None) -> dict | None:
+    item = inventory_item(item_id)
+    if not item:
+        return None
+    new_price = item["price"] if price is None else price
+    new_stock = item["stock"] if stock is None else stock
+    name = ((item["brand"] + " ") if item["brand"] else "") + item["product"]
+    with _LOCK:
+        c = conn()
+        c.execute("UPDATE inventory SET price=?, stock=?, updated_at=? WHERE id=?", (new_price, new_stock, now_iso(), item_id))
+        c.execute("UPDATE listings SET price=?, stock=? WHERE shop_id=? AND product=?",
+                  (new_price, new_stock, item["shop_id"], name))
+        c.commit()
+    return inventory_item(item_id)
+
+
+def record_sale(shop_id: str, inventory_id: int | None, qty: int, request_id: int | None = None,
+                unit_price: float | None = None) -> dict:
+    """A sale the shopkeeper confirms; reduces stock of the inventory row when there is one."""
+    item = inventory_item(inventory_id) if inventory_id else None
+    product = ((item["brand"] + " ") if item and item["brand"] else "") + (item["product"] if item else "item")
+    price = unit_price if unit_price is not None else (item["price"] if item else None)
+    sid = execute("INSERT INTO sales (shop_id, inventory_id, request_id, product, qty, unit_price, currency, created_at)"
+                  " VALUES (?,?,?,?,?,?,?,?)",
+                  (shop_id, inventory_id, request_id, product, qty, price, item["currency"] if item else None, now_iso()))
+    if item:
+        update_inventory_item(item["id"], stock=max(0, item["stock"] - qty))
+    return {"sale_id": sid, "product": product, "qty": qty, "stock_left": max(0, item["stock"] - qty) if item else None}
+
+
+def sales_for(shop_id: str, days: int = 56) -> list[dict]:
+    return rows("SELECT * FROM sales WHERE shop_id=? AND created_at >= datetime('now', ?) ORDER BY id",
+                (shop_id, f"-{days} day"))
 
 
 def inventory_for(shop_id: str) -> list[dict]:

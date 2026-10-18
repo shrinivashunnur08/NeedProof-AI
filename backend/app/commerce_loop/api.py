@@ -17,6 +17,7 @@ from app.commerce_loop.agent import ShopperAgent
 from app.commerce_loop.insights import city_demand, demand_brief, export_events_ndjson
 from app.commerce_loop.locale import CITIES
 from app.commerce_loop.discovery import DiscoveryError, locate
+from app.commerce_loop.guard import ai_call_guard
 from app.commerce_loop.providers import get_providers, setting
 from app.commerce_loop.vision import read_photo
 
@@ -44,7 +45,9 @@ def _city(city: str) -> str:
 @router.get("/status")
 def status():
     store.conn()
-    return {"providers": get_providers().public_status(),
+    from app.commerce_loop.guard import usage
+
+    return {"providers": get_providers().public_status(), "limits": usage(),
             "cities": [c for c in CITIES.values() if c.get("demo")],
             "discovery": setting("DISCOVERY", "osm").lower(),
             "data_note": "Shops and listings are fictional demo data."}
@@ -78,7 +81,7 @@ class LocateIn(BaseModel):
     near_city: str | None = None
 
 
-@router.post("/locate")
+@router.post("/locate", dependencies=[Depends(ai_call_guard)])
 def locate_shopper(body: LocateIn):
     """Detected position or typed place -> city, currency and real shops nearby."""
     if body.query is None and (body.lat is None or body.lng is None):
@@ -91,7 +94,7 @@ def locate_shopper(body: LocateIn):
         raise HTTPException(status_code=502, detail=f"Location service unavailable ({type(exc).__name__})") from exc
 
 
-@router.post("/agent/chat")
+@router.post("/agent/chat", dependencies=[Depends(ai_call_guard)])
 def agent_chat(body: ChatIn):
     city = _city(body.city)
     if body.history[-1].role != "user" or not body.history[-1].text.strip():
@@ -159,7 +162,7 @@ class PhotoReplyIn(BaseModel):
     approved_by_shopkeeper: bool = Field(default=True, description="Drafts are only sent after a person approves")
 
 
-@router.post("/requests/{request_id}/reply")
+@router.post("/requests/{request_id}/reply", dependencies=[Depends(ai_call_guard)])
 def reply_with_photo(request_id: int, body: PhotoReplyIn):
     req = store.get_request(request_id)
     if not req:
@@ -219,7 +222,7 @@ def _shop_or_404(shop_id: str) -> dict:
     return shop
 
 
-@router.post("/shops/{shop_id}/inventory")
+@router.post("/shops/{shop_id}/inventory", dependencies=[Depends(ai_call_guard)])
 def upload_inventory(shop_id: str, body: InventoryUploadIn):
     from app.commerce_loop.inventory import import_inventory
 
@@ -267,13 +270,16 @@ def media(shop_id: str, name: str):
 
     if _safe(name) != name or _safe(shop_id) != shop_id:
         raise HTTPException(status_code=404, detail="Not found")
+    from app.commerce_loop import media as media_store
+    from app.commerce_loop.inventory import _key
+
     path = media_dir(shop_id) / name
-    if not path.is_file():
+    if not media_store.ensure_local(path, _key(shop_id, name)):
         raise HTTPException(status_code=404, detail="Not found")
     return FileResponse(path, headers={"Cache-Control": "private, max-age=300"})
 
 
-@router.get("/requests/{request_id}/draft")
+@router.get("/requests/{request_id}/draft", dependencies=[Depends(ai_call_guard)])
 def request_draft(request_id: int, shop_id: str):
     """AI search over this shop's inventory -> a reply draft. Never sent without the shopkeeper's approval."""
     from app.commerce_loop.inventory import draft_reply
@@ -317,7 +323,7 @@ class BriefIn(BaseModel):
     shop_id: str | None = None
 
 
-@router.post("/cities/{city}/brief")
+@router.post("/cities/{city}/brief", dependencies=[Depends(ai_call_guard)])
 def brief(city: str, body: BriefIn):
     city = _city(city)
     shop = store.shop(body.shop_id) if body.shop_id else None
@@ -349,7 +355,7 @@ def demo_reset():
     return {"reset": True}
 
 
-@router.post("/analytics/bigquery/sync")
+@router.post("/analytics/bigquery/sync", dependencies=[Depends(ai_call_guard)])
 def bigquery_sync():
     """Load demand events into BigQuery and retrain the BigQuery ML forecast."""
     from app.commerce_loop.bigquery_loop import BigQueryUnavailable, sync
@@ -374,7 +380,7 @@ def bigquery_forecast(city: str):
         raise HTTPException(status_code=502, detail=f"BigQuery: {type(exc).__name__}: {str(exc)[:200]}") from exc
 
 
-@router.post("/cities/{city}/bigquery/brief")
+@router.post("/cities/{city}/bigquery/brief", dependencies=[Depends(ai_call_guard)])
 def bigquery_brief(city: str):
     from app.commerce_loop.bigquery_loop import BigQueryUnavailable, ai_brief
 

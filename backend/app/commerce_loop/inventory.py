@@ -21,7 +21,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from app.commerce_loop import store
+from app.commerce_loop import media, store, vertex_search
 from app.commerce_loop.engine import required_specs_from_text, spec_check
 from app.commerce_loop.gemini import Gemini, GeminiUnavailable
 from app.commerce_loop.locale import CITIES, Money, parse_money
@@ -50,6 +50,10 @@ def media_dir(shop_id: str) -> Path:
     path = Path(store.db_path()).resolve().parent / "media" / _safe(shop_id)
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def _key(shop_id: str, name: str) -> str:
+    return f"inventory/{_safe(shop_id)}/{name}"
 
 
 def _safe(name: str) -> str:
@@ -174,22 +178,24 @@ def import_inventory(shop_id: str, sheet: tuple[bytes, str], images: list[tuple[
             problems.append(f"Photo {name}: skipped (JPEG/PNG/WEBP under 5 MB)")
             continue
         safe = _safe(name)
-        (folder / safe).write_bytes(data)
+        media.save(folder / safe, _key(shop_id, safe), data, mime)
         saved[name.casefold()] = safe
         saved[Path(name).stem.casefold()] = safe
     with_photo = 0
     for it in items:
         ref = (it.pop("image") or "")
         fname = saved.get(Path(ref).name.casefold()) or saved.get(Path(ref).stem.casefold()) if ref else None
-        if not fname and ref and (folder / _safe(Path(ref).name)).exists():
+        if not fname and ref and media.ensure_local(folder / _safe(Path(ref).name), _key(shop_id, _safe(Path(ref).name))):
             fname = _safe(Path(ref).name)  # photo uploaded earlier
         it["image_file"] = fname
         with_photo += bool(fname)
         if ref and not fname:
             problems.append(f"{it['product']}: photo '{ref}' was not uploaded")
+    old_ids = [i["id"] for i in store.inventory_for(shop_id)]
     store.replace_inventory(shop_id, currency, items)
+    index = vertex_search.index(shop_id, store.inventory_for(shop_id), old_ids)
     return {"shop_id": shop_id, "items": len(items), "with_photo": with_photo, "columns": cols,
-            "problems": problems[:20], "currency": currency}
+            "problems": problems[:20], "currency": currency, "search_index": index}
 
 
 def import_sample(shop_id: str) -> dict:
@@ -243,12 +249,23 @@ def _kind(text: str) -> str | None:
 
 
 def search(request: dict, shop_id: str, limit: int = 3) -> list[dict]:
-    """Deterministic retrieval: same item type first, then spec fit, stock, budget and shared words."""
+    """Retrieval (Vertex AI Search when enabled, else local), then the same deterministic rules:
+    same item type first, then spec fit, stock, budget and shared words."""
+    rows = store.inventory_for(shop_id)
+    query = " ".join(filter(None, [request.get("product"), " ".join(f"{k} {v}" for k, v in
+                                                                     (request.get("specs") or {}).items())]))
+    vertex_ids = vertex_search.query(shop_id, query) if rows else None
+    rank: dict[int, int] = {}
+    if vertex_ids:
+        hits = {i: n for n, i in enumerate(vertex_ids)}
+        narrowed = [r for r in rows if r["id"] in hits]
+        if narrowed:  # index can lag behind or be stale after a restart; then search locally
+            rows, rank = narrowed, hits
     want_kind = _kind(request.get("product") or "")
     want_words = set(re.findall(r"[a-z0-9]+", (request.get("product") or "").casefold()))
     budget = request.get("budget")
     scored = []
-    for it in store.inventory_for(shop_id):
+    for it in rows:
         text = f"{it['brand'] or ''} {it['product']}"
         kind = _kind(text)
         if want_kind and kind != want_kind:
@@ -262,10 +279,11 @@ def search(request: dict, shop_id: str, limit: int = 3) -> list[dict]:
         shared = want_words & words - {"usb", "c", "w", "the", "for", "a"}
         if want_kind is None and not shared:
             continue  # unknown item type: only rows that share a real word with the request
-        score += 0.4 * len(shared)
+        score += 0.4 * len(shared) + (0.5 / (1 + rank[it["id"]]) if it["id"] in rank else 0)
         if score <= 0:
             continue
         scored.append({**it, "score": round(score, 2), "spec_check": specs,
+                       "retrieval": "vertex_ai_search" if rank else "local",
                        "within_budget": not budget or it["price"] <= budget})
     scored.sort(key=lambda x: -x["score"])
     return scored[:limit]
@@ -291,6 +309,7 @@ def draft_reply(request: dict, shop_id: str, gemini: Gemini | None = None) -> di
     candidates = search(request, shop_id)
     has_inventory = bool(store.inventory_for(shop_id))
     base = {"request_id": request["id"], "shop_id": shop_id, "has_inventory": has_inventory,
+            "retrieval": candidates[0]["retrieval"] if candidates else ("vertex_ai_search" if vertex_search.enabled() else "local"),
             "needs_human_approval": True,
             "candidates": [_public(c, currency) for c in candidates]}
     if not candidates:
@@ -363,7 +382,7 @@ def catalog_image(item: dict) -> tuple[bytes, str] | None:
     if not item.get("image_file"):
         return None
     path = media_dir(item["shop_id"]) / item["image_file"]
-    if not path.exists():
+    if not media.ensure_local(path, _key(item["shop_id"], item["image_file"])):
         return None
     mime = mimetypes.guess_type(path.name)[0] or "image/jpeg"
     return path.read_bytes(), mime

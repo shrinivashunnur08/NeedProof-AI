@@ -368,3 +368,35 @@ def test_bigquery_endpoints_explain_when_not_configured(client, monkeypatch):
     r = client.get("/api/v2/loop/cities/singapore/bigquery/forecast")
     assert r.status_code == 409 and "ANALYTICS_BACKEND=bigquery" in r.json()["detail"]
     assert client.post("/api/v2/loop/analytics/bigquery/sync").status_code == 409
+
+
+def test_rate_limit_and_daily_cap(client, monkeypatch):
+    from app.commerce_loop import guard
+    monkeypatch.setenv("LOOP_RATE_LIMIT", "true")
+    monkeypatch.setenv("LOOP_RATE_PER_MIN", "2")
+    monkeypatch.setenv("LOOP_DAILY_AI_CAP", "3")
+    guard.reset()
+    body = {"city": "singapore", "history": [{"role": "user", "text": "I need a laptop charger"}]}
+    assert client.post("/api/v2/loop/agent/chat", json=body).status_code == 200
+    assert client.post("/api/v2/loop/agent/chat", json=body).status_code == 200
+    assert client.post("/api/v2/loop/agent/chat", json=body).status_code == 429  # per-minute
+    other = {"X-Forwarded-For": "203.0.113.9"}
+    assert client.post("/api/v2/loop/agent/chat", json=body, headers=other).status_code == 200
+    r = client.post("/api/v2/loop/agent/chat", json=body, headers={"X-Forwarded-For": "203.0.113.10"})
+    assert r.status_code == 429 and "today" in r.json()["detail"]  # daily cap of 3
+    assert client.get("/api/v2/loop/status").json()["limits"]["ai_calls_today"] == 3
+    guard.reset()
+
+
+def test_photo_proof_is_per_product_not_per_shop(client):
+    client.post("/api/v2/loop/shops/sg-marina/inventory/sample")
+    rid = _new_request(client)
+    d = client.get(f"/api/v2/loop/requests/{rid}/draft", params={"shop_id": "sg-marina"}).json()
+    client.post(f"/api/v2/loop/requests/{rid}/reply", json={
+        "shop_id": "sg-marina", "inventory_id": d["draft"]["inventory_id"], "price": 49, "stock": 7,
+        "mock_hint": {"wattage_w": 65}})
+    offers = client.post("/api/v2/loop/agent/chat", json={
+        "city": "singapore", "history": [{"role": "user", "text": "65W USB-C PD charger under S$60"}]}).json()["offers"]
+    marina = {o["listing"]: o["photo_proof"] for o in offers if o["shop_id"] == "sg-marina"}
+    assert marina["VoltPro 65W USB-C PD laptop charger"] == "PHOTO_MATCHES_REQUEST"
+    assert marina["VoltPro 45W USB-C PD charger"] == "NONE"

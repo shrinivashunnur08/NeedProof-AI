@@ -7,6 +7,7 @@ not from the model.
 """
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 
@@ -94,7 +95,7 @@ class ShopperAgent:
                 specs = spec_check(required, item["specs"])
                 decision = evaluate_offer(product, budget_amount or None, item["price"], item["stock"])
                 over_budget = bool(budget_amount) and item["price"] > budget_amount
-                proof = self._photo_proof(city_id, shop["id"], product)
+                proof = self._photo_proof(city_id, shop["id"], product, listing=item)
                 usable = item["stock"] > 0 and specs["ok"] and not over_budget
                 offers.append({
                     "shop_id": shop["id"], "shop": shop["name"], "area": shop["area"],
@@ -214,11 +215,25 @@ class ShopperAgent:
         self._log("resolve_location", {"place": text},
                   f"{loc['label']} · {loc['shops_found']} real shops from {loc['source']}")
 
-    def _photo_proof(self, city: str, shop_id: str, product: str) -> str:
+    def _photo_proof(self, city: str, shop_id: str, product: str, listing: dict | None = None) -> str:
+        """Latest photo evidence from this shop for this product (not for any product the shop sells)."""
         found = store.rows(
-            "SELECT r.status FROM responses r JOIN requests q ON q.id=r.request_id WHERE q.city=? AND r.shop_id=?"
-            " ORDER BY r.id DESC LIMIT 1", (city, shop_id))
-        return found[0]["status"] if found else "NONE"
+            "SELECT r.status, r.inventory_id, q.product AS asked, q.specs AS asked_specs FROM responses r"
+            " JOIN requests q ON q.id=r.request_id WHERE q.city=? AND r.shop_id=? ORDER BY r.id DESC LIMIT 10",
+            (city, shop_id))
+        want = store.product_key(product)
+        for r in found:
+            if listing is not None and r["inventory_id"]:
+                item = store.inventory_item(r["inventory_id"])
+                name = ((item["brand"] + " ") if item and item["brand"] else "") + (item["product"] if item else "")
+                if item and name == listing["product"]:
+                    return r["status"]
+                continue
+            asked = store.product_key(r["asked"], json.loads(r["asked_specs"] or "{}"))
+            target = store.product_key(listing["product"], listing["specs"]) if listing is not None else want
+            if asked == target:
+                return r["status"]
+        return "NONE"
 
     def _log(self, tool: str, args: dict, summary: str) -> None:
         self.trace.append({"tool": tool, "args": args, "result": summary})

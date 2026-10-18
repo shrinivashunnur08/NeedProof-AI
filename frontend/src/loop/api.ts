@@ -71,7 +71,7 @@ export type DraftCandidate = {
   spec_issues: string[]; within_budget: boolean; image_url: string | null;
 };
 export type Draft = {
-  request_id: number; shop_id: string; has_inventory: boolean; needs_human_approval: boolean; mode: string;
+  request_id: number; shop_id: string; has_inventory: boolean; needs_human_approval: boolean; mode: string; retrieval?: string;
   model?: { latency_ms?: number; error?: string }; reason: string; candidates: DraftCandidate[];
   draft: null | { inventory_id: number; product: string; brand: string | null; price: number; price_text: string;
     stock: number; image_url: string | null; message: string; caveats: string[] };

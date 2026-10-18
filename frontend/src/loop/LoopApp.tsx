@@ -587,9 +587,14 @@ function InventoryPanel({ shopId, onChanged }: { shopId: string; onChanged: () =
   const [error, setError] = useState("");
   const [summary, setSummary] = useState<InventoryUpload | null>(null);
   const [reload, setReload] = useState(0);
+  const [open, setOpen] = useState<boolean | null>(null);
   useEffect(() => {
     let alive = true;
-    api.inventory(shopId).then((x) => { if (alive) setItems(x); }).catch(() => undefined);
+    api.inventory(shopId).then((x) => {
+      if (!alive) return;
+      setItems(x);
+      setOpen((prev) => prev ?? x.length === 0);  // start open only when there is nothing yet
+    }).catch(() => undefined);
     return () => { alive = false; };
   }, [shopId, reload]);
 
@@ -610,7 +615,8 @@ function InventoryPanel({ shopId, onChanged }: { shopId: string; onChanged: () =
     });
   }
   return (
-    <details className="rounded-xl border border-slate-700 bg-slate-900/40 p-3" open={items.length === 0}>
+    <details className="rounded-xl border border-slate-700 bg-slate-900/40 p-3" open={open ?? true}
+      onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
       <summary className="cursor-pointer select-none text-sm font-semibold text-slate-100">
         Inventory · {items.length ? `${items.length} items, ${items.filter((i) => i.image_url).length} with photos` : "not uploaded yet"}
         <span className="ml-2 text-xs font-normal text-slate-400">AI drafts replies from it; you approve every reply</span>
@@ -691,7 +697,7 @@ function DraftCard({ req, shopId, invVersion, onDone, onManual }: { req: LoopReq
   return (
     <div className="mt-3 rounded-xl border border-violet-400/40 bg-violet-500/5 p-3">
       <p className="text-xs font-semibold uppercase tracking-wide text-violet-200">
-        AI draft from your inventory · {d.mode === "gemini" ? `Gemini ${d.model?.latency_ms ?? "?"} ms` : "inventory search"} · waiting for your approval
+        AI draft from your inventory · {d.retrieval === "vertex_ai_search" ? "Vertex AI Search" : "inventory search"}{d.mode === "gemini" ? ` + Gemini ${d.model?.latency_ms ?? "?"} ms` : ""} · waiting for your approval
       </p>
       <div className="mt-2 grid gap-3 md:grid-cols-[96px_1fr]">
         {chosen.image_url ? <img src={chosen.image_url} alt={chosen.product} className="h-24 w-24 rounded-lg object-cover" /> : <div className="flex h-24 w-24 items-center justify-center rounded-lg border border-dashed border-slate-600 text-[11px] text-slate-500">no photo</div>}

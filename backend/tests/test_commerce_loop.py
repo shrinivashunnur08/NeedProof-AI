@@ -81,7 +81,7 @@ def test_agent_finds_offers_and_asks_shops(client):
     assert r.status_code == 200
     body = r.json()
     tools = [t["tool"] for t in body["trace"]]
-    assert tools[0] == "extract_intent" and tools[1] == "find_offers" and "ask_nearby_shops" in tools
+    assert tools[0] == "extract_intent" and "find_offers" in tools and "ask_nearby_shops" in tools
     assert body["intent"]["wattage_w"] == 65 and body["intent"]["budget_amount"] == 60
     assert body["intent"]["budget_currency"] == "SGD" and body["intent"]["urgency"] == "today"
     shops = {o["shop"]: o for o in body["offers"]}
@@ -239,7 +239,7 @@ def test_locate_registers_real_city_and_shops(client, monkeypatch):
     discovery._CACHE.clear()
     monkeypatch.setattr(discovery, "reverse_geocode", lambda lat, lng: {
         "city": "Kuala Lumpur", "area": "Bukit Bintang", "country_code": "my", "label": "Bukit Bintang, Kuala Lumpur"})
-    monkeypatch.setattr(discovery, "nearby_shops", lambda lat, lng, radius_m=2500: ([
+    monkeypatch.setattr(discovery, "nearby_shops", lambda lat, lng, radius_m=2500, category="general": ([
         {"id": "osm-n1", "name": "Plaza Gadget", "lat": 3.1466, "lng": 101.7110, "area": "Jalan Bukit Bintang",
          "address": None, "source": "openstreetmap"},
         {"id": "osm-n2", "name": "Low Yat Mobile", "lat": 3.1440, "lng": 101.7100, "area": "", "address": None,
@@ -578,3 +578,50 @@ def test_snap_to_search_needs_live_model(client):
     img = base64.b64encode(open(PHOTOS / "1_charger_65w_correct.jpg", "rb").read()).decode()
     r = client.post("/api/v2/loop/agent/snap", json={"image_base64": img, "image_mime": "image/jpeg"}).json()
     assert r["mode"] == "mock" and r["need"] is None
+
+
+def test_any_product_with_reference_photo_and_photos_both_ways(client, monkeypatch):
+    import base64
+    monkeypatch.setenv("LOOP_ENFORCE_ROLES", "true")
+    store.upsert_shops("singapore", [{"id": "gpl-cotton", "name": "Cotton Corner", "lat": 1.300, "lng": 103.855,
+                                      "area": "Bugis", "source": "google_places", "phone": None, "kind": "clothing"}])
+    ref = base64.b64encode(open(PHOTOS / "6_shirt_navy_floral_wanted.jpg", "rb").read()).decode()
+    body = client.post("/api/v2/loop/agent/chat", headers={"X-NeedProof-Role": "shopper"}, json={
+        "city": "singapore", "image_base64": ref, "image_mime": "image/jpeg",
+        "history": [{"role": "user", "text": "Navy blue shirt with a small white floral print, size M, under S$40"}]}).json()
+    assert body["intent"]["color"] == "navy blue" and body["intent"]["size"] == "M"
+    assert body["ref_image_url"] and client.get(body["ref_image_url"]).status_code == 200
+    rid = body["request"]["id"]
+    assert body["request"]["category"] == "clothing"
+    assert {n["shop"] for n in body["nearby"]} == {"Cotton Corner"}  # only clothing shops, not charger shops
+    # Inbox: the clothing shop sees the shirt request with the shopper's photo; a charger shop does not.
+    cotton = client.get("/api/v2/loop/cities/singapore/requests", params={"shop_id": "gpl-cotton"}).json()
+    marina = client.get("/api/v2/loop/cities/singapore/requests", params={"shop_id": "sg-marina"}).json()
+    assert [r["id"] for r in cotton] == [rid] and cotton[0]["ref_image_url"] == body["ref_image_url"]
+    assert rid not in [r["id"] for r in marina]
+    # The shop replies from WhatsApp with its photo; the shopper sees that photo.
+    link = client.get(f"/api/v2/loop/requests/{rid}/reply-link", params={"shop_id": "gpl-cotton"},
+                      headers={"X-NeedProof-Role": "shopper"}).json()
+    token = link["url"].split("t=")[1]
+    view = client.get(f"/api/v2/loop/requests/{rid}/for-shop", params={"shop_id": "gpl-cotton", "t": token}).json()
+    assert view["request"]["ref_image_url"] == body["ref_image_url"]
+    shop_photo = base64.b64encode(open(PHOTOS / "7_shirt_navy_floral_shop.jpg", "rb").read()).decode()
+    client.post(f"/api/v2/loop/requests/{rid}/reply", json={
+        "shop_id": "gpl-cotton", "price": 35, "reply_token": token, "image_base64": shop_photo, "image_mime": "image/jpeg"})
+    resp = client.get(f"/api/v2/loop/requests/{rid}").json()["responses"][-1]
+    assert resp["photo_url"] and client.get(resp["photo_url"]).status_code == 200
+
+
+def test_design_mismatch_is_a_conflict():
+    from app.commerce_loop.vision import PhotoClaim, check_photo
+    req = {"product": "navy floral shirt", "category": "clothing", "specs": {"size": "M"}, "budget": 40}
+    same = PhotoClaim(is_product_photo=True, product_category="shirt", is_requested_item_type=True, color="navy",
+                      pattern_or_design="white floral", size_label="M", matches_reference=True)
+    other = PhotoClaim(is_product_photo=True, product_category="shirt", is_requested_item_type=True, color="red",
+                       pattern_or_design="check", size_label="M", matches_reference=False,
+                       differences=["red check, not navy floral"])
+    assert check_photo(req, same, 35)["status"] == "PHOTO_MATCHES_REQUEST"
+    bad = check_photo(req, other, 29)
+    assert bad["status"] == "PHOTO_CONFLICTS_WITH_REQUEST" and "red check" in bad["issues"][0]
+    wrong_size = check_photo(req, same.model_copy(update={"size_label": "L"}), 35)
+    assert wrong_size["status"] == "PHOTO_CONFLICTS_WITH_REQUEST"

@@ -16,6 +16,7 @@ const SAMPLE_PROMPTS: Record<string, string[]> = {
     "I need a 65W USB-C PD charger for my laptop under S$60, my flight is tonight",
     "我需要一个65W USB-C PD笔记本充电器，60新币以内，今天要",
     "Travelling tomorrow: a 65W USB-C PD charger, a USB-C cable and a power bank, S$120 total",
+    "Navy blue shirt with a small white floral print, size M, under S$40, near Bugis",
   ],
   "sao-paulo": ["Preciso de um carregador USB-C PD de 65W até R$ 250 hoje", "Preciso de um carregador 65W, um cabo USB-C e um power bank até R$ 400"],
   mumbai: ["मुझे आज ₹1000 के अंदर 65W USB-C PD लैपटॉप चार्जर चाहिए", "Need a 65W USB-C charger, a USB-C cable and a power bank under ₹3,000"],
@@ -27,6 +28,9 @@ const SAMPLE_PHOTOS = [
   { file: "3_fake_brand_appel.jpg", label: "Fake brand" },
   { file: "4_mixer_grinder_wrong_item.jpg", label: "Mixer" },
   { file: "5_cable_not_charger.jpg", label: "Cable" },
+  { file: "7_shirt_navy_floral_shop.jpg", label: "Navy floral shirt" },
+  { file: "8_shirt_red_check.jpg", label: "Red check shirt" },
+  { file: "9_shirt_navy_plain.jpg", label: "Plain navy shirt" },
 ];
 const BRIEF_LANGS = [
   { id: "en", label: "English" }, { id: "zh", label: "中文" }, { id: "pt", label: "Português" }, { id: "hi", label: "हिन्दी" },
@@ -333,7 +337,10 @@ function PhotoAnalysis({ claim, check, mode, latency }: { claim: Record<string, 
     product_category?: string; is_requested_item_type?: boolean | null; brand?: string; model_number?: string; product_name?: string;
     wattage_w?: number; connector?: string; usb_pd?: boolean | null; visible_price?: number; visible_currency?: string;
     authenticity_cues?: string[]; concerns?: string[]; confidence?: number; analysis_summary?: string;
+    color?: string; pattern_or_design?: string; size_label?: string; matches_reference?: boolean | null;
+    matches_requested_attributes?: boolean | null; differences?: string[];
   };
+  const electronic = c.wattage_w != null || c.connector != null || c.usb_pd != null;
   const conf = Math.round((c.confidence ?? 0) * 100);
   const row = (label: string, value: React.ReactNode, tone: "ok" | "bad" | "plain" = "plain") => (
     <div className="grid grid-cols-[7.5rem_1fr] gap-2">
@@ -356,10 +363,17 @@ function PhotoAnalysis({ claim, check, mode, latency }: { claim: Record<string, 
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">1 · Identified</p>
             {row("Item type", `${c.product_category ?? "unknown"}${c.is_requested_item_type === false ? " (not what was asked)" : ""}`, c.is_requested_item_type === false ? "bad" : "plain")}
             {row("Brand / model", [c.brand, c.model_number].filter(Boolean).join(" · ") || "not visible")}
-            <p className="pt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">2 · Read from the label</p>
-            {row("Wattage", c.wattage_w ? `${c.wattage_w}W` : "not visible")}
-            {row("Connector", c.connector ?? "not visible")}
-            {row("USB PD", c.usb_pd == null ? "not visible" : c.usb_pd ? "yes" : "no")}
+            <p className="pt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">2 · {electronic ? "Read from the label" : "Read from the item"}</p>
+            {electronic ? <>
+              {row("Wattage", c.wattage_w ? `${c.wattage_w}W` : "not visible")}
+              {row("Connector", c.connector ?? "not visible")}
+              {row("USB PD", c.usb_pd == null ? "not visible" : c.usb_pd ? "yes" : "no")}
+            </> : <>
+              {row("Colour", c.color ?? "not visible")}
+              {row("Pattern / design", c.pattern_or_design ?? "not visible")}
+              {row("Size label", c.size_label ?? "not visible")}
+            </>}
+            {c.matches_reference != null && row("Vs shopper's photo", c.matches_reference ? "same design" : `different: ${(c.differences ?? []).join(", ") || "design differs"}`, c.matches_reference ? "ok" : "bad")}
             {c.visible_price != null && row("Price on tag", `${c.visible_currency ?? ""} ${c.visible_price}`)}
             <p className="pt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">3 · Authenticity</p>
             {row("Cues seen", (c.authenticity_cues ?? []).join(", ") || "none visible", (c.authenticity_cues ?? []).length ? "ok" : "plain")}
@@ -501,6 +515,7 @@ function RequestTracker({ requestId, req }: { requestId: number; req: LoopReques
         {req?.responses.map((r) => (
           <li key={r.id} className="rounded-lg bg-slate-900/70 p-2 text-sm">
             <div className="flex flex-wrap items-center gap-2">
+              {r.photo_url && <a href={r.photo_url} target="_blank" rel="noreferrer"><img src={r.photo_url} alt={`Photo from ${r.shop_name}`} className="h-16 w-16 rounded-lg object-cover" /></a>}
               <span className="font-semibold text-slate-100">{r.shop_name}</span>
               {r.price != null && <span className="font-mono text-slate-300">{r.price}</span>}
               <StatusChip status={r.status} />
@@ -545,6 +560,12 @@ function AssistantTurn({ turn, version }: { turn: Turn; version: number }) {
   };
   return (
     <div className="max-w-[46rem] rounded-2xl rounded-tl-sm border border-slate-700/60 bg-slate-800/60 p-4">
+      {r?.ref_image_url && (
+        <div className="mb-2 flex items-center gap-3 text-xs text-slate-400">
+          <img src={r.ref_image_url} alt="Your reference photo" className="h-14 w-14 rounded-lg object-cover" />
+          <span>Your photo goes to shops with the request{r.reference?.what_i_see ? ` · Gemini: ${r.reference.what_i_see}` : ""}</span>
+        </div>
+      )}
       {r?.intent && <IntentCard intent={r.intent} mode={r.intent_model?.mode} latency={r.intent_model?.latency_ms} />}
       {r?.remembered && r.remembered.length > 0 && (
         <p className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-violet-200">
@@ -611,6 +632,7 @@ function ShopperView({ city, loc, onMoved }: { city: City; loc: ShopperLocation 
   }, [shopperId]);
 
   const [snapBusy, setSnapBusy] = useState(false);
+  const [refPhoto, setRefPhoto] = useState<{ data: string; mime: string; preview: string } | null>(null);
   const [snapNote, setSnapNote] = useState("");
   const [listening, setListening] = useState(false);
   type SpeechCtor = new () => { lang: string; interimResults: boolean; onresult: (e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void; onend: () => void; onerror: () => void; start: () => void };
@@ -633,10 +655,11 @@ function ShopperView({ city, loc, onMoved }: { city: City; loc: ShopperLocation 
     setSnapBusy(true); setSnapNote("Gemini is reading your photo…");
     try {
       const p = await photoToBase64(file);
+      setRefPhoto(p);
       const r = await api.snap(p.data, p.mime);
       if (r.need && r.need.is_relevant) {
-        setDraft(r.need.request_text);
-        setSnapNote(`From your photo: ${r.need.what_i_see} → “${r.need.request_text}”. Add your budget or place, then press Ask.`);
+        setDraft((d) => d || r.need!.request_text);
+        setSnapNote(`From your photo: ${r.need.what_i_see} → “${r.need.request_text}”. The photo goes with your request so shops can match it. Add size, budget or place, then press Ask.`);
       } else {
         setSnapNote(r.message ?? (r.need ? `That photo shows: ${r.need.what_i_see}. Try the label of your charger or laptop.` : "Could not read the photo."));
       }
@@ -655,7 +678,8 @@ function ShopperView({ city, loc, onMoved }: { city: City; loc: ShopperLocation 
     setTurns(next); setDraft(""); setBusy(true); setError("");
     try {
       const result = await api.chat(city.id, next.map((t) => ({ role: t.role, text: t.text })), loc && loc.cityId === city.id ? loc : null,
-        { id: shopperId, name: persona });
+        { id: shopperId, name: persona }, refPhoto ? { data: refPhoto.data, mime: refPhoto.mime } : null);
+      setRefPhoto(null); setSnapNote("");
       setTurns([...next, { role: "assistant", text: result.reply, result }]);
       if (result.profile !== undefined) setProfile(result.profile);
       if (result.location && result.location.city.id !== city.id) {
@@ -686,6 +710,8 @@ function ShopperView({ city, loc, onMoved }: { city: City; loc: ShopperLocation 
       )}
       {turns.length === 0 && (
         <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => void fetch("/samples/6_shirt_navy_floral_wanted.jpg").then((r) => r.blob()).then((b) => snap(new File([b], "shirt.jpg", { type: "image/jpeg" })))}
+            className="rounded-full border border-indigo-400/60 bg-indigo-500/5 px-3 py-1.5 text-left text-sm text-slate-200 hover:border-teal-400">📷 Search by photo: this shirt design</button>
           {(SAMPLE_PROMPTS[city.id] ?? ["I need a 65W USB-C PD charger for my laptop today", "I need a laptop charger", "USB-C cable for fast charging near me"]).map((p) => (
             <button key={p} type="button" onClick={() => send(p)} className="rounded-full border border-slate-600 bg-slate-800/60 px-3 py-1.5 text-left text-sm text-slate-200 hover:border-teal-400 hover:text-white">{p}</button>
           ))}
@@ -699,7 +725,13 @@ function ShopperView({ city, loc, onMoved }: { city: City; loc: ShopperLocation 
         <div ref={endRef} />
       </div>
       <ErrorNote message={error} />
-      {snapNote && <p className="rounded-xl border border-indigo-400/30 bg-indigo-500/5 px-3 py-2 text-sm text-slate-200" aria-live="polite">{snapNote}</p>}
+      {(snapNote || refPhoto) && (
+        <div className="flex items-start gap-3 rounded-xl border border-indigo-400/30 bg-indigo-500/5 px-3 py-2 text-sm text-slate-200" aria-live="polite">
+          {refPhoto && <img src={refPhoto.preview} alt="Your reference photo" className="h-16 w-16 rounded-lg object-cover" />}
+          <p className="flex-1">{snapNote || "Photo attached: it goes with your request."}</p>
+          {refPhoto && <button type="button" onClick={() => { setRefPhoto(null); setSnapNote(""); }} className="text-xs text-rose-300 underline">Remove photo</button>}
+        </div>
+      )}
       <form onSubmit={(e) => { e.preventDefault(); void send(draft); }} className="sticky bottom-3 flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-900/95 p-2 backdrop-blur">
         <label title="Snap to search: photo of your old charger or your laptop's power label" className={`cursor-pointer rounded-full border border-slate-600 px-2.5 py-1.5 text-sm ${snapBusy ? "opacity-40" : "hover:border-teal-400"}`}>
           <span aria-hidden="true">📷</span><span className="sr-only">Snap to search: photo of your old charger or device label</span>
@@ -1160,11 +1192,11 @@ function ShopView({ city, shopId, setShopId, onOpenBusiness, locked = false }: {
   const version = useCityVersion(city.id);
   const [seen, setSeen] = useState<Set<number> | null>(null);
   const load = useCallback(() => {
-    api.cityRequests(city.id).then((list) => {
+    api.cityRequests(city.id, shopId || undefined).then((list) => {
       setRequests(list);
       setSeen((prev) => prev ?? new Set(list.map((x) => x.id)));
     }).catch(() => undefined);
-  }, [city.id]);
+  }, [city.id, shopId]);
   useEffect(() => { load(); }, [load, version]);
 
   const shop = shops.find((s) => s.id === shopId);
@@ -1213,6 +1245,12 @@ function ShopView({ city, shopId, setShopId, onOpenBusiness, locked = false }: {
                   {mine && <StatusChip status={mine.status} />}
                 </div>
               </div>
+              {r.ref_image_url && (
+                <div className="mt-2 flex items-center gap-3">
+                  <a href={r.ref_image_url} target="_blank" rel="noreferrer"><img src={r.ref_image_url} alt="Shopper's reference photo" className="h-24 w-24 rounded-lg object-cover" /></a>
+                  <p className="text-xs text-slate-400">The shopper's photo of what they want. Gemini compares your photo with it.</p>
+                </div>
+              )}
               <p className="mt-1 text-sm text-slate-400">
                 {Object.entries(r.specs).map(([k, v]) => `${k.replace("_w", "").replaceAll("_", " ")}: ${String(v)}`).join(" · ") || "No specific specs"}
                 {r.budget ? ` · budget ${r.currency} ${r.budget}` : ""} · language {r.language}
@@ -1220,6 +1258,7 @@ function ShopView({ city, shopId, setShopId, onOpenBusiness, locked = false }: {
               {mine && (
                 <div className="mt-2">
                   {mine.inventory_id && <SellButton shopId={shopId} inventoryId={mine.inventory_id} requestId={r.id} onDone={() => setInvVersion((n) => n + 1)} />}
+                  {mine.photo_url && <img src={mine.photo_url} alt="Your photo" className="mb-2 h-20 w-20 rounded-lg object-cover" />}
                   {mine.message && <p className="mb-1 text-sm text-slate-300">You sent: “{mine.message}”{mine.evidence_class === "SHOP_CATALOG_PHOTO_READ_BY_AI" ? " · with catalog photo" : ""}</p>}
                   <PhotoAnalysis claim={mine.claim} check={mine.check_result} mode={Object.keys(mine.claim).length ? "gemini" : "none"} />
                 </div>
@@ -1521,6 +1560,7 @@ export function ShopReplyPage({ requestId }: { requestId: number }) {
             <div className="rounded-xl border border-slate-700 bg-slate-900 p-4">
               <p className="text-sm text-slate-400">For <span className="font-semibold text-slate-100">{data.shop.name}</span></p>
               <p className="mt-1 text-lg font-semibold text-slate-50">{r.product}</p>
+              {r.ref_image_url && <img src={r.ref_image_url} alt="The shopper's photo of what they want" className="mt-2 max-h-56 w-full rounded-lg object-contain" />}
               <p className="text-sm text-slate-300">
                 {Object.entries(r.specs).map(([k, v]) => `${k.replace("_w", "").replaceAll("_", " ")} ${String(v)}`).join(" · ")}
                 {r.budget ? ` · budget ${r.currency} ${r.budget}` : ""}
@@ -1815,6 +1855,8 @@ export default function LoopApp() {
   useEffect(() => {
     let alive = true;
     api.shops(cityId).then((x) => { if (alive) setCityShops(x); }).catch(() => undefined);
+    // Load real nearby shops (Google Places) so every role, including the shopkeeper dropdown, sees real businesses.
+    api.discover(cityId).then(() => api.shops(cityId)).then((x) => { if (alive) setCityShops(x); }).catch(() => undefined);
     return () => { alive = false; };
   }, [cityId, resetKey]);
   const tabs: { id: Role; label: string; hint: string }[] = ([
@@ -1842,7 +1884,7 @@ export default function LoopApp() {
       <header className="border-b border-slate-800 bg-slate-950">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-3 px-4 py-4">
           <div className="min-w-0">
-            <p className="text-lg font-bold tracking-tight">NeedProof <span className="font-normal text-slate-400">· Know it's in stock before you go</span></p>
+            <p className="np-apptitle text-lg font-bold tracking-tight">NeedProof <span className="font-normal text-slate-400">· Know it's in stock before you go</span></p>
             <p className="text-xs text-slate-500">Gemini agent for shoppers · photo proof from shops · demand insights for business</p>
           </div>
           <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -1877,8 +1919,8 @@ export default function LoopApp() {
                 <select id="persona-shop" value={shopId} onChange={(e) => switchPersona("shopkeeper", e.target.value)}
                   className="max-w-[16rem] rounded-lg border border-slate-600 bg-slate-950 px-2 py-1.5 text-sm font-semibold">
                   {cityShops.filter((x) => x.source === "demo").map((x) => <option key={x.id} value={x.id}>{x.name} · {x.area}</option>)}
-                  {cityShops.some((x) => x.source !== "demo") && <optgroup label="Nearby shops from the map">
-                    {cityShops.filter((x) => x.source !== "demo").map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                  {cityShops.some((x) => x.source !== "demo") && <optgroup label="Real shops nearby (Google Places)">
+                    {cityShops.filter((x) => x.source !== "demo").map((x) => <option key={x.id} value={x.id}>{x.name}{x.kind && x.kind !== "general" ? ` · ${x.kind}` : ""}</option>)}
                   </optgroup>}
                 </select>
               </>

@@ -83,12 +83,17 @@ class Gemini:
         return client.models.generate_content(**kwargs)
 
     def generate_json(self, prompt: str, schema: type[BaseModel], *, system: str,
-                      image: tuple[bytes, str] | None = None) -> tuple[BaseModel, dict]:
+                      image: tuple[bytes, str] | None = None,
+                      images: list[tuple[str, tuple[bytes, str]]] | None = None) -> tuple[BaseModel, dict]:
+        """images: optional labelled images, e.g. [("Image 1: shopper's reference", (bytes, mime)), ...]."""
         from google.genai import types
 
         started = time.perf_counter()
         client = self._client()
         parts: list[Any] = []
+        for label, (data, mime) in images or []:
+            parts.append(label)
+            parts.append(types.Part.from_bytes(data=data, mime_type=mime))
         if image:
             parts.append(types.Part.from_bytes(data=image[0], mime_type=image[1]))
         parts.append(prompt)

@@ -18,6 +18,8 @@ from app.commerce_loop.providers import setting
 
 logger = logging.getLogger(__name__)
 
+from app.commerce_loop.categories import shop_kind_from_osm  # noqa: E402
+
 UA = {"User-Agent": "NeedProof-AI hackathon demo (github.com/shrinivashunnur08/NeedProof-AI)"}
 NOMINATIM = "https://nominatim.openstreetmap.org"
 OVERPASS = "https://overpass-api.de/api/interpreter"
@@ -45,7 +47,41 @@ def _get(url: str, params: dict, timeout: float = 12) -> dict | list:
         return r.json()
 
 
+GEOCODE = "https://maps.googleapis.com/maps/api/geocode/json"
+
+
+def _google_place(params: dict) -> dict | None:
+    """Google Geocoding (reliable from Cloud Run); None when no key or no result."""
+    key = setting("MAPS_API_KEY")
+    if not key:
+        return None
+    try:
+        data = _get(GEOCODE, {**params, "key": key, "language": "en"})
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Google Geocoding failed (%s)", type(exc).__name__)
+        return None
+    results = data.get("results") if isinstance(data, dict) else None
+    if not results:
+        return None
+    hit = results[0]
+    comp = {t: c for c in hit.get("address_components", []) for t in c.get("types", [])}
+    def name(*types):
+        for t in types:
+            if t in comp:
+                return comp[t]["long_name"]
+        return None
+    city = name("locality", "postal_town", "administrative_area_level_2", "administrative_area_level_1", "country") or "Here"
+    area = name("sublocality_level_1", "neighborhood", "sublocality", "route") or ""
+    loc = hit["geometry"]["location"]
+    country = (comp.get("country") or {}).get("short_name", "")
+    return {"lat": float(loc["lat"]), "lng": float(loc["lng"]), "city": city, "area": area,
+            "country_code": country.lower(), "label": ", ".join(x for x in (area, city) if x)}
+
+
 def reverse_geocode(lat: float, lng: float) -> dict:
+    google = _google_place({"latlng": f"{lat},{lng}"})
+    if google:
+        return {k: google[k] for k in ("city", "area", "country_code", "label")}
     data = _get(f"{NOMINATIM}/reverse", {"format": "jsonv2", "lat": lat, "lon": lng, "zoom": 16,
                                          "accept-language": "en"})
     addr = data.get("address", {}) if isinstance(data, dict) else {}
@@ -57,6 +93,12 @@ def reverse_geocode(lat: float, lng: float) -> dict:
 
 
 def geocode(query: str, near: dict | None = None) -> dict:
+    google_params = {"address": query}
+    if near and near.get("country"):
+        google_params["components"] = f"country:{near['country'].upper()}"
+    google = _google_place(google_params)
+    if google:
+        return google
     params = {"format": "jsonv2", "q": query, "limit": 1, "addressdetails": 1, "accept-language": "en"}
     if near and near.get("country"):
         params["countrycodes"] = near["country"].lower()
@@ -72,11 +114,15 @@ def geocode(query: str, near: dict | None = None) -> dict:
             "country_code": addr.get("country_code", ""), "label": ", ".join(x for x in (area, city) if x)}
 
 
-def _osm_shops(lat: float, lng: float, radius_m: int) -> list[dict]:
+def _osm_shops(lat: float, lng: float, radius_m: int, category: str = "general") -> list[dict]:
+    from app.commerce_loop.categories import osm_pattern
+
+    pattern = osm_pattern(category)
     query = f"""[out:json][timeout:15];
 (
-  node["shop"~"electronics|mobile_phone|computer|hifi"](around:{radius_m},{lat},{lng});
-  way["shop"~"electronics|mobile_phone|computer|hifi"](around:{radius_m},{lat},{lng});
+  node["shop"~"{pattern}"](around:{radius_m},{lat},{lng});
+  way["shop"~"{pattern}"](around:{radius_m},{lat},{lng});
+  node["amenity"~"{pattern}"](around:{radius_m},{lat},{lng});
 );
 out center 40;"""
     elements = None
@@ -104,17 +150,20 @@ out center 40;"""
                       "area": tags.get("addr:suburb") or tags.get("addr:street") or tags.get("shop", "").replace("_", " "),
                       "address": street or None, "source": "openstreetmap",
                       "phone": tags.get("contact:whatsapp") or tags.get("phone") or tags.get("contact:phone")
-                               or tags.get("contact:mobile")})
+                               or tags.get("contact:mobile"),
+                      "kind": shop_kind_from_osm(tags.get("shop") or tags.get("amenity"))})
     return shops
 
 
-def _google_shops(lat: float, lng: float, radius_m: int) -> list[dict]:
+def _google_shops(lat: float, lng: float, radius_m: int, category: str = "general") -> list[dict]:
+    from app.commerce_loop.categories import places_types, shop_kind_from_places
+
     key = setting("MAPS_API_KEY")
     if not key:
         raise DiscoveryError("MAPS_API_KEY is not set")
-    body = {"includedTypes": ["electronics_store", "cell_phone_store"], "maxResultCount": 20,
+    body = {"includedTypes": places_types(category), "maxResultCount": 20, "rankPreference": "DISTANCE",
             "locationRestriction": {"circle": {"center": {"latitude": lat, "longitude": lng}, "radius": float(radius_m)}}}
-    headers = {"X-Goog-Api-Key": key, "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.internationalPhoneNumber"}
+    headers = {"X-Goog-Api-Key": key, "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.internationalPhoneNumber,places.primaryType,places.types"}
     with httpx.Client(timeout=15) as c:
         r = c.post(PLACES_NEARBY, json=body, headers=headers)
         r.raise_for_status()
@@ -122,17 +171,48 @@ def _google_shops(lat: float, lng: float, radius_m: int) -> list[dict]:
     return [{"id": f"gpl-{p['id']}", "name": p.get("displayName", {}).get("text", "Shop"),
              "lat": p.get("location", {}).get("latitude"), "lng": p.get("location", {}).get("longitude"),
              "area": (p.get("formattedAddress") or "").split(",")[0], "address": p.get("formattedAddress"),
-             "phone": p.get("internationalPhoneNumber"), "source": "google_places"} for p in places]
+             "phone": p.get("internationalPhoneNumber"), "source": "google_places",
+             "kind": shop_kind_from_places(p.get("types"), p.get("primaryType"))} for p in places]
 
 
-def nearby_shops(lat: float, lng: float, radius_m: int = 2500) -> tuple[list[dict], str]:
+def nearby_shops(lat: float, lng: float, radius_m: int = 2500, category: str = "general") -> tuple[list[dict], str]:
     mode = setting("DISCOVERY", "osm").lower()
     if mode == "places":
         try:
-            return _google_shops(lat, lng, radius_m), "google_places"
+            return _google_shops(lat, lng, radius_m, category), "google_places"
         except Exception as exc:  # noqa: BLE001 - fall back to the free source
             logger.warning("Google Places failed (%s); using OpenStreetMap", type(exc).__name__)
-    return _osm_shops(lat, lng, radius_m), "openstreetmap"
+    return _osm_shops(lat, lng, radius_m, category), "openstreetmap"
+
+
+def discover(city_id: str, category: str = "general", lat: float | None = None, lng: float | None = None) -> dict:
+    """Load real shops of a category around a point (default: the city centre) into the city. Cached 10 min."""
+    if setting("DISCOVERY", "osm").lower() == "off":
+        return {"shops_found": 0, "source": "off"}
+    city = CITIES.get(city_id)
+    if not city:
+        raise DiscoveryError("Unknown city")
+    lat = lat if lat is not None else city.get("lat")
+    lng = lng if lng is not None else city.get("lng")
+    if lat is None or lng is None:
+        raise DiscoveryError("City has no coordinates")
+    key = ("discover", city_id, category, round(lat, 2), round(lng, 2))
+    cached = _CACHE.get(key)
+    if cached and time.time() - cached[0] < _TTL:
+        store.conn()
+        store.upsert_shops(city_id, cached[2])  # data may have been reset since; restore the shops
+        return cached[1]
+    try:
+        shops, source = nearby_shops(lat, lng, 3000, category)
+        store.conn()
+        store.upsert_shops(city_id, shops)
+        result = {"shops_found": len(shops), "source": source, "category": category}
+        _CACHE[key] = (time.time(), result, shops)
+        return result
+    except Exception as exc:  # noqa: BLE001 - discovery is best effort
+        logger.warning("Discovery failed for %s/%s (%s)", city_id, category, type(exc).__name__)
+        result = {"shops_found": 0, "source": f"unavailable ({type(exc).__name__})", "category": category}
+    return result
 
 
 def locate(lat: float | None = None, lng: float | None = None, query: str | None = None,

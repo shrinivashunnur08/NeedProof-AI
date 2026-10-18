@@ -52,14 +52,30 @@
   --color-violet-400: #a142f4;
   --color-violet-500: #a142f4;
 
-  --font-sans: "Google Sans", "Google Sans Text", Roboto, Arial, sans-serif;
-  --font-mono: "Roboto Mono", ui-monospace, monospace;
-  font-family: var(--font-sans);
+  font-family: var(--np-font-ui);
+  font-size: var(--np-text-body);
+  line-height: var(--np-leading-body);
+  letter-spacing: var(--np-tracking-body);
   color: #202124;
   background: #ffffff;
 }
 
-.np-google .font-mono { font-family: var(--font-mono); }
+/* Workspace typography inside the app.
+   Numbers use the UI font with tabular figures (as in Sheets); code-like text keeps Roboto Mono. */
+.np-google .font-mono { font-family: var(--np-font-ui); font-variant-numeric: tabular-nums; letter-spacing: 0.2px; }
+.np-google .font-mono.text-teal-200, .np-google code { font-family: var(--font-mono); }
+.np-google h1 { font-size: var(--np-text-title); line-height: var(--np-leading-title); }
+.np-google h2.text-lg, .np-google h2.text-base { font-size: var(--np-text-section); line-height: var(--np-leading-section); }
+.np-google .np-apptitle { font-size: var(--np-text-title); line-height: var(--np-leading-title); letter-spacing: 0; }
+.np-google .text-xs { letter-spacing: var(--np-tracking-meta); }
+/* Odd pixel sizes collapse onto the scale: metadata is 12px, message text is 14px. */
+.np-google [class~="text-[11px]"], .np-google [class~="text-[10px]"], .np-google [class~="text-[9px]"] {
+  font-size: var(--np-text-meta); line-height: var(--np-leading-meta); letter-spacing: var(--np-tracking-meta);
+}
+.np-google [class~="text-[15px]"] { font-size: var(--np-text-body); line-height: 22px; }
+.np-google .font-bold { font-weight: 600; }
+.np-google button, .np-google [role="tab"] { font-weight: 500; }
+.np-google select, .np-google input, .np-google textarea { font-size: var(--np-text-body); }
 
 /* Material-style surfaces: subtle elevation instead of dark panels */
 .np-google li.rounded-xl,

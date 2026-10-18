@@ -12,7 +12,8 @@ Two profiles share one codebase. `free` (default) runs on a laptop with a Gemini
 | Inventory search | Local rules | **Vertex AI Search** (data store `needproof-inventory`), then the same rules |
 | Shop photos | Local disk | **Cloud Storage** bucket (private, served by the backend) |
 | Hosting | `uvicorn` + Vite | **Cloud Run** `needproof` in `asia-southeast1`, built by **Cloud Build** |
-| Real nearby shops | OpenStreetMap | **Places API (New)** with phone numbers (server key restricted to Places), OSM fallback |
+| Real nearby shops | OpenStreetMap | **Places API (New)** by product category (clothing, electronics, shoes...) with phone numbers, OSM fallback |
+| Place names ("near Bugis") | Nominatim | **Geocoding API** (same server key, restricted to Places + Geocoding), Nominatim fallback |
 | Shop map | none | **Maps Static API** (browser key restricted to the site) |
 | Dashboard | Business tab | plus **Looker Studio** on the BigQuery views |
 | Spend control | none needed | Budget alert (₹900 ≈ US$10), per-visitor rate limit, daily AI cap, max 1 instance |
@@ -46,10 +47,10 @@ MEDIA_STORE=gcs
 MEDIA_BUCKET=needproof-media-822406860102
 INVENTORY_SEARCH=vertex
 LOOP_RATE_LIMIT=true
-LOOP_RATE_PER_MIN=20
+LOOP_RATE_PER_MIN=60
 LOOP_DAILY_AI_CAP=1500
 DISCOVERY=places
-MAPS_API_KEY=<server key restricted to places.googleapis.com>
+MAPS_API_KEY=<server key restricted to Places API + Geocoding API>
 MAPS_BROWSER_KEY=<browser key restricted to the site, Maps Static API>
 LOOP_ENFORCE_ROLES=true
 LOOP_LINK_SECRET=<random secret that signs WhatsApp reply links>

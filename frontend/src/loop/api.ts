@@ -35,7 +35,8 @@ export type ChatResult = {
   requests?: { id: number; shops_notified: number; product: string }[];
   intent?: Intent; intent_model?: { mode?: string; latency_ms?: number }; nearby?: NearbyShop[];
   location?: { city: City; lat?: number; lng?: number; label?: string };
-  remembered?: string[]; profile?: Profile | null; basket?: Basket | null; proof_plan?: ProofPlan | null; addon?: { item: string; share_pct: number; note: string } | null;
+  remembered?: string[]; profile?: Profile | null; basket?: Basket | null; proof_plan?: ProofPlan | null;
+  ref_image_url?: string | null; reference?: { what_i_see: string; request_text: string } | null; addon?: { item: string; share_pct: number; note: string } | null;
 };
 export type ProofPlan = {
   engine: string; advice: string; verified_available: boolean; currency?: string; assumptions?: string;
@@ -71,6 +72,7 @@ export type ShopResponse = {
   id: number; shop_id: string; shop_name: string; price: number | null; status: string;
   claim: Record<string, unknown>; check_result: PhotoCheck; created_at: string;
   message?: string | null; evidence_class?: string | null; inventory_id?: number | null; inventory_product?: string | null;
+  photo_url?: string | null;
 };
 export type BqForecast = {
   city: string; engine: string; model: string; console_url: string;
@@ -127,9 +129,9 @@ export type Draft = {
 export type LoopRequest = {
   id: number; city: string; product: string; specs: Record<string, unknown>; budget: number | null;
   currency: string | null; language: string; status: string; created_at: string; responses: ShopResponse[];
-  shopper_past_requests?: number;
+  shopper_past_requests?: number; ref_image_url?: string | null; category?: string | null;
 };
-export type Shop = { id: string; city: string; name: string; area: string; source?: string; lat?: number; lng?: number };
+export type Shop = { id: string; city: string; name: string; area: string; source?: string; lat?: number; lng?: number; kind?: string | null };
 export type DemandProduct = {
   product_key: string; product: string; asks: number; answered: number; unmet: number; unmet_rate: number;
   avg_budget: string | null; last_7_days: number; previous_7_days: number; growth_pct: number;
@@ -165,10 +167,10 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   status: () => call<{ providers: Providers; cities: City[]; discovery: string; maps_key?: string }>("/status"),
   chat: (city: string, history: { role: "user" | "assistant"; text: string }[], loc?: ShopperLocation | null,
-         shopper?: { id: string; name: string }) =>
+         shopper?: { id: string; name: string }, image?: { data: string; mime: string } | null) =>
     call<ChatResult>("/agent/chat", { method: "POST", body: JSON.stringify({
       city, history, lat: loc?.lat, lng: loc?.lng, location_label: loc?.label,
-      shopper_id: shopper?.id, shopper_name: shopper?.name }) }),
+      shopper_id: shopper?.id, shopper_name: shopper?.name, image_base64: image?.data, image_mime: image?.mime }) }),
   profile: (id: string) => call<{ profile: Profile | null }>(`/shoppers/${id}`),
   forget: (id: string) => call<{ forgotten: boolean }>(`/shoppers/${id}`, { method: "DELETE" }),
   analytics: (city: string, shopId?: string) =>
@@ -176,7 +178,8 @@ export const api = {
   locate: (body: { lat?: number; lng?: number; query?: string; near_city?: string }) =>
     call<Located>("/locate", { method: "POST", body: JSON.stringify(body) }),
   request: (id: number) => call<LoopRequest>(`/requests/${id}`),
-  cityRequests: (city: string) => call<LoopRequest[]>(`/cities/${city}/requests`),
+  cityRequests: (city: string, shopId?: string) => call<LoopRequest[]>(`/cities/${city}/requests${shopId ? `?shop_id=${encodeURIComponent(shopId)}` : ""}`),
+  discover: (city: string) => call<{ shops_found: number; sources: string[] }>(`/cities/${city}/discover`, { method: "POST" }),
   shops: (city: string) => call<Shop[]>(`/cities/${city}/shops`),
   reply: (id: number, body: { shop_id: string; price?: number; stock?: number; image_base64?: string; image_mime?: string;
     inventory_id?: number; message?: string; approved_by_shopkeeper?: boolean; reply_token?: string }) =>
@@ -208,7 +211,7 @@ export const api = {
   replyLink: (requestId: number, shopId: string) =>
     call<{ url: string; text: string; phone: string | null; whatsapp_url: string; direct: boolean }>(`/requests/${requestId}/reply-link?shop_id=${encodeURIComponent(shopId)}`),
   forShop: (requestId: number, shopId: string, t: string) =>
-    call<{ request: { id: number; product: string; specs: Record<string, unknown>; budget: number | null; currency: string | null; language: string; status: string; created_at: string };
+    call<{ request: { id: number; product: string; specs: Record<string, unknown>; budget: number | null; currency: string | null; language: string; status: string; created_at: string; ref_image_url?: string | null };
       shop: { id: string; name: string; area: string }; already_replied: ShopResponse | null }>(`/requests/${requestId}/for-shop?shop_id=${encodeURIComponent(shopId)}&t=${encodeURIComponent(t)}`),
   snap: (image_base64: string, image_mime: string) =>
     call<{ mode: string; message?: string; need: null | { is_relevant: boolean; what_i_see: string; item: string | null; brand: string | null;

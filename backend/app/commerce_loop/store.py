@@ -140,17 +140,21 @@ def _migrate(c: sqlite3.Connection) -> None:
     """Add columns introduced after the first release to an existing local database."""
     have = {r[1] for r in c.execute("PRAGMA table_info(shops)").fetchall()}
     for col, ddl in (("lat", "REAL"), ("lng", "REAL"), ("source", "TEXT NOT NULL DEFAULT 'demo'"), ("address", "TEXT"),
-                     ("phone", "TEXT")):
+                     ("phone", "TEXT"), ("kind", "TEXT")):
         if col not in have:
             c.execute(f"ALTER TABLE shops ADD COLUMN {col} {ddl}")
     c.execute("UPDATE shops SET name=REPLACE(name, ' (demo)', '') WHERE name LIKE '% (demo)'")
     have_resp = {r[1] for r in c.execute("PRAGMA table_info(responses)").fetchall()}
-    for col in ("message", "evidence_class", "inventory_id"):
+    for col in ("message", "evidence_class", "inventory_id", "photo_file"):
         if col not in have_resp:
             c.execute(f"ALTER TABLE responses ADD COLUMN {col} {'INTEGER' if col == 'inventory_id' else 'TEXT'}")
     have_req = {r[1] for r in c.execute("PRAGMA table_info(requests)").fetchall()}
     if "shopper_id" not in have_req:
         c.execute("ALTER TABLE requests ADD COLUMN shopper_id TEXT")
+    for col in ("category", "ref_image"):
+        if col not in have_req:
+            c.execute(f"ALTER TABLE requests ADD COLUMN {col} TEXT")
+    c.execute("UPDATE shops SET kind='electronics' WHERE source='demo' AND kind IS NULL")
     for shop_id, (lat, lng) in _SHOP_COORDS.items():
         c.execute("UPDATE shops SET lat=?, lng=? WHERE id=? AND lat IS NULL", (lat, lng, shop_id))
     c.commit()
@@ -172,16 +176,23 @@ def upsert_shops(city: str, shops: list[dict]) -> int:
     with _LOCK:
         c = conn()
         c.executemany(
-            "INSERT INTO shops (id, city, name, area, lat, lng, source, address, phone) VALUES (?,?,?,?,?,?,?,?,?)"
+            "INSERT INTO shops (id, city, name, area, lat, lng, source, address, phone, kind) VALUES (?,?,?,?,?,?,?,?,?,?)"
             " ON CONFLICT(id) DO UPDATE SET name=excluded.name, area=excluded.area, lat=excluded.lat,"
-            " lng=excluded.lng, address=excluded.address, phone=COALESCE(excluded.phone, shops.phone)",
+            " lng=excluded.lng, address=excluded.address, phone=COALESCE(excluded.phone, shops.phone),"
+            " kind=COALESCE(excluded.kind, shops.kind)",
             [(x["id"], city, x["name"], x.get("area") or "", x.get("lat"), x.get("lng"), x["source"],
-              x.get("address"), x.get("phone")) for x in shops])
+              x.get("address"), x.get("phone"), x.get("kind")) for x in shops])
         c.commit()
     return len(shops)
 
 
 def reset() -> None:
+    try:
+        from app.commerce_loop import discovery
+
+        discovery._CACHE.clear()
+    except Exception:  # noqa: BLE001
+        pass
     with _LOCK:
         c = conn()
         for table in ("shops", "listings", "requests", "responses", "demand_events", "shopper_profiles", "inventory", "sales"):
@@ -197,7 +208,7 @@ _SHOP_COORDS = {
 
 
 def _seed(c: sqlite3.Connection) -> None:
-    c.executemany("INSERT INTO shops (id, city, name, area, lat, lng, source) VALUES (?,?,?,?,?,?,'demo')",
+    c.executemany("INSERT INTO shops (id, city, name, area, lat, lng, source, kind) VALUES (?,?,?,?,?,?,'demo','electronics')",
                   [(i, ci, n, a, *_SHOP_COORDS.get(i, (None, None))) for i, ci, n, a in SHOPS])
     c.executemany(
         "INSERT INTO listings (shop_id, product, specs, price, currency, stock) VALUES (?,?,?,?,?,?)",
@@ -272,11 +283,16 @@ def listings_for(shop_id: str) -> list[dict]:
 
 
 def create_request(city: str, product: str, specs: dict, budget: float | None, currency: str | None,
-                   language: str, raw_text: str, shopper_id: str | None = None) -> int:
+                   language: str, raw_text: str, shopper_id: str | None = None, category: str | None = None,
+                   ref_image: str | None = None) -> int:
+    from app.commerce_loop.categories import category_of
+
+    category = category or category_of(product)
     rid = execute(
-        "INSERT INTO requests (city, product, specs, budget, currency, language, raw_text, status, created_at, shopper_id)"
-        " VALUES (?,?,?,?,?,?,?,?,?,?)",
-        (city, product, json.dumps(specs), budget, currency, language, raw_text[:500], "OPEN", now_iso(), shopper_id))
+        "INSERT INTO requests (city, product, specs, budget, currency, language, raw_text, status, created_at, shopper_id,"
+        " category, ref_image) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        (city, product, json.dumps(specs), budget, currency, language, raw_text[:500], "OPEN", now_iso(), shopper_id,
+         category, ref_image))
     record_demand(city, product, specs, budget, currency, answered=False)
     return rid
 
@@ -296,12 +312,30 @@ def get_request(request_id: int) -> dict | None:
     req = found[0]
     req["specs"] = json.loads(req["specs"])
     req["responses"] = responses_for(request_id)
+    req["ref_image_url"] = ref_image_url(req.get("ref_image"))
     return req
 
 
-def open_requests(city: str) -> list[dict]:
-    out = rows("SELECT * FROM requests WHERE city=? ORDER BY id DESC LIMIT 30", (city,))
+def ref_image_url(name: str | None) -> str | None:
+    return f"/api/v2/loop/media/requests/{name}" if name else None
+
+
+def shops_serving(city: str, category: str | None) -> list[dict]:
+    from app.commerce_loop.categories import shop_serves
+
+    return [s for s in shops_in_city(city) if shop_serves(s.get("kind"), category)]
+
+
+def open_requests(city: str, shop_id: str | None = None) -> list[dict]:
+    from app.commerce_loop.categories import shop_serves
+
+    out = rows("SELECT * FROM requests WHERE city=? ORDER BY id DESC LIMIT 60", (city,))
+    if shop_id:
+        kind = (shop(shop_id) or {}).get("kind")
+        out = [r for r in out if shop_serves(kind, r.get("category"))]
+    out = out[:30]
     for r in out:
+        r["ref_image_url"] = ref_image_url(r.get("ref_image"))
         r["specs"] = json.loads(r["specs"])
         r["responses"] = responses_for(r["id"])
         sid = r.get("shopper_id")
@@ -414,17 +448,19 @@ def responses_for(request_id: int) -> list[dict]:
     for r in out:
         r["claim"] = json.loads(r["claim"])
         r["check_result"] = json.loads(r["check_result"])
+        r["photo_url"] = f"/api/v2/loop/media/{r['shop_id']}/{r['photo_file']}" if r.get("photo_file") else None
     return out
 
 
 def add_response(request_id: int, shop_id: str, price: float | None, currency: str | None, stock: int | None,
                  claim: dict, check: dict, status: str, *, message: str | None = None,
-                 evidence_class: str | None = None, inventory_id: int | None = None) -> int:
+                 evidence_class: str | None = None, inventory_id: int | None = None,
+                 photo_file: str | None = None) -> int:
     rid = execute(
         "INSERT INTO responses (request_id, shop_id, price, currency, stock, claim, check_result, status, created_at,"
-        " message, evidence_class, inventory_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        " message, evidence_class, inventory_id, photo_file) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (request_id, shop_id, price, currency, stock, json.dumps(claim), json.dumps(check), status, now_iso(),
-         message, evidence_class, inventory_id))
+         message, evidence_class, inventory_id, photo_file))
     if status == "PHOTO_MATCHES_REQUEST":
         execute("UPDATE requests SET status='ANSWERED' WHERE id=?", (request_id,))
         req = rows("SELECT * FROM requests WHERE id=?", (request_id,))[0]

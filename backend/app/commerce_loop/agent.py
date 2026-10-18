@@ -18,7 +18,9 @@ from app.commerce_loop.intent import ShopperIntent, extract_intent
 from app.commerce_loop.locale import CITIES, Money, parse_money, resolve_city
 
 SYSTEM = """You are the shopping assistant of NeedProof, used by shoppers in any city and language.
-Goal: help the shopper find a nearby shop that really has the item they need, today.
+Goal: help the shopper find a nearby shop that really has the item they need, today. Any product: electronics,
+clothing, shoes, books, home goods and more. For clothing and similar items, colour, size and design matter;
+if the shopper attached a reference photo, shops are asked to match that design.
 
 Rules:
 1. Reply in the same language the shopper writes in. Keep replies under 120 words; use short bullet points for shops.
@@ -90,8 +92,12 @@ def _detect_language(text: str) -> str:
 
 class ShopperAgent:
     def __init__(self, city: str, gemini: Gemini | None = None, origin: dict | None = None,
-                 shopper_id: str | None = None, shopper_name: str = "Shopper"):
+                 shopper_id: str | None = None, shopper_name: str = "Shopper",
+                 ref_image: tuple[bytes, str] | None = None):
         self.city = city
+        self.ref_image = ref_image
+        self.ref_image_file: str | None = None
+        self.ref_reading: dict | None = None
         self.shopper_id = shopper_id
         self.shopper_name = shopper_name
         self.profile = store.get_profile(shopper_id) if shopper_id else None
@@ -120,15 +126,33 @@ class ShopperAgent:
             connector: Required connector such as "USB-C", or empty.
             budget_amount: Maximum price in the city's local currency, or 0 if not given.
         """
+        from app.commerce_loop.categories import category_of, item_noun, shop_serves
+        from app.commerce_loop.discovery import discover
+
         city_id = resolve_city(city) or self.city
+        category = category_of(product, self.intent.category if self.intent else None)
+        self.category = category
         required = {k: v for k, v in {"wattage_w": required_wattage_w or None,
                                       "connector": connector or None}.items() if v}
         required.update({k: v for k, v in required_specs_from_text(product).items() if k not in required})
+        if category != "electronics":
+            required = {}
+        try:  # real shops of this kind around the shopper (or the city centre)
+            origin = self.origin if self.origin.get("lat") is not None else {}
+            found = discover(city_id, category, origin.get("lat"), origin.get("lng"))
+            self._log("discover_shops", {"category": category}, f"{found['shops_found']} real {category} shops "
+                                                                 f"from {found['source']}")
+        except Exception as exc:  # noqa: BLE001
+            self._log("discover_shops", {"category": category}, f"unavailable ({type(exc).__name__})")
         offers = []
         key = store.product_key(product, required)
+        noun = item_noun(product)
         for shop in store.shops_in_city(city_id):
             for item in store.listings_for(shop["id"]):
-                if store.product_key(item["product"], item["specs"]).split()[-1] != key.split()[-1]:
+                if category == "electronics":
+                    if store.product_key(item["product"], item["specs"]).split()[-1] != key.split()[-1]:
+                        continue
+                elif not noun or item_noun(item["product"]) != noun:
                     continue
                 specs = spec_check(required, item["specs"])
                 decision = evaluate_offer(product, budget_amount or None, item["price"], item["stock"])
@@ -149,7 +173,9 @@ class ShopperAgent:
         nearby = [{"shop_id": s["id"], "shop": s["name"], "area": s["area"], "distance_km": self._distance(s),
                    "lat": s.get("lat"), "lng": s.get("lng"),
                    "source": s["source"], "photo_proof": self._photo_proof(city_id, s["id"], product)}
-                  for s in store.shops_in_city(city_id) if s["id"] not in listed and s["source"] != "demo"]
+                  for s in store.shops_in_city(city_id)
+                  if s["id"] not in listed and s["source"] != "demo" and shop_serves(s.get("kind"), category)
+                  and (s.get("kind") in (category, None) or category == "general")]
         nearby.sort(key=lambda x: x["distance_km"] if x["distance_km"] is not None else 99)
         self.nearby = nearby[:12]
         result = {"city": CITIES[city_id]["name"], "currency": CITIES[city_id]["currency"],
@@ -192,14 +218,24 @@ class ShopperAgent:
         if self.request:
             return {"request_id": self.request["id"], "shops_notified": self.request["shops_notified"],
                     "note": "Already sent for this conversation."}
-        specs = {k: v for k, v in {"wattage_w": required_wattage_w or None, "connector": connector or None}.items() if v}
-        specs.update({k: v for k, v in required_specs_from_text(product).items() if k not in specs})
+        from app.commerce_loop.categories import category_of
+
+        category = category_of(product, self.intent.category if self.intent else None)
+        if category == "electronics":
+            specs = {k: v for k, v in {"wattage_w": required_wattage_w or None, "connector": connector or None}.items() if v}
+            specs.update({k: v for k, v in required_specs_from_text(product).items() if k not in specs})
+        else:
+            i = self.intent
+            specs = {k: v for k, v in {"color": i.color if i else None, "size": i.size if i else None,
+                                       "design": i.pattern_or_design if i else None,
+                                       "material": i.material if i else None}.items() if v}
         currency = CITIES[self.city]["currency"]
         rid = store.create_request(self.city, product, specs, budget_amount or None, currency, language, product,
-                                   shopper_id=self.shopper_id)
-        shops = store.shops_in_city(self.city)
+                                   shopper_id=self.shopper_id, category=category, ref_image=self.ref_image_file)
+        shops = store.shops_serving(self.city, category)
         self.request = {"id": rid, "shops_notified": len(shops), "product": product, "specs": specs,
-                        "budget": budget_amount or None, "currency": currency}
+                        "budget": budget_amount or None, "currency": currency, "category": category,
+                        "ref_image_url": store.ref_image_url(self.ref_image_file)}
         self._log("ask_nearby_shops", {"product": product, "budget_amount": budget_amount, "language": language},
                   f"request #{rid} sent to {len(shops)} shops")
         return {"request_id": rid, "shops_notified": len(shops),
@@ -288,11 +324,13 @@ class ShopperAgent:
 
     # ---- helpers ----
     def _distance(self, shop: dict) -> float | None:
-        if self.origin.get("lat") is None or shop.get("lat") is None:
+        lat = self.origin.get("lat") if self.origin.get("lat") is not None else CITIES.get(self.city, {}).get("lat")
+        lng = self.origin.get("lng") if self.origin.get("lng") is not None else CITIES.get(self.city, {}).get("lng")
+        if lat is None or shop.get("lat") is None:
             return None
         from app.commerce_loop.discovery import haversine_km
 
-        return haversine_km(self.origin["lat"], self.origin["lng"], shop["lat"], shop["lng"])
+        return haversine_km(lat, lng, shop["lat"], shop["lng"])
 
     def _resolve_location(self, text: str) -> None:
         """If the shopper named a place, move the search there (any city, any country)."""
@@ -335,9 +373,20 @@ class ShopperAgent:
     def chat(self, history: list[dict]) -> dict:
         last = next((h["text"] for h in reversed(history) if h.get("role") == "user"), "")
         self.language = _detect_language(last)
+        if self.ref_image is not None:
+            self._read_reference_photo()
+            if self.ref_reading and self.ref_reading.get("request_text"):
+                history = [*history[:-1], {"role": "user", "text": f"{last}\n(Reference photo shows: "
+                                                                  f"{self.ref_reading['request_text']})"}]
         # Step 1: Gemini extracts a structured intent (item, specs, budget, urgency, place, missing info).
         self.intent, intent_meta = extract_intent(history, self.city, self.gemini)
         intent = self.intent
+        if self.ref_reading:
+            r = self.ref_reading
+            intent.item = intent.item or r.get("item") or r.get("request_text")
+            intent.color = intent.color or r.get("color")
+            intent.pattern_or_design = intent.pattern_or_design or r.get("pattern")
+            intent.category = intent.category or r.get("category")
         self._apply_profile(intent)
         self.language = intent.language or self.language
         filled = [k for k in ("item", "wattage_w", "connector", "budget_amount", "urgency", "location_text")
@@ -348,7 +397,8 @@ class ShopperAgent:
         # Step 2: a place named in the message overrides the detected location.
         if intent.location_text and intent.location_text.casefold() not in (self.origin.get("label") or "").casefold():
             self._resolve_location(intent.location_text)
-        base = {"intent": intent.model_dump(), "intent_model": intent_meta,
+        base = {"intent": intent.model_dump(), "intent_model": intent_meta, "reference": self.ref_reading,
+                "ref_image_url": store.ref_image_url(self.ref_image_file),
                 "location": {"city": CITIES[self.city], **self.origin},
                 "remembered": self.remembered, "profile": self.profile}
         # Step 3: ask one follow-up question when the item, or a spec that decides the product, is missing.
@@ -424,6 +474,24 @@ class ShopperAgent:
             self.shopper_id, self.city, self.shopper_name, device=intent.device_model,
             budget=intent.budget_amount, currency=intent.budget_currency or CITIES[self.city]["currency"],
             language=intent.language, need=need)
+
+    def _read_reference_photo(self) -> None:
+        """Save the shopper's reference photo (it travels with the request) and let Gemini describe it."""
+        import uuid
+
+        from app.commerce_loop import media
+        from app.commerce_loop.inventory import media_dir
+        from app.commerce_loop.snap import need_from_photo
+
+        data, mime = self.ref_image
+        ext = {"image/png": "png", "image/webp": "webp"}.get(mime, "jpg")
+        name = f"ref-{uuid.uuid4().hex[:12]}.{ext}"
+        media.save(media_dir("requests") / name, f"inventory/requests/{name}", data, mime)
+        self.ref_image_file = name
+        result = need_from_photo(self.ref_image, self.gemini)
+        self.ref_reading = result.get("need") if result.get("need") else None
+        self._log("read_reference_photo", {"photo": name},
+                  f"{result['mode']}: {(self.ref_reading or {}).get('what_i_see') or result.get('message', '')}"[:200])
 
     @staticmethod
     def _needs_clarification(intent: ShopperIntent) -> bool:

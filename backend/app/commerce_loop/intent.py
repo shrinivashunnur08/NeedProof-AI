@@ -11,9 +11,13 @@ from app.commerce_loop.locale import CITIES, parse_money
 
 INTENT_SYSTEM = """You turn a shopper's message (any language, possibly several turns) into structured fields.
 Use only what the shopper said; use null when not stated. Never invent specs, budget or location.
-item: short English name of the product (e.g. "65W USB-C PD laptop charger").
-category: one or two English words (e.g. "laptop charger", "phone case", "power bank").
-features: important requirements in English (e.g. "USB-C", "PD", "genuine", "fits Dell XPS 13").
+Any product can be asked for: electronics, clothing, shoes, books, home goods, medicine, groceries and more.
+item: short English name of the product (e.g. "65W USB-C PD laptop charger", "navy floral cotton shirt").
+category: one or two English words (e.g. "laptop charger", "shirt", "running shoes", "power bank").
+features: important requirements in English (e.g. "USB-C", "PD", "genuine", "fits Dell XPS 13", "slim fit").
+color, size, pattern_or_design, material: only for products where they matter (clothing, shoes, home goods),
+exactly as the shopper said them (e.g. color "navy blue", size "M", pattern_or_design "small white floral print").
+Electronics fields (wattage_w, connector, usb_pd, device_model) only for electronics.
 missing_info: what is still needed to find the right item (e.g. "wattage", "device model"). Leave empty if enough.
 clarifying_question: ONE short question in the shopper's language, only if the item itself is unclear or a
 missing detail would change which product fits. Otherwise null.
@@ -29,6 +33,10 @@ class ShopperIntent(BaseModel):
     connector: str | None = None
     usb_pd: bool | None = None
     device_model: str | None = None
+    color: str | None = None
+    size: str | None = None
+    pattern_or_design: str | None = None
+    material: str | None = None
     features: list[str] = Field(default_factory=list)
     budget_amount: float | None = None
     budget_currency: str | None = None
@@ -43,7 +51,37 @@ class ShopperIntent(BaseModel):
 _ITEM_HINTS = r"charger|cable|power bank|adapter|adaptor|carregador|cabo|चार्जर|充电|headphone|earbud|case|mouse|keyboard"
 
 
+_COLORS = r"navy blue|navy|black|white|red|blue|green|yellow|pink|purple|grey|gray|brown|beige|maroon|orange"
+
+
+def _mock_generic(text: str, city: str) -> ShopperIntent | None:
+    """Offline stand-in for non-electronics requests (shirts, shoes, books...)."""
+    from app.commerce_loop.categories import category_of, item_noun
+
+    cat = category_of(text)
+    if cat in ("general", "electronics"):
+        return None
+    money = parse_money(text, CITIES.get(city, {}).get("currency"))
+    noun = item_noun(text) or cat
+    color = re.search(rf"\b({_COLORS})\b", text, re.IGNORECASE)
+    size = re.search(r"\bsize\s*([A-Z0-9]{1,4})\b", text, re.IGNORECASE)
+    pattern = re.search(r"\b((?:small |large |big )?(?:white |black |red |blue )?(?:floral|checked|check|striped|stripe|plain|polka dot|printed|graphic)(?: print| pattern)?)\b",
+                        text, re.IGNORECASE)
+    item = " ".join(x for x in (color.group(1).lower() if color else None, pattern.group(1).lower() if pattern else None,
+                                noun) if x)
+    loc = re.search(r"\b(?:near|around|in|at)\s+([A-Z][\w' ]{2,40})", text)
+    return ShopperIntent(item=item, category=noun, color=color.group(1).lower() if color else None,
+                         size=size.group(1).upper() if size else None,
+                         pattern_or_design=pattern.group(1).lower() if pattern else None,
+                         budget_amount=money.amount if money else None, budget_currency=money.currency if money else None,
+                         urgency="today" if re.search(r"today|tonight|now|hoje|今天|आज", text, re.IGNORECASE) else None,
+                         location_text=loc.group(1).strip() if loc else None)
+
+
 def _mock_intent(text: str, city: str) -> ShopperIntent:
+    generic = _mock_generic(text, city)
+    if generic is not None:
+        return generic
     specs = required_specs_from_text(text)
     money = parse_money(text, CITIES.get(city, {}).get("currency"))
     has_item = bool(re.search(_ITEM_HINTS, text, re.IGNORECASE))

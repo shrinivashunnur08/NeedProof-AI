@@ -8,8 +8,11 @@ from pydantic import BaseModel, Field
 from app.commerce_loop.engine import spec_check
 from app.commerce_loop.gemini import Gemini, GeminiUnavailable
 
-VISION_SYSTEM = """You read photos that local shops send as proof that they have an item.
-Extract ONLY what is visible on the product, box, label or price tag. Use null when something is not visible.
+VISION_SYSTEM = """You read photos that local shops send as proof that they have an item. Any product: electronics,
+clothing, shoes, home goods and more. Extract ONLY what is visible on the product, box, label or price tag.
+Use null when something is not visible. For clothing and similar items, read colour, pattern/design and any size label.
+If the shopper supplied a reference photo, compare the shop's item with it: same kind of item, same colour family,
+same pattern/design? Set matches_reference accordingly and list concrete differences.
 Never guess wattage, brand or price. List authenticity cues you can actually see (for example safety marks,
 model numbers, serial stickers). Put ONLY visible red flags in concerns (for example a misspelled brand, a printed
 rating that contradicts itself, a broken seal). Do NOT put things that are simply not visible in concerns.
@@ -32,6 +35,12 @@ class PhotoClaim(BaseModel):
     concerns: list[str] = Field(default_factory=list, description="Visible red flags only, never 'missing X'")
     confidence: float = Field(default=0.5, ge=0, le=1)
     analysis_summary: str | None = Field(default=None, description="Two short English sentences: what the photo shows and how it compares with the request")
+    color: str | None = Field(default=None, description="Main colour of the item, if relevant")
+    pattern_or_design: str | None = Field(default=None, description="Visible pattern or design, e.g. 'white floral print'")
+    size_label: str | None = Field(default=None, description="Size printed on a tag, if visible")
+    matches_reference: bool | None = Field(default=None, description="Only when a reference photo was given: does the shop's item match its design")
+    matches_requested_attributes: bool | None = Field(default=None, description="Do colour/size/design match what the shopper asked for (null if not asked)")
+    differences: list[str] = Field(default_factory=list, description="Concrete differences from the request or the reference photo")
 
 
 def check_photo(request: dict, claim: PhotoClaim, shop_price: float | None) -> dict:
@@ -47,6 +56,20 @@ def check_photo(request: dict, claim: PhotoClaim, shop_price: float | None) -> d
     offered = {"wattage_w": claim.wattage_w, "connector": claim.connector, "usb_pd": claim.usb_pd}
     specs = spec_check(request.get("specs") or {}, offered)
     issues = list(specs["issues"])
+    # Design / attribute match for clothing and other non-electronics items (and any reference photo).
+    if claim.matches_reference is False or claim.matches_requested_attributes is False:
+        diff = "; ".join(claim.differences[:3]) or "the design does not match"
+        issues.append(f"Different from what the shopper wants: {diff}")
+    elif claim.matches_reference or claim.matches_requested_attributes:
+        bits = [x for x in (claim.color, claim.pattern_or_design) if x]
+        specs["matches"] = [*specs["matches"], "Matches the shopper's " + ("photo" if claim.matches_reference else "description")
+                            + (f" ({', '.join(bits)})" if bits else "")]
+    wanted_size = (request.get("specs") or {}).get("size")
+    if wanted_size and claim.size_label:
+        if str(wanted_size).casefold() != str(claim.size_label).casefold():
+            issues.append(f"Size label {claim.size_label}, shopper wants {wanted_size}")
+        else:
+            specs["matches"] = [*specs["matches"], f"Size {claim.size_label}"]
     missing = [i for i in issues if "not stated" in i]
     conflicts = [i for i in issues if i not in missing]
     budget = request.get("budget")
@@ -60,7 +83,7 @@ def check_photo(request: dict, claim: PhotoClaim, shop_price: float | None) -> d
             cautions.append(f"Not visible: {c}")
         else:
             conflicts.append(f"Authenticity concern: {c}")
-    if not claim.authenticity_cues and not claim.brand:
+    if (request.get("category") or "electronics") == "electronics" and not claim.authenticity_cues and not claim.brand:
         cautions.append("No brand or safety mark visible; ask for a photo of the label")
     if conflicts:
         status = "PHOTO_CONFLICTS_WITH_REQUEST"
@@ -103,9 +126,10 @@ def _mock_claim(request: dict, hint: dict | None) -> PhotoClaim:
 
 
 def read_photo(request: dict, image: tuple[bytes, str] | None, shop_price: float | None,
-               gemini: Gemini | None = None, mock_hint: dict | None = None, catalog: bool = False) -> dict:
+               gemini: Gemini | None = None, mock_hint: dict | None = None, catalog: bool = False,
+               reference: tuple[bytes, str] | None = None) -> dict:
     """Never returns a match without a model actually reading a photo (except explicit test hints)."""
-    result = _read_photo(request, image, shop_price, gemini, mock_hint)
+    result = _read_photo(request, image, shop_price, gemini, mock_hint, reference)
     if catalog and image is not None:
         result["evidence_class"] = "SHOP_CATALOG_PHOTO_READ_BY_AI"
         result["check"].setdefault("cautions", []).insert(
@@ -114,7 +138,7 @@ def read_photo(request: dict, image: tuple[bytes, str] | None, shop_price: float
 
 
 def _read_photo(request: dict, image: tuple[bytes, str] | None, shop_price: float | None,
-                gemini: Gemini | None, mock_hint: dict | None) -> dict:
+                gemini: Gemini | None, mock_hint: dict | None, reference: tuple[bytes, str] | None = None) -> dict:
     gemini = gemini or Gemini()
     meta: dict = {}
     evidence = "SHOP_PHOTO_READ_BY_AI_NOT_INDEPENDENTLY_VERIFIED"
@@ -128,11 +152,16 @@ def _read_photo(request: dict, image: tuple[bytes, str] | None, shop_price: floa
     if gemini.is_mock:
         return {"claim": {}, "check": _not_checked("No live model configured, so the photo was not read"),
                 "mode": "mock", "model": meta, "evidence_class": evidence}
-    prompt = (f"The shopper asked for: {request.get('product')} with specs {request.get('specs')}. "
-              "First decide what kind of item the photo shows and whether it is the same kind of item. "
+    prompt = (f"The shopper asked for: {request.get('product')} with details {request.get('specs')}. "
+              "First decide what kind of item the shop's photo shows and whether it is the same kind of item. "
               "Then read the visible details and write analysis_summary.")
+    images = []
+    if reference is not None:
+        images.append(("Image 1: the shopper's reference photo (what they want):", reference))
+        prompt += " Compare the shop's photo (Image 2) with the shopper's reference photo (Image 1)."
+    images.append(("Image 2: the shop's photo:" if reference is not None else "The shop's photo:", image))
     try:
-        claim, meta = gemini.generate_json(prompt, PhotoClaim, system=VISION_SYSTEM, image=image)
+        claim, meta = gemini.generate_json(prompt, PhotoClaim, system=VISION_SYSTEM, images=images)
     except GeminiUnavailable as exc:
         return {"claim": {}, "check": _not_checked("Photo could not be read right now; ask the shop to resend"),
                 "mode": "error", "model": {"error": str(exc)}, "evidence_class": evidence}

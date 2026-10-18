@@ -17,9 +17,10 @@ Three minutes:
 2. **Reach any real shop on WhatsApp**: each real shop gets a **WhatsApp** button with the request and a signed one-tap reply link. The shopkeeper opens it on their phone (no app, no account), snaps the box, and Gemini Vision checks it; the shopper sees the answer live.
 3. **Shopkeeper** (of Marina Gadgets) → **My shop** → **Load sample inventory**, then the inbox: each request has an **AI draft from the shop's own stock** (Vertex AI Search + Gemini) to approve. **My shop** shows the shop's own demand: answered / missed / out of stock / not stocked, missed sales, editable price and stock, Gemini advice. **My analytics**: its forecast, stock risk, customer groups, bought-together, review priorities.
 4. Several items at once: *"a 65W charger, a USB-C cable and a power bank, S$120 total"*: the OR-Tools planner picks the cheapest mix of shops.
-5. Ask again later: *"I need a laptop charger again"*: NeedProof remembers wattage and budget (**Forget me** deletes it).
-6. **Business manager**: city-wide unmet demand, every shop's analytics, the **BigQuery ML** forecast and a brief written by Gemini **inside BigQuery**.
-7. **Trust report**: how each answer is decided, live model tests, safeguards, and every NeedProof engine with a **Run** button on live data.
+5. **Any product, with a photo**: *"Search by photo: this shirt design"* → *"navy shirt like this, size M, under S$40, near Bugis"*. Real **clothing** shops nearby get the request with the shopper's photo; the shop replies with its own photo; Gemini Vision compares the two images (same design? colour? size label?) and the shopper sees the shop's photo and the verdict. A red check shirt is rejected as a different design.
+6. Ask again later: *"I need a laptop charger again"*: NeedProof remembers wattage and budget (**Forget me** deletes it).
+7. **Business manager**: city-wide unmet demand, every shop's analytics, the **BigQuery ML** forecast and a brief written by Gemini **inside BigQuery**.
+8. **Trust report**: how each answer is decided, live model tests, safeguards, and every NeedProof engine with a **Run** button on live data.
 
 *Reset data* clears the shared data. Shops in Singapore, São Paulo and Mumbai are fictional; *Detect* switches to your real location and real nearby shops from OpenStreetMap.
 
@@ -43,7 +44,7 @@ Three minutes:
 | **Vertex AI Search** | Natural-language search over each shop's uploaded inventory |
 | **Cloud Storage** | Private storage for shop product photos |
 | **Cloud Run + Cloud Build** | Hosting the FastAPI backend and React app in Singapore |
-| **Google Maps Platform** | Places API (New) finds real nearby shops and phone numbers; Maps Static API draws the shop map; Directions links |
+| **Google Maps Platform** | Places API (New) finds real nearby shops of the right kind and their phone numbers; Geocoding API resolves places; Maps Static API draws the shop map; Directions links |
 | **Looker Studio** | Dashboard on the BigQuery views (link in `docs/GOOGLE_CLOUD.md`) |
 | **Gemini API (AI Studio)** | Free local profile; one switch (`NEEDPROOF_PROFILE=free | google_full`) |
 
@@ -52,7 +53,7 @@ Not done yet: the live app keeps shop and request data in SQLite on a single Clo
 ## Evidence that it works
 
 - Live model tests: [`docs/EVAL_REPORT.md`](docs/EVAL_REPORT.md) (AI Studio) and [`docs/EVAL_REPORT_VERTEX.md`](docs/EVAL_REPORT_VERTEX.md) (Vertex AI): intent extraction in 5 languages including a prompt-injection attempt, 5 photo checks (correct charger, wrong wattage, fake brand, mixer grinder, cable), 4 inventory drafts. Run with `python backend/scripts/eval_live.py`.
-- 46 automated tests for the commerce loop (`backend/tests/test_commerce_loop.py`), run in CI with a mock model.
+- 48 automated tests for the commerce loop (`backend/tests/test_commerce_loop.py`), run in CI with a mock model.
 - Limits: 19 hand-written cases and 5 synthetic label photos, not real shop photos; demo shops and demand history are fictional.
 
 ## Run locally

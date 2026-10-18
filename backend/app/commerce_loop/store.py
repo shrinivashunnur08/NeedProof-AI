@@ -349,7 +349,8 @@ def forget_profile(shopper_id: str) -> None:
 
 
 def responses_for(request_id: int) -> list[dict]:
-    out = rows("SELECT r.*, s.name AS shop_name FROM responses r JOIN shops s ON s.id=r.shop_id"
+    out = rows("SELECT r.*, s.name AS shop_name, TRIM(COALESCE(i.brand || ' ', '') || i.product) AS inventory_product"
+               " FROM responses r JOIN shops s ON s.id=r.shop_id LEFT JOIN inventory i ON i.id=r.inventory_id"
                " WHERE request_id=? ORDER BY r.id", (request_id,))
     for r in out:
         r["claim"] = json.loads(r["claim"])

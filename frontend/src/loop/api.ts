@@ -56,7 +56,7 @@ export type PhotoCheck = { status: string; issues: string[]; missing: string[]; 
 export type ShopResponse = {
   id: number; shop_id: string; shop_name: string; price: number | null; status: string;
   claim: Record<string, unknown>; check_result: PhotoCheck; created_at: string;
-  message?: string | null; evidence_class?: string | null; inventory_id?: number | null;
+  message?: string | null; evidence_class?: string | null; inventory_id?: number | null; inventory_product?: string | null;
 };
 export type BqForecast = {
   city: string; engine: string; model: string; console_url: string;

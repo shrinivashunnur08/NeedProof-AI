@@ -426,6 +426,13 @@ function AssistantTurn({ turn, version }: { turn: Turn; version: number }) {
   }, [requestId, version]);
   const latestByShop = new Map<string, ShopResponse>();
   for (const x of req?.responses ?? []) latestByShop.set(x.shop_id, x);
+  // A shop's reply is about one product: apply it only to that listing (or, for a plain photo reply,
+  // to listings that meet the request), never to every card from the same shop.
+  const liveFor = (o: Offer) => {
+    const x = latestByShop.get(o.shop_id);
+    if (!x) return undefined;
+    return (x.inventory_product ? x.inventory_product === o.listing : o.spec_check.ok) ? x : undefined;
+  };
   return (
     <div className="max-w-[46rem] rounded-2xl rounded-tl-sm border border-slate-700/60 bg-slate-800/60 p-4">
       {r?.intent && <IntentCard intent={r.intent} mode={r.intent_model?.mode} latency={r.intent_model?.latency_ms} />}
@@ -438,7 +445,7 @@ function AssistantTurn({ turn, version }: { turn: Turn; version: number }) {
         {turn.text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
           part.startsWith("**") && part.endsWith("**") ? <strong key={i}>{part.slice(2, -2)}</strong> : part.replace(/^\* /gm, "• "))}
       </p>
-      {r && r.offers.length > 0 && <ul className="mt-3 space-y-2">{r.offers.map((o) => <OfferCard key={o.shop_id + o.listing} offer={o} live={latestByShop.get(o.shop_id)} />)}</ul>}
+      {r && r.offers.length > 0 && <ul className="mt-3 space-y-2">{r.offers.map((o) => <OfferCard key={o.shop_id + o.listing} offer={o} live={liveFor(o)} />)}</ul>}
       {r?.nearby && <NearbyList shops={r.nearby} live={latestByShop} />}
       {r && (r.offers.length > 0 || (r.nearby ?? []).length > 0) && (
         <ShopMap origin={r.location?.lat != null ? r.location : r.location ? { lat: r.location.city.lat, lng: r.location.city.lng, label: r.location.city.name } : null} pins={[

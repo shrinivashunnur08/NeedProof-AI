@@ -196,6 +196,12 @@ async def city_events(city: str, request: Request):
                              headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
 
+@router.get("/cities/{city}/routing")
+def routing(city: str):
+    """How shopper requests were routed to shops by category, and how many each shop received and answered."""
+    return store.routing_summary(_city(city))
+
+
 @router.get("/cities/{city}/requests")
 def city_requests(city: str, shop_id: str | None = None):
     """Requests in a city; with shop_id, only those this kind of shop can serve (clothing to clothing shops...)."""

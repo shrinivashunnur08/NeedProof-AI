@@ -409,7 +409,7 @@ def test_photo_proof_is_per_product_not_per_shop(client):
 
 def test_trust_report(client):
     t = client.get("/api/v2/loop/trust").json()
-    assert len(t["pipeline"]) == 6 and len(t["safeguards"]) >= 10
+    assert len(t["pipeline"]) == 7 and len(t["safeguards"]) >= 10
     assert t["evals"] and all(x["passed"] == x["total"] for e in t["evals"] for x in e["tasks"])
     assert "EVSI_ONE_STEP" in t["benchmarks"]["evidence"]
     assert t["live"]["requests"] == 0
@@ -625,3 +625,20 @@ def test_design_mismatch_is_a_conflict():
     assert bad["status"] == "PHOTO_CONFLICTS_WITH_REQUEST" and "red check" in bad["issues"][0]
     wrong_size = check_photo(req, same.model_copy(update={"size_label": "L"}), 35)
     assert wrong_size["status"] == "PHOTO_CONFLICTS_WITH_REQUEST"
+
+
+def test_routing_summary_counts_requests_per_shop_and_category(client):
+    store.upsert_shops("singapore", [{"id": "gpl-cotton2", "name": "Cotton Two", "lat": 1.30, "lng": 103.85,
+                                      "area": "Bugis", "source": "google_places", "kind": "clothing",
+                                      "maps_url": "https://maps.google.com/?cid=1", "rating": 4.5, "rating_count": 10}])
+    client.post("/api/v2/loop/agent/chat", json={"city": "singapore", "history": [
+        {"role": "user", "text": "65W USB-C PD charger under S$60"}]})
+    client.post("/api/v2/loop/agent/chat", json={"city": "singapore", "history": [
+        {"role": "user", "text": "Navy blue shirt with white floral print, size M"}]})
+    r = client.get("/api/v2/loop/cities/singapore/routing").json()
+    cats = {c["category"]: c for c in r["categories"]}
+    assert cats["electronics"]["requests"] == 1 and cats["clothing"]["requests"] == 1
+    assert r["shops"]["gpl-cotton2"]["by_category"] == {"clothing": 1}
+    assert r["shops"]["sg-marina"]["by_category"] == {"electronics": 1}
+    shops = {s["id"]: s for s in client.get("/api/v2/loop/cities/singapore/shops").json()}
+    assert shops["gpl-cotton2"]["maps_url"] and shops["gpl-cotton2"]["rating"] == 4.5

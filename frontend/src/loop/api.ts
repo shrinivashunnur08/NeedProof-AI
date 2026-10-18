@@ -5,7 +5,8 @@ export type Intent = {
   quantity: number | null; urgency: string | null; location_text: string | null; language: string;
   missing_info: string[]; clarifying_question: string | null;
 };
-export type NearbyShop = { shop_id: string; shop: string; area: string; distance_km: number | null; source: string; photo_proof: string; lat?: number | null; lng?: number | null };
+export type NearbyShop = { shop_id: string; shop: string; area: string; distance_km: number | null; source: string; photo_proof: string; lat?: number | null; lng?: number | null;
+  maps_url?: string | null; rating?: number | null; rating_count?: number | null; address?: string | null };
 export type Located = {
   city: City; label: string; lat: number; lng: number; shops_found: number; source: string;
   nearest: { id: string; name: string; area: string; distance_km?: number }[]; note: string;
@@ -20,7 +21,7 @@ export type Providers = {
 export type SpecCheck = { ok: boolean; issues: string[]; matches: string[] };
 export type Offer = {
   shop_id: string; shop: string; area: string; distance_km?: number | null; listing: string; price: string; currency: string;
-  lat?: number | null; lng?: number | null;
+  lat?: number | null; lng?: number | null; source?: string | null; maps_url?: string | null;
   listed_stock: number; spec_check: SpecCheck; over_budget: boolean; usable: boolean; photo_proof: string;
   decision: {
     workflow_state: string; state_text: string; next_best_proof: string | null; purchase_allowed: boolean;
@@ -46,7 +47,7 @@ export type ProofPlan = {
 export type Basket = {
   status: string; items: string[]; budget: string | null; max_shops: number; solver: string; currency: string;
   lines: { item: string; shop: string; shop_id: string; listing: string; price: string; stock: number; proof: string }[];
-  shops: { shop_id: string; shop: string; area: string; lat?: number | null; lng?: number | null; distance_km?: number | null; items: string[]; subtotal: string }[];
+  shops: { shop_id: string; shop: string; area: string; source?: string | null; maps_url?: string | null; lat?: number | null; lng?: number | null; distance_km?: number | null; items: string[]; subtotal: string }[];
   total?: string; within_budget?: boolean | null; verified_lines?: number; missing?: string[]; reason?: string; solve_ms?: number; note?: string;
   baselines?: { cheapest_item_first: { total: string; shops: number; fits_max_shops: boolean }; single_shop: { shop: string; total: string } | null };
 };
@@ -73,6 +74,8 @@ export type ShopResponse = {
   claim: Record<string, unknown>; check_result: PhotoCheck; created_at: string;
   message?: string | null; evidence_class?: string | null; inventory_id?: number | null; inventory_product?: string | null;
   photo_url?: string | null;
+  shop_lat?: number | null; shop_lng?: number | null; shop_address?: string | null; shop_source?: string | null;
+  shop_maps_url?: string | null; shop_rating?: number | null; shop_rating_count?: number | null; shop_area?: string | null;
 };
 export type BqForecast = {
   city: string; engine: string; model: string; console_url: string;
@@ -131,7 +134,12 @@ export type LoopRequest = {
   currency: string | null; language: string; status: string; created_at: string; responses: ShopResponse[];
   shopper_past_requests?: number; ref_image_url?: string | null; category?: string | null;
 };
-export type Shop = { id: string; city: string; name: string; area: string; source?: string; lat?: number; lng?: number; kind?: string | null };
+export type Shop = { id: string; city: string; name: string; area: string; source?: string; lat?: number; lng?: number; kind?: string | null;
+  address?: string | null; maps_url?: string | null; rating?: number | null; rating_count?: number | null };
+export type Routing = {
+  categories: { category: string; requests: number; answered: number; shops_reached: number }[];
+  shops: Record<string, { received: number; answered: number; by_category: Record<string, number> }>;
+};
 export type DemandProduct = {
   product_key: string; product: string; asks: number; answered: number; unmet: number; unmet_rate: number;
   avg_budget: string | null; last_7_days: number; previous_7_days: number; growth_pct: number;
@@ -181,6 +189,7 @@ export const api = {
   cityRequests: (city: string, shopId?: string) => call<LoopRequest[]>(`/cities/${city}/requests${shopId ? `?shop_id=${encodeURIComponent(shopId)}` : ""}`),
   discover: (city: string) => call<{ shops_found: number; sources: string[] }>(`/cities/${city}/discover`, { method: "POST" }),
   shops: (city: string) => call<Shop[]>(`/cities/${city}/shops`),
+  routing: (city: string) => call<Routing>(`/cities/${city}/routing`),
   reply: (id: number, body: { shop_id: string; price?: number; stock?: number; image_base64?: string; image_mime?: string;
     inventory_id?: number; message?: string; approved_by_shopkeeper?: boolean; reply_token?: string }) =>
     call<{ claim: Record<string, unknown>; check: PhotoCheck; mode: string; model: { latency_ms?: number; error?: string }; evidence_class?: string }>(

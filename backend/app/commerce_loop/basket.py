@@ -46,6 +46,7 @@ def candidates(city: str, items: list[str], distance=None) -> dict[int, list[dic
                 if listing["stock"] <= 0 or not spec_check(need, listing["specs"])["ok"]:
                     continue
                 rows.append({"line": idx, "shop_id": shop["id"], "shop": shop["name"], "area": shop["area"],
+                             "source": shop.get("source"), "maps_url": shop.get("maps_url"),
                              "lat": shop.get("lat"), "lng": shop.get("lng"),
                              "distance_km": distance(shop) if distance else None,
                              "listing": listing["product"], "price": listing["price"],
@@ -102,6 +103,7 @@ def plan(city: str, items: list[str], budget: float | None = None, max_shops: in
     for o in chosen:
         s = by_shop.setdefault(o["shop_id"], {"shop_id": o["shop_id"], "shop": o["shop"], "area": o["area"],
                                               "lat": o["lat"], "lng": o["lng"], "distance_km": o["distance_km"],
+                                              "source": o["source"], "maps_url": o["maps_url"],
                                               "items": [], "subtotal": 0.0})
         s["items"].append(o["listing"])
         s["subtotal"] += o["price"]

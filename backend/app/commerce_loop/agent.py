@@ -98,6 +98,8 @@ class ShopperAgent:
         self.ref_image = ref_image
         self.ref_image_file: str | None = None
         self.ref_reading: dict | None = None
+        self.category: str = "general"
+        self.category_source: str = "keywords"
         self.shopper_id = shopper_id
         self.shopper_name = shopper_name
         self.profile = store.get_profile(shopper_id) if shopper_id else None
@@ -130,8 +132,7 @@ class ShopperAgent:
         from app.commerce_loop.discovery import discover
 
         city_id = resolve_city(city) or self.city
-        category = category_of(product, self.intent.category if self.intent else None)
-        self.category = category
+        category = self._route_category(product)
         required = {k: v for k, v in {"wattage_w": required_wattage_w or None,
                                       "connector": connector or None}.items() if v}
         required.update({k: v for k, v in required_specs_from_text(product).items() if k not in required})
@@ -162,6 +163,7 @@ class ShopperAgent:
                 offers.append({
                     "shop_id": shop["id"], "shop": shop["name"], "area": shop["area"],
                     "distance_km": self._distance(shop), "lat": shop.get("lat"), "lng": shop.get("lng"),
+                    "source": shop.get("source"), "maps_url": shop.get("maps_url"),
                     "listing": item["product"], "price": Money(item["price"], item["currency"]).format(),
                     "price_amount": item["price"], "currency": item["currency"],
                     "listed_stock": item["stock"], "spec_check": specs, "over_budget": over_budget,
@@ -171,7 +173,8 @@ class ShopperAgent:
         self.offers = offers
         listed = {o["shop_id"] for o in offers}
         nearby = [{"shop_id": s["id"], "shop": s["name"], "area": s["area"], "distance_km": self._distance(s),
-                   "lat": s.get("lat"), "lng": s.get("lng"),
+                   "lat": s.get("lat"), "lng": s.get("lng"), "maps_url": s.get("maps_url"),
+                   "rating": s.get("rating"), "rating_count": s.get("rating_count"), "address": s.get("address"),
                    "source": s["source"], "photo_proof": self._photo_proof(city_id, s["id"], product)}
                   for s in store.shops_in_city(city_id)
                   if s["id"] not in listed and s["source"] != "demo" and shop_serves(s.get("kind"), category)
@@ -179,7 +182,7 @@ class ShopperAgent:
         nearby.sort(key=lambda x: x["distance_km"] if x["distance_km"] is not None else 99)
         self.nearby = nearby[:12]
         result = {"city": CITIES[city_id]["name"], "currency": CITIES[city_id]["currency"],
-                  "offers": [{k: v for k, v in o.items() if k not in {"price_amount", "lat", "lng"}} for o in offers],
+                  "offers": [{k: v for k, v in o.items() if k not in {"price_amount", "lat", "lng", "maps_url"}} for o in offers],
                   "nearby_shops_without_online_listing": [{k: n[k] for k in ("shop", "area", "distance_km")}
                                                           for n in self.nearby[:8]],
                   "note": "Listings are shop claims. photo_proof shows whether a shop has sent photo evidence. "
@@ -218,9 +221,7 @@ class ShopperAgent:
         if self.request:
             return {"request_id": self.request["id"], "shops_notified": self.request["shops_notified"],
                     "note": "Already sent for this conversation."}
-        from app.commerce_loop.categories import category_of
-
-        category = category_of(product, self.intent.category if self.intent else None)
+        category = self._route_category(product)
         if category == "electronics":
             specs = {k: v for k, v in {"wattage_w": required_wattage_w or None, "connector": connector or None}.items() if v}
             specs.update({k: v for k, v in required_specs_from_text(product).items() if k not in specs})
@@ -233,6 +234,8 @@ class ShopperAgent:
         rid = store.create_request(self.city, product, specs, budget_amount or None, currency, language, product,
                                    shopper_id=self.shopper_id, category=category, ref_image=self.ref_image_file)
         shops = store.shops_serving(self.city, category)
+        self._log("route_request", {"category": category, "decided_by": self.category_source},
+                  f"request #{rid} routed to {len(shops)} {category} shops")
         self.request = {"id": rid, "shops_notified": len(shops), "product": product, "specs": specs,
                         "budget": budget_amount or None, "currency": currency, "category": category,
                         "ref_image_url": store.ref_image_url(self.ref_image_file)}
@@ -474,6 +477,18 @@ class ShopperAgent:
             self.shopper_id, self.city, self.shopper_name, device=intent.device_model,
             budget=intent.budget_amount, currency=intent.budget_currency or CITIES[self.city]["currency"],
             language=intent.language, need=need)
+
+    def _route_category(self, product: str) -> str:
+        """Which kind of shop gets this request: Gemini's shop_category from the intent, else keyword rules."""
+        from app.commerce_loop.categories import CATEGORIES, category_of
+
+        ai = (self.intent.shop_category if self.intent else None) or None
+        keyword = category_of(product, self.intent.category if self.intent else None)
+        if ai and (ai in CATEGORIES or ai == "general") and not (ai == "general" and keyword != "general"):
+            self.category, self.category_source = ai, "gemini"
+        else:
+            self.category, self.category_source = keyword, "keywords"
+        return self.category
 
     def _read_reference_photo(self) -> None:
         """Save the shopper's reference photo (it travels with the request) and let Gemini describe it."""

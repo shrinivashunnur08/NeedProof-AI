@@ -5,7 +5,7 @@ import {
   type Brief, type ChatResult, type City, type Insights, type Intent, type LoopRequest, type NearbyShop, type Offer,
   type PhotoCheck, type ShopResponse, type ShopperLocation,
   type Providers, type Shop, type Analytics, type Profile, type BqForecast, type TrustReport, type ShopDashboard, type Basket, type ProofPlan,
-  type EngineCatalog, type EngineRun,
+  type EngineCatalog, type EngineRun, type Routing,
 } from "./api";
 
 type Role = "shopper" | "shop" | "business" | "trust" | "engines";
@@ -178,6 +178,45 @@ function DirectionsLink({ lat, lng }: { lat?: number | null; lng?: number | null
   return <a href={directionsUrl(lat, lng)} target="_blank" rel="noreferrer" className="text-xs font-semibold text-teal-300 hover:underline">Directions ↗</a>;
 }
 
+/** Where a shop comes from: a real business on Google Places (with rating and Maps link) or a fictional sample shop. */
+function ShopSource({ source, mapsUrl, rating, ratingCount }: { source?: string | null; mapsUrl?: string | null; rating?: number | null; ratingCount?: number | null }) {
+  if (source === "demo") return <span title="Fictional sample shop with sample listings, for the demo"><Chip tone="amber">Sample shop</Chip></span>;
+  const label = source === "google_places" ? `Google Places${rating ? ` · ★${rating.toFixed(1)}${ratingCount ? ` (${ratingCount})` : ""}` : ""}`
+    : source === "osm" || source === "openstreetmap" ? "OpenStreetMap" : null;
+  if (!label) return null;
+  const chip = <Chip tone="teal">Real shop · {label}</Chip>;
+  return mapsUrl ? <a href={mapsUrl} target="_blank" rel="noreferrer" title="Open this business on Google Maps" className="hover:opacity-80">{chip}</a> : chip;
+}
+
+function MapsLink({ url }: { url?: string | null }) {
+  if (!url) return null;
+  return <a href={url} target="_blank" rel="noreferrer" className="text-xs font-semibold text-teal-300 hover:underline">Google Maps ↗</a>;
+}
+
+/** Dropdown label: name · kind · requests routed to it (answered). */
+function shopOptionLabel(s: Shop, routing: Routing | null): string {
+  const r = routing?.shops[s.id];
+  const kind = s.kind && s.kind !== "general" ? ` · ${s.kind}` : s.kind === "general" ? " · general store" : "";
+  const cats = r ? Object.entries(r.by_category).map(([c, n]) => `${n} ${c}`).join(", ") : "";
+  const counts = r && r.received > 0 ? ` · ${r.received} request${r.received !== 1 ? "s" : ""} (${cats}${r.answered ? `; ${r.answered} answered` : ""})` : " · 0 requests";
+  return `${s.name}${s.source === "demo" ? " (sample)" : ""}${kind}${counts}`;
+}
+
+function sortByRouted(shops: Shop[], routing: Routing | null): Shop[] {
+  const score = (s: Shop) => { const r = routing?.shops[s.id]; return r ? r.answered * 1000 + r.received : 0; };
+  return [...shops].sort((a, b) => score(b) - score(a) || a.name.localeCompare(b.name));
+}
+
+function useRouting(cityId: string, version: number, extra = 0): Routing | null {
+  const [routing, setRouting] = useState<Routing | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api.routing(cityId).then((x) => { if (alive) setRouting(x); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [cityId, version, extra]);
+  return routing;
+}
+
 type Pin = { id: string; name: string; lat: number; lng: number; verified: boolean };
 
 function ShopMap({ origin, pins }: { origin?: { lat?: number | null; lng?: number | null; label?: string | null } | null; pins: Pin[] }) {
@@ -245,8 +284,9 @@ function BasketCard({ b }: { b: Basket }) {
           <div key={s.shop_id} className="rounded-lg border border-slate-700 bg-slate-900/60 p-2 text-sm">
             <p className="flex items-center justify-between gap-2 font-semibold text-slate-100">
               <span>{s.shop} <span className="font-normal text-slate-400">· {s.area}{s.distance_km != null ? ` · ${s.distance_km.toFixed(1)} km` : ""}</span></span>
-              <DirectionsLink lat={s.lat} lng={s.lng} />
+              <span className="flex items-center gap-2"><MapsLink url={s.maps_url} /><DirectionsLink lat={s.lat} lng={s.lng} /></span>
             </p>
+            <div className="mt-1"><ShopSource source={s.source} mapsUrl={s.maps_url} /></div>
             <ul className="mt-1 space-y-0.5 text-slate-300">
               {b.lines.filter((ln) => ln.shop_id === s.shop_id).map((ln) => (
                 <li key={ln.listing} className="flex justify-between gap-2"><span>{ln.listing}</span>
@@ -298,8 +338,10 @@ function NearbyList({ shops, live, requestId }: { shops: NearbyShop[]; live: Map
           const reply = live.get(n.shop_id);
           return (
             <li key={n.shop_id} className="flex min-w-0 items-center justify-between gap-2 rounded-lg bg-slate-900/70 px-2 py-1.5 text-sm">
-              <span className="min-w-0 truncate text-slate-100">{n.shop}<span className="text-slate-500"> · {n.area}</span></span>
+              <span className="min-w-0 truncate text-slate-100" title={n.address ?? undefined}>{n.shop}<span className="text-slate-500"> · {n.area}</span>
+                {n.rating ? <span className="ml-1 text-xs text-amber-200">★{n.rating.toFixed(1)}{n.rating_count ? ` (${n.rating_count})` : ""}</span> : null}</span>
               <span className="flex shrink-0 items-center gap-1.5">
+                <MapsLink url={n.maps_url} />
                 {n.distance_km != null && <span className="font-mono text-xs text-slate-400">{n.distance_km.toFixed(1)} km</span>}
                 <DirectionsLink lat={n.lat} lng={n.lng} />
                 {!reply && <WhatsAppAsk requestId={requestId} shopId={n.shop_id} />}
@@ -483,8 +525,9 @@ function OfferCard({ offer, live }: { offer: Offer; live?: ShopResponse }) {
     <li className="rounded-xl border border-slate-700/70 bg-slate-900/60 p-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="font-semibold text-slate-100">{offer.shop} <span className="font-normal text-slate-400">· {offer.area}{offer.distance_km != null ? ` · ${offer.distance_km.toFixed(1)} km` : ""}</span></p>
-        <p className="flex items-center gap-3"><DirectionsLink lat={offer.lat} lng={offer.lng} /><span className="font-mono text-sm text-slate-100">{offer.price}</span></p>
+        <p className="flex items-center gap-3"><MapsLink url={offer.maps_url} /><DirectionsLink lat={offer.lat} lng={offer.lng} /><span className="font-mono text-sm text-slate-100">{offer.price}</span></p>
       </div>
+      <div className="mt-1"><ShopSource source={offer.source} mapsUrl={offer.maps_url} /></div>
       <p className="mt-0.5 text-sm text-slate-300">{offer.listing}</p>
       <div className="mt-2 flex flex-wrap gap-1.5">
         {verified ? <Chip tone="green">Photo-verified</Chip>
@@ -520,7 +563,17 @@ function RequestTracker({ requestId, req }: { requestId: number; req: LoopReques
               {r.price != null && <span className="font-mono text-slate-300">{r.price}</span>}
               <StatusChip status={r.status} />
               {r.evidence_class === "SHOP_CATALOG_PHOTO_READ_BY_AI" && <Chip tone="amber">Catalog photo</Chip>}
+              <ShopSource source={r.shop_source} mapsUrl={r.shop_maps_url} rating={r.shop_rating} ratingCount={r.shop_rating_count} />
             </div>
+            {(r.shop_lat != null || r.shop_maps_url) && (
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-slate-950/60 px-2 py-1.5 text-xs">
+                <span className="min-w-0 text-slate-300">📍 {r.shop_address || r.shop_area || "Location on map"}</span>
+                {r.shop_lat != null && r.shop_lng != null && (
+                  <a href={directionsUrl(r.shop_lat, r.shop_lng)} target="_blank" rel="noreferrer"
+                    className="rounded-full bg-teal-500 px-2.5 py-0.5 font-semibold text-white hover:opacity-90">Get directions</a>)}
+                <MapsLink url={r.shop_maps_url} />
+              </div>
+            )}
             {r.message && <p className="mt-1 text-sm text-slate-200">“{r.message}”</p>}
             {typeof r.claim.analysis_summary === "string" && <p className="mt-1 text-xs text-slate-300"><span className="text-indigo-200">Gemini Vision:</span> {r.claim.analysis_summary}</p>}
             {r.check_result.issues.length > 0 && <p className="mt-1 text-xs text-rose-300">{r.check_result.issues.join(" · ")}</p>}
@@ -1200,17 +1253,18 @@ function ShopView({ city, shopId, setShopId, onOpenBusiness, locked = false }: {
   useEffect(() => { load(); }, [load, version]);
 
   const shop = shops.find((s) => s.id === shopId);
+  const routing = useRouting(city.id, version);
   return (
     <section aria-label="Shop inbox" className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
         {locked ? <p className="text-sm text-slate-300">Your shop: <span className="font-semibold text-slate-100">{shops.find((x) => x.id === shopId)?.name ?? shopId}</span></p> : <>
         <label htmlFor="shop-select" className="text-sm text-slate-400">Act for shop</label>
         <select id="shop-select" value={shopId} onChange={(e) => setShopId(e.target.value)} className="max-w-full rounded-lg border border-slate-600 bg-slate-950 px-2 py-1.5 text-sm">
-          {shops.some((s) => s.source === "demo") && <optgroup label="Onboarded shops">
-            {shops.filter((s) => s.source === "demo").map((s) => <option key={s.id} value={s.id}>{s.name} · {s.area}</option>)}
+          {shops.some((s) => s.source !== "demo") && <optgroup label="Real shops nearby (Google Places) · requests routed by category">
+            {sortByRouted(shops.filter((s) => s.source !== "demo"), routing).map((s) => <option key={s.id} value={s.id}>{shopOptionLabel(s, routing)}</option>)}
           </optgroup>}
-          {shops.some((s) => s.source !== "demo") && <optgroup label="Nearby shops from the map (reply on their behalf)">
-            {shops.filter((s) => s.source !== "demo").map((s) => <option key={s.id} value={s.id}>{s.name}{s.area ? ` · ${s.area}` : ""}</option>)}
+          {shops.some((s) => s.source === "demo") && <optgroup label="Sample shops (fictional, with sample listings)">
+            {shops.filter((s) => s.source === "demo").map((s) => <option key={s.id} value={s.id}>{shopOptionLabel(s, routing)}</option>)}
           </optgroup>}
         </select>
         {shops.find((s) => s.id === shopId)?.source && shops.find((s) => s.id === shopId)?.source !== "demo" && (
@@ -1455,6 +1509,43 @@ function BigQueryPanel({ city }: { city: City }) {
   );
 }
 
+function RoutingPanel({ city }: { city: City }) {
+  const version = useCityVersion(city.id);
+  const routing = useRouting(city.id, version);
+  const [shops, setShops] = useState<Shop[]>([]);
+  useEffect(() => { api.shops(city.id).then(setShops).catch(() => undefined); }, [city.id, version]);
+  if (!routing) return null;
+  const top = (cat: string) => shops.filter((s) => (routing.shops[s.id]?.by_category[cat] ?? 0) > 0)
+    .sort((a, b) => (routing.shops[b.id]?.answered ?? 0) - (routing.shops[a.id]?.answered ?? 0) || (a.source === "demo" ? 1 : 0) - (b.source === "demo" ? 1 : 0))
+    .slice(0, 4);
+  return (
+    <div className="rounded-xl border border-slate-700 p-3">
+      <p className="text-sm font-semibold text-slate-100">Request routing by shop category</p>
+      <p className="mt-0.5 text-xs text-slate-400">Gemini reads each request and picks the kind of shop that sells it (shop_category); only shops of that kind, or general stores, get it in their inbox. Shop kinds come from Google Places types.</p>
+      {routing.categories.length === 0 ? <p className="mt-2 text-sm text-slate-400">No requests yet in {city.name}.</p> : (
+        <div className="mt-2 overflow-x-auto">
+          <table className="w-full min-w-[560px] text-sm">
+            <thead className="text-left text-xs uppercase tracking-wide text-slate-400">
+              <tr><th className="py-1 pr-3">Category</th><th className="py-1 pr-3">Requests</th><th className="py-1 pr-3">Answered</th><th className="py-1 pr-3">Shops reached</th><th className="py-1">Shops (examples)</th></tr>
+            </thead>
+            <tbody>
+              {routing.categories.map((c) => (
+                <tr key={c.category} className="border-t border-slate-800 align-top">
+                  <td className="py-1.5 pr-3 font-semibold capitalize text-slate-100">{c.category}</td>
+                  <td className="py-1.5 pr-3 font-mono tabular-nums">{c.requests}</td>
+                  <td className="py-1.5 pr-3 font-mono tabular-nums">{c.answered}</td>
+                  <td className="py-1.5 pr-3 font-mono tabular-nums">{c.shops_reached}</td>
+                  <td className="py-1.5 text-xs text-slate-300">{top(c.category).map((s) => `${s.name}${s.source === "demo" ? " (sample)" : ""}`).join(" · ") || "none"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BusinessView({ city, bigquery, shopId, ownShopOnly = false }: { city: City; bigquery?: boolean; shopId?: string; ownShopOnly?: boolean }) {
   const [data, setData] = useState<Insights | null>(null);
   const [brief, setBrief] = useState<Brief | null>(null);
@@ -1485,6 +1576,7 @@ function BusinessView({ city, bigquery, shopId, ownShopOnly = false }: { city: C
   return (
     <section aria-label="Demand insights" className="flex flex-col gap-4">
       <ShopAnalytics city={city} initialShop={shopId} />
+      <RoutingPanel city={city} />
       {bigquery && <BigQueryPanel city={city} />}
       <p className="text-sm text-slate-300">City demand: what shoppers in {city.name} asked for in the last 28 days, and how much of it no shop confirmed.</p>
       <ErrorNote message={error} />
@@ -1852,6 +1944,8 @@ export default function LoopApp() {
   const city = cities.find((c) => c.id === cityId) ?? cities[0];
   const me = PERSONAS.find((p) => p.id === persona)!;
   const [cityShops, setCityShops] = useState<Shop[]>([]);
+  const headerVersion = useCityVersion(cityId);
+  const routing = useRouting(cityId, headerVersion, resetKey + cityShops.length);
   useEffect(() => {
     let alive = true;
     api.shops(cityId).then((x) => { if (alive) setCityShops(x); }).catch(() => undefined);
@@ -1917,10 +2011,12 @@ export default function LoopApp() {
               <>
                 <label htmlFor="persona-shop" className="text-sm text-slate-400">of</label>
                 <select id="persona-shop" value={shopId} onChange={(e) => switchPersona("shopkeeper", e.target.value)}
-                  className="max-w-[16rem] rounded-lg border border-slate-600 bg-slate-950 px-2 py-1.5 text-sm font-semibold">
-                  {cityShops.filter((x) => x.source === "demo").map((x) => <option key={x.id} value={x.id}>{x.name} · {x.area}</option>)}
-                  {cityShops.some((x) => x.source !== "demo") && <optgroup label="Real shops nearby (Google Places)">
-                    {cityShops.filter((x) => x.source !== "demo").map((x) => <option key={x.id} value={x.id}>{x.name}{x.kind && x.kind !== "general" ? ` · ${x.kind}` : ""}</option>)}
+                  className="max-w-[22rem] rounded-lg border border-slate-600 bg-slate-950 px-2 py-1.5 text-sm font-semibold">
+                  {cityShops.some((x) => x.source !== "demo") && <optgroup label="Real shops nearby (Google Places) · requests received">
+                    {sortByRouted(cityShops.filter((x) => x.source !== "demo"), routing).map((x) => <option key={x.id} value={x.id}>{shopOptionLabel(x, routing)}</option>)}
+                  </optgroup>}
+                  {cityShops.some((x) => x.source === "demo") && <optgroup label="Sample shops (fictional, with sample listings)">
+                    {cityShops.filter((x) => x.source === "demo").map((x) => <option key={x.id} value={x.id}>{shopOptionLabel(x, routing)}</option>)}
                   </optgroup>}
                 </select>
               </>

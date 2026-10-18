@@ -163,7 +163,7 @@ def _google_shops(lat: float, lng: float, radius_m: int, category: str = "genera
         raise DiscoveryError("MAPS_API_KEY is not set")
     body = {"includedTypes": places_types(category), "maxResultCount": 20, "rankPreference": "DISTANCE",
             "locationRestriction": {"circle": {"center": {"latitude": lat, "longitude": lng}, "radius": float(radius_m)}}}
-    headers = {"X-Goog-Api-Key": key, "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.internationalPhoneNumber,places.primaryType,places.types"}
+    headers = {"X-Goog-Api-Key": key, "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.internationalPhoneNumber,places.primaryType,places.types,places.googleMapsUri,places.businessStatus,places.rating,places.userRatingCount"}
     with httpx.Client(timeout=15) as c:
         r = c.post(PLACES_NEARBY, json=body, headers=headers)
         r.raise_for_status()
@@ -172,7 +172,9 @@ def _google_shops(lat: float, lng: float, radius_m: int, category: str = "genera
              "lat": p.get("location", {}).get("latitude"), "lng": p.get("location", {}).get("longitude"),
              "area": (p.get("formattedAddress") or "").split(",")[0], "address": p.get("formattedAddress"),
              "phone": p.get("internationalPhoneNumber"), "source": "google_places",
-             "kind": shop_kind_from_places(p.get("types"), p.get("primaryType"))} for p in places]
+             "kind": shop_kind_from_places(p.get("types"), p.get("primaryType")),
+             "maps_url": p.get("googleMapsUri"), "rating": p.get("rating"), "rating_count": p.get("userRatingCount")}
+            for p in places if p.get("businessStatus", "OPERATIONAL") == "OPERATIONAL"]
 
 
 def nearby_shops(lat: float, lng: float, radius_m: int = 2500, category: str = "general") -> tuple[list[dict], str]:

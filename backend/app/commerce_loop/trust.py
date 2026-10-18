@@ -35,6 +35,8 @@ SAFEGUARDS = [
      "where": "access.require", "tested": "test_roles_are_enforced_when_enabled"},
     {"rule": "A WhatsApp reply link works only for one shop and one request (signed), with no account needed",
      "where": "replylink.valid", "tested": "test_one_tap_reply_link_lets_a_shop_answer_without_an_account"},
+    {"rule": "A request reaches only shops that sell that kind of item (a shirt request never reaches phone shops)",
+     "where": "agent._route_category + categories.shop_serves", "tested": "test_routing_summary_counts_requests_per_shop_and_category"},
     {"rule": "Public demo has a per-visitor rate limit and a daily AI-call cap",
      "where": "guard.ai_call_guard", "tested": "test_rate_limit_and_daily_cap"},
 ]
@@ -43,6 +45,7 @@ PIPELINE = [
     {"step": "Understand", "who": "Gemini", "what": "Text, voice or a photo of the old charger: extracts item, specs, budget, urgency, place and language; asks one question if a deciding spec is missing"},
     {"step": "Search", "who": "Code + Google Places", "what": "Shop listings and real nearby shops (Google Places, OpenStreetMap fallback); inventory via Vertex AI Search; multi-item baskets via OR-Tools"},
     {"step": "Decide", "who": "NeedProof engine (17C-17E)", "what": "Trust state, unresolved checks and next-best proof for each offer"},
+    {"step": "Route", "who": "Gemini + Google Places types", "what": "Gemini picks the kind of shop that sells the item (shop_category); the request reaches only shops of that kind or general stores"},
     {"step": "Ask for proof", "who": "Shops", "what": "Request goes live to onboarded shops (AI drafts from their stock, approved by a person) and to real nearby shops on WhatsApp with a one-tap reply link"},
     {"step": "Check proof", "who": "Gemini Vision + code", "what": "Model reads the photo; rules compare it with the request and flag conflicts"},
     {"step": "Explain", "who": "Gemini", "what": "Writes the answer in the shopper's language from tool results only"},
@@ -98,5 +101,5 @@ def report() -> dict:
             "evals": [e for e in (_eval("eval_ai_studio.json"), _eval("eval_vertex.json")) if e],
             "benchmarks": bench, "live": live_stats(),
             "limits": ["Live tests use 19 hand-written cases and 5 synthetic label photos, not real shop photos.",
-                       "Demo shops, listings and demand history are fictional; real shops come from OpenStreetMap.",
+                       "Sample shops (labelled), their listings and demand history are fictional; real shops come from Google Places (OpenStreetMap fallback) and only show what they reply.",
                        "Benchmarks are seeded simulations of the decision policy, not field results."]}

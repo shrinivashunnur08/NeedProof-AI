@@ -140,7 +140,8 @@ def _migrate(c: sqlite3.Connection) -> None:
     """Add columns introduced after the first release to an existing local database."""
     have = {r[1] for r in c.execute("PRAGMA table_info(shops)").fetchall()}
     for col, ddl in (("lat", "REAL"), ("lng", "REAL"), ("source", "TEXT NOT NULL DEFAULT 'demo'"), ("address", "TEXT"),
-                     ("phone", "TEXT"), ("kind", "TEXT")):
+                     ("phone", "TEXT"), ("kind", "TEXT"), ("maps_url", "TEXT"), ("rating", "REAL"),
+                     ("rating_count", "INTEGER")):
         if col not in have:
             c.execute(f"ALTER TABLE shops ADD COLUMN {col} {ddl}")
     c.execute("UPDATE shops SET name=REPLACE(name, ' (demo)', '') WHERE name LIKE '% (demo)'")
@@ -176,12 +177,15 @@ def upsert_shops(city: str, shops: list[dict]) -> int:
     with _LOCK:
         c = conn()
         c.executemany(
-            "INSERT INTO shops (id, city, name, area, lat, lng, source, address, phone, kind) VALUES (?,?,?,?,?,?,?,?,?,?)"
+            "INSERT INTO shops (id, city, name, area, lat, lng, source, address, phone, kind, maps_url, rating, rating_count)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
             " ON CONFLICT(id) DO UPDATE SET name=excluded.name, area=excluded.area, lat=excluded.lat,"
             " lng=excluded.lng, address=excluded.address, phone=COALESCE(excluded.phone, shops.phone),"
-            " kind=COALESCE(excluded.kind, shops.kind)",
+            " kind=COALESCE(excluded.kind, shops.kind), maps_url=COALESCE(excluded.maps_url, shops.maps_url),"
+            " rating=COALESCE(excluded.rating, shops.rating), rating_count=COALESCE(excluded.rating_count, shops.rating_count)",
             [(x["id"], city, x["name"], x.get("area") or "", x.get("lat"), x.get("lng"), x["source"],
-              x.get("address"), x.get("phone"), x.get("kind")) for x in shops])
+              x.get("address"), x.get("phone"), x.get("kind"), x.get("maps_url"), x.get("rating"),
+              x.get("rating_count")) for x in shops])
         c.commit()
     return len(shops)
 
@@ -320,6 +324,31 @@ def ref_image_url(name: str | None) -> str | None:
     return f"/api/v2/loop/media/requests/{name}" if name else None
 
 
+def routing_summary(city: str) -> dict:
+    """How requests were routed: per category (requests, shops reached, answered) and per shop (received by category)."""
+    from app.commerce_loop.categories import shop_serves
+
+    reqs = rows("SELECT id, category, status FROM requests WHERE city=?", (city,))
+    shops = shops_in_city(city)
+    replied = {(r["request_id"], r["shop_id"]) for r in rows(
+        "SELECT x.request_id, x.shop_id FROM responses x JOIN requests q ON q.id=x.request_id WHERE q.city=?", (city,))}
+    by_cat: dict[str, dict] = {}
+    by_shop: dict[str, dict] = {s["id"]: {"received": 0, "answered": 0, "by_category": {}} for s in shops}
+    for r in reqs:
+        cat = r["category"] or "general"
+        c = by_cat.setdefault(cat, {"category": cat, "requests": 0, "answered": 0, "shops_reached": 0})
+        c["requests"] += 1
+        c["answered"] += r["status"] == "ANSWERED"
+        reached = [s for s in shops if shop_serves(s.get("kind"), cat)]
+        c["shops_reached"] = max(c["shops_reached"], len(reached))
+        for s in reached:
+            b = by_shop[s["id"]]
+            b["received"] += 1
+            b["by_category"][cat] = b["by_category"].get(cat, 0) + 1
+            b["answered"] += (r["id"], s["id"]) in replied
+    return {"categories": sorted(by_cat.values(), key=lambda x: -x["requests"]), "shops": by_shop}
+
+
 def shops_serving(city: str, category: str | None) -> list[dict]:
     from app.commerce_loop.categories import shop_serves
 
@@ -442,7 +471,10 @@ def forget_profile(shopper_id: str) -> None:
 
 
 def responses_for(request_id: int) -> list[dict]:
-    out = rows("SELECT r.*, s.name AS shop_name, TRIM(COALESCE(i.brand || ' ', '') || i.product) AS inventory_product"
+    out = rows("SELECT r.*, s.name AS shop_name, s.lat AS shop_lat, s.lng AS shop_lng, s.address AS shop_address,"
+               " s.source AS shop_source, s.maps_url AS shop_maps_url, s.rating AS shop_rating,"
+               " s.rating_count AS shop_rating_count, s.area AS shop_area,"
+               " TRIM(COALESCE(i.brand || ' ', '') || i.product) AS inventory_product"
                " FROM responses r JOIN shops s ON s.id=r.shop_id LEFT JOIN inventory i ON i.id=r.inventory_id"
                " WHERE request_id=? ORDER BY r.id", (request_id,))
     for r in out:

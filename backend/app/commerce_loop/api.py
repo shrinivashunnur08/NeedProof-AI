@@ -258,6 +258,21 @@ def list_inventory(shop_id: str):
     return [{**i, "image_url": _image_url(i)} for i in store.inventory_for(shop_id)]
 
 
+class BasketIn(BaseModel):
+    city: str
+    items: list[str] = Field(min_length=1, max_length=6)
+    budget: float | None = Field(default=None, ge=0, le=10_000_000)
+    max_shops: int = Field(default=2, ge=1, le=5)
+
+
+@router.post("/basket/plan", dependencies=[Depends(ai_call_guard)])
+def basket_plan(body: BasketIn):
+    """Cheapest way to buy several items across shops in a city (OR-Tools CP-SAT)."""
+    from app.commerce_loop.basket import plan
+
+    return plan(_city(body.city), [i[:120] for i in body.items], body.budget, body.max_shops)
+
+
 @router.get("/shops/{shop_id}/dashboard")
 def shop_dashboard(shop_id: str, days: int = 28):
     """My shop: this shop's inventory, the demand that reached it, missed sales, sales and customers."""

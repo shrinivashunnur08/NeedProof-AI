@@ -65,6 +65,8 @@ SHOPS = [
 CHARGER_65 = {"wattage_w": 65, "connector": "USB-C", "usb_pd": True}
 CHARGER_45 = {"wattage_w": 45, "connector": "USB-C", "usb_pd": True}
 CABLE = {"connector": "USB-C", "max_watts": 100}
+POWER_BANK = {"capacity_mah": 20000, "connector": "USB-C"}
+
 LISTINGS = [
     ("sg-harbour", "65W USB-C PD laptop charger", CHARGER_65, 49, "SGD", 3),
     ("sg-lioncity", "65W USB-C PD GaN charger", CHARGER_65, 39, "SGD", 0),
@@ -76,6 +78,21 @@ LISTINGS = [
     ("mu-seaface", "65W USB-C PD laptop charger", CHARGER_65, 899, "INR", 3),
     ("mu-gateway", "65W GaN USB-C PD charger", CHARGER_65, 950, "INR", 2),
     ("mu-metro", "45W USB-C PD charger", CHARGER_45, 599, "INR", 6),
+    # Accessories, so multi-item baskets have real choices across shops.
+    ("sg-harbour", "USB-C to USB-C cable 100W 2m", CABLE, 19, "SGD", 6),
+    ("sg-harbour", "Power bank 20000mAh USB-C PD", POWER_BANK, 45, "SGD", 4),
+    ("sg-lioncity", "Power bank 20000mAh USB-C", POWER_BANK, 35, "SGD", 5),
+    ("sg-lioncity", "USB-C cable 100W 1m", CABLE, 12, "SGD", 10),
+    ("sg-lioncity", "Travel adapter UK plug", {}, 15, "SGD", 8),
+    ("sg-marina", "Travel adapter UK plug", {}, 12, "SGD", 4),
+    ("sp-paulista", "Cabo USB-C 100W", CABLE, 59, "BRL", 5),
+    ("sp-paulista", "Power bank 20000mAh USB-C PD", POWER_BANK, 129, "BRL", 3),
+    ("sp-centro", "Cabo USB-C para USB-C 100W", CABLE, 45, "BRL", 8),
+    ("sp-vila", "Power bank 20000mAh USB-C", POWER_BANK, 109, "BRL", 4),
+    ("mu-seaface", "USB-C cable 100W", CABLE, 399, "INR", 5),
+    ("mu-gateway", "Power bank 20000mAh USB-C PD", POWER_BANK, 1499, "INR", 3),
+    ("mu-gateway", "USB-C to USB-C cable 100W", CABLE, 349, "INR", 4),
+    ("mu-metro", "Power bank 20000mAh USB-C", POWER_BANK, 1299, "INR", 6),
 ]
 
 # Synthetic demand history so insights and forecasts have something to show.
@@ -211,6 +228,8 @@ def product_key(product: str, specs: dict | None = None) -> str:
     if watt is None:
         m = re.search(r"(\d{2,3})\s*w\b", text)
         watt = int(m.group(1)) if m else None
+    if "充电宝" in product or ("power" in words and "bank" in words) or "powerbank" in words:
+        return "power bank 20000mah"
     if ("travel" in words or "plug" in words) and ("adapter" in words or "adaptor" in words) and "charger" not in words:
         return "travel adapter"
     if any(w in words for w in ("charger", "carregador", "adapter", "adaptor", "चार्जर")) or "充电" in product or "चार्जर" in product:

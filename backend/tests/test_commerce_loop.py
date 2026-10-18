@@ -443,3 +443,32 @@ def test_my_shop_dashboard_from_live_data(client):
     assert any("100W" in a for a in brief["brief"]["actions"])
     a = client.get("/api/v2/loop/cities/singapore/analytics", params={"shop_id": "sg-marina"}).json()
     assert a["confirmed_sales_today"] == 2 and a["inventory"]["on_hand"] == 5
+
+
+def test_basket_plan_across_shops(client):
+    r = client.post("/api/v2/loop/basket/plan", json={
+        "city": "singapore", "items": ["65W USB-C PD charger", "USB-C cable", "power bank 20000mAh"],
+        "budget": 120, "max_shops": 2}).json()
+    assert r["status"] == "OPTIMAL" and len(r["lines"]) == 3 and len(r["shops"]) <= 2
+    # Harbour is the only in-stock 65W charger; Lion City has the cheapest cable and power bank.
+    assert {ln["shop"] for ln in r["lines"]} == {"Harbour Tech", "Lion City Mobiles"}
+    assert r["total"] == "S$96" and r["within_budget"] is True
+    assert r["baselines"]["cheapest_item_first"]["total"] == "S$96"
+    one = client.post("/api/v2/loop/basket/plan", json={
+        "city": "singapore", "items": ["65W USB-C PD charger", "USB-C cable", "power bank"], "max_shops": 1}).json()
+    assert one["status"] == "OPTIMAL" and one["shops"][0]["shop"] == "Harbour Tech" and one["total"] == "S$113"
+    tight = client.post("/api/v2/loop/basket/plan", json={
+        "city": "singapore", "items": ["65W charger", "power bank"], "budget": 50}).json()
+    assert tight["status"] == "NO_PLAN_WITHIN_LIMITS" and "S$84" in tight["reason"]
+    none = client.post("/api/v2/loop/basket/plan", json={"city": "singapore", "items": ["100W charger", "cable"]}).json()
+    assert none["status"] == "NO_OFFER_FOR_ITEM" and none["missing"] == ["100W charger"]
+
+
+def test_agent_plans_basket_for_several_items(client):
+    body = client.post("/api/v2/loop/agent/chat", json={"city": "singapore", "history": [
+        {"role": "user", "text": "I need a 65W USB-C PD charger, a USB-C cable and a power bank under S$120"}]}).json()
+    assert body["mode"] != "clarify" and body["basket"]["status"] == "OPTIMAL"
+    assert any(t["tool"] == "plan_basket" for t in body["trace"])
+    pt = client.post("/api/v2/loop/agent/chat", json={"city": "singapore", "history": [
+        {"role": "user", "text": "我需要一个65W充电器和一个充电宝"}]}).json()
+    assert pt["basket"] and len(pt["basket"]["lines"]) == 2

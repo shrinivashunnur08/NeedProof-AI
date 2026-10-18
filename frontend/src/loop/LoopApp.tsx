@@ -4,7 +4,7 @@ import {
   api, photoToBase64, fileToBase64, type Draft, type InventoryItem, type InventoryUpload,
   type Brief, type ChatResult, type City, type Insights, type Intent, type LoopRequest, type NearbyShop, type Offer,
   type PhotoCheck, type ShopResponse, type ShopperLocation,
-  type Providers, type Shop, type Analytics, type Profile, type BqForecast, type TrustReport, type ShopDashboard,
+  type Providers, type Shop, type Analytics, type Profile, type BqForecast, type TrustReport, type ShopDashboard, type Basket,
 } from "./api";
 
 type Role = "shopper" | "shop" | "business" | "trust";
@@ -14,9 +14,10 @@ const SAMPLE_PROMPTS: Record<string, string[]> = {
   singapore: [
     "I need a 65W USB-C PD charger for my laptop under S$60, my flight is tonight",
     "我需要一个65W USB-C PD笔记本充电器，60新币以内，今天要",
+    "Travelling tomorrow: a 65W USB-C PD charger, a USB-C cable and a power bank, S$120 total",
   ],
-  "sao-paulo": ["Preciso de um carregador USB-C PD de 65W até R$ 250 hoje"],
-  mumbai: ["मुझे आज ₹1000 के अंदर 65W USB-C PD लैपटॉप चार्जर चाहिए", "Need a 65W USB-C charger under ₹1,000 today"],
+  "sao-paulo": ["Preciso de um carregador USB-C PD de 65W até R$ 250 hoje", "Preciso de um carregador 65W, um cabo USB-C e um power bank até R$ 400"],
+  mumbai: ["मुझे आज ₹1000 के अंदर 65W USB-C PD लैपटॉप चार्जर चाहिए", "Need a 65W USB-C charger, a USB-C cable and a power bank under ₹3,000"],
 };
 const PERSONA: Record<string, string> = { singapore: "Maya", "sao-paulo": "Lucas", mumbai: "Asha" };
 const SAMPLE_PHOTOS = [
@@ -178,6 +179,50 @@ function ShopMap({ origin, pins }: { origin?: { lat?: number | null; lng?: numbe
         ))}
       </figcaption>
     </figure>
+  );
+}
+
+function BasketCard({ b }: { b: Basket }) {
+  if (b.status !== "OPTIMAL" && b.status !== "FEASIBLE") {
+    return (
+      <div className="mt-3 rounded-xl border border-amber-400/40 bg-amber-500/5 p-3 text-sm text-amber-100">
+        <p className="font-semibold">Could not plan all {b.items.length} items</p>
+        <p className="mt-1">{b.missing?.length ? `No shop lists: ${b.missing.join(", ")}.` : b.reason}</p>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-3 rounded-xl border border-teal-500/40 bg-teal-500/5 p-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-sm font-semibold text-slate-100">Best plan for {b.items.length} items · {b.shops.length} shop{b.shops.length !== 1 ? "s" : ""}</p>
+        <p className="font-mono text-lg text-slate-50">{b.total}{b.budget && <span className="ml-1 text-xs text-slate-400">of {b.budget}</span>}</p>
+      </div>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        {b.shops.map((s) => (
+          <div key={s.shop_id} className="rounded-lg border border-slate-700 bg-slate-900/60 p-2 text-sm">
+            <p className="flex items-center justify-between gap-2 font-semibold text-slate-100">
+              <span>{s.shop} <span className="font-normal text-slate-400">· {s.area}{s.distance_km != null ? ` · ${s.distance_km.toFixed(1)} km` : ""}</span></span>
+              <DirectionsLink lat={s.lat} lng={s.lng} />
+            </p>
+            <ul className="mt-1 space-y-0.5 text-slate-300">
+              {b.lines.filter((ln) => ln.shop_id === s.shop_id).map((ln) => (
+                <li key={ln.listing} className="flex justify-between gap-2"><span>{ln.listing}</span>
+                  <span className="flex items-center gap-1.5">{ln.proof === "PHOTO_MATCHES_REQUEST" ? <Chip tone="green">Photo-verified</Chip> : <Chip>Listed</Chip>}<span className="font-mono">{ln.price}</span></span></li>
+              ))}
+            </ul>
+            <p className="mt-1 text-right text-xs text-slate-400">Subtotal <span className="font-mono">{s.subtotal}</span></p>
+          </div>
+        ))}
+      </div>
+      {b.baselines && (
+        <p className="mt-2 text-xs text-slate-400">
+          Compared with: cheapest item each time <span className="font-mono text-slate-200">{b.baselines.cheapest_item_first.total}</span> across {b.baselines.cheapest_item_first.shops} shops
+          {!b.baselines.cheapest_item_first.fits_max_shops && <span className="text-amber-200"> (more shops than you want)</span>}
+          {b.baselines.single_shop ? <> · everything at {b.baselines.single_shop.shop} <span className="font-mono text-slate-200">{b.baselines.single_shop.total}</span></> : <> · no single shop has everything</>}
+        </p>
+      )}
+      <p className="mt-1 text-[11px] text-slate-500">{b.solver} · max {b.max_shops} shops · solved in {b.solve_ms} ms · {b.note}</p>
+    </div>
   );
 }
 
@@ -445,6 +490,7 @@ function AssistantTurn({ turn, version }: { turn: Turn; version: number }) {
         {turn.text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
           part.startsWith("**") && part.endsWith("**") ? <strong key={i}>{part.slice(2, -2)}</strong> : part.replace(/^\* /gm, "• "))}
       </p>
+      {r?.basket && <BasketCard b={r.basket} />}
       {r && r.offers.length > 0 && <ul className="mt-3 space-y-2">{r.offers.map((o) => <OfferCard key={o.shop_id + o.listing} offer={o} live={liveFor(o)} />)}</ul>}
       {r?.nearby && <NearbyList shops={r.nearby} live={latestByShop} />}
       {r && (r.offers.length > 0 || (r.nearby ?? []).length > 0) && (

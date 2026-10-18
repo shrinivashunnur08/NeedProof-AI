@@ -31,15 +31,19 @@ SAFEGUARDS = [
      "where": "system prompts", "tested": "eval: prompt-injection message"},
     {"rule": "Shoppers can delete what NeedProof remembers about them",
      "where": "DELETE /shoppers/{id}", "tested": "test_profile_remembers_and_forgets"},
+    {"rule": "Every role sees only its screens; the server checks role and shop on every private action",
+     "where": "access.require", "tested": "test_roles_are_enforced_when_enabled"},
+    {"rule": "A WhatsApp reply link works only for one shop and one request (signed), with no account needed",
+     "where": "replylink.valid", "tested": "test_one_tap_reply_link_lets_a_shop_answer_without_an_account"},
     {"rule": "Public demo has a per-visitor rate limit and a daily AI-call cap",
      "where": "guard.ai_call_guard", "tested": "test_rate_limit_and_daily_cap"},
 ]
 
 PIPELINE = [
-    {"step": "Understand", "who": "Gemini", "what": "Extracts item, specs, budget, urgency, place and language; asks one question if a deciding spec is missing"},
-    {"step": "Search", "who": "Code + map data", "what": "Shop listings and real nearby shops (OpenStreetMap); inventory via Vertex AI Search when enabled"},
+    {"step": "Understand", "who": "Gemini", "what": "Text, voice or a photo of the old charger: extracts item, specs, budget, urgency, place and language; asks one question if a deciding spec is missing"},
+    {"step": "Search", "who": "Code + Google Places", "what": "Shop listings and real nearby shops (Google Places, OpenStreetMap fallback); inventory via Vertex AI Search; multi-item baskets via OR-Tools"},
     {"step": "Decide", "who": "NeedProof engine (17C-17E)", "what": "Trust state, unresolved checks and next-best proof for each offer"},
-    {"step": "Ask for proof", "who": "Shops", "what": "Request goes live to nearby shops; drafts from their inventory wait for approval"},
+    {"step": "Ask for proof", "who": "Shops", "what": "Request goes live to onboarded shops (AI drafts from their stock, approved by a person) and to real nearby shops on WhatsApp with a one-tap reply link"},
     {"step": "Check proof", "who": "Gemini Vision + code", "what": "Model reads the photo; rules compare it with the request and flag conflicts"},
     {"step": "Explain", "who": "Gemini", "what": "Writes the answer in the shopper's language from tool results only"},
 ]

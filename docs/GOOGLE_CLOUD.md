@@ -12,6 +12,8 @@ Two profiles share one codebase. `free` (default) runs on a laptop with a Gemini
 | Inventory search | Local rules | **Vertex AI Search** (data store `needproof-inventory`), then the same rules |
 | Shop photos | Local disk | **Cloud Storage** bucket (private, served by the backend) |
 | Hosting | `uvicorn` + Vite | **Cloud Run** `needproof` in `asia-southeast1`, built by **Cloud Build** |
+| Real nearby shops | OpenStreetMap | **Places API (New)** with phone numbers (server key restricted to Places), OSM fallback |
+| Shop map | none | **Maps Static API** (browser key restricted to the site) |
 | Dashboard | Business tab | plus **Looker Studio** on the BigQuery views |
 | Spend control | none needed | Budget alert (₹900 ≈ US$10), per-visitor rate limit, daily AI cap, max 1 instance |
 
@@ -46,7 +48,12 @@ INVENTORY_SEARCH=vertex
 LOOP_RATE_LIMIT=true
 LOOP_RATE_PER_MIN=20
 LOOP_DAILY_AI_CAP=1500
-DISCOVERY=osm
+DISCOVERY=places
+MAPS_API_KEY=<server key restricted to places.googleapis.com>
+MAPS_BROWSER_KEY=<browser key restricted to the site, Maps Static API>
+LOOP_ENFORCE_ROLES=true
+LOOP_LINK_SECRET=<random secret that signs WhatsApp reply links>
+PUBLIC_BASE_URL=https://needproof-822406860102.asia-southeast1.run.app
 ```
 
 ## Redeploy
@@ -77,6 +84,7 @@ Suggested charts: bar of `unmet` by `product` filtered by `city`; time series of
 | BigQuery ML ARIMA_PLUS retrain | cents per retrain at this size |
 | Vertex AI Search | small per-query charge; a few hundred queries is under ₹100 |
 | Cloud Storage | ₹0 (a few MB) |
+| Places API (New) nearby search | a few rupees per location search (cached 10 minutes per place) |
 | Cloud SQL (not created yet) | about ₹25–30/day while it exists; create just before judging, delete after |
 
 ## Tear down after the event

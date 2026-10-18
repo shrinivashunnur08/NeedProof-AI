@@ -1,5 +1,8 @@
 """Commerce loop tests. Gemini runs in mock mode, so no network or spend."""
 import pytest
+from pathlib import Path
+
+PHOTOS = Path(__file__).resolve().parents[2] / "demo" / "sample_photos"
 from fastapi.testclient import TestClient
 
 from app.commerce_loop import store
@@ -515,3 +518,59 @@ def test_invalid_model_json_falls_back_instead_of_500(client, monkeypatch):
     monkeypatch.setattr(gem, "_generate", lambda client, **kw: Resp())
     intent, meta = extract_intent([{"role": "user", "text": "power bank 20000mAh under S$50"}], "singapore", gem)
     assert isinstance(intent, ShopperIntent) and meta["mode"] != "gemini"
+
+
+def test_roles_are_enforced_when_enabled(client, monkeypatch):
+    monkeypatch.setenv("LOOP_ENFORCE_ROLES", "true")
+    shopper = {"X-NeedProof-Role": "shopper"}
+    marina = {"X-NeedProof-Role": "shopkeeper", "X-NeedProof-Shop": "sg-marina"}
+    harbour = {"X-NeedProof-Role": "shopkeeper", "X-NeedProof-Shop": "sg-harbour"}
+    business = {"X-NeedProof-Role": "business"}
+    admin = {"X-NeedProof-Role": "admin"}
+    assert client.get("/api/v2/loop/whoami", headers=marina).json() == {"role": "shopkeeper", "shop_id": "sg-marina", "enforced": True}
+    assert client.post("/api/v2/loop/shops/sg-marina/inventory/sample", headers=shopper).status_code == 403
+    assert client.post("/api/v2/loop/shops/sg-marina/inventory/sample", headers=harbour).status_code == 403
+    assert client.post("/api/v2/loop/shops/sg-marina/inventory/sample", headers=marina).status_code == 200
+    assert client.get("/api/v2/loop/shops/sg-marina/dashboard", headers=business).status_code == 200
+    assert client.get("/api/v2/loop/cities/singapore/insights", headers=marina).status_code == 403
+    assert client.get("/api/v2/loop/cities/singapore/insights", headers=business).status_code == 200
+    own = client.get("/api/v2/loop/cities/singapore/analytics", headers=marina).json()
+    assert own["shop"]["id"] == "sg-marina"
+    assert client.get("/api/v2/loop/cities/singapore/analytics", params={"shop_id": "sg-harbour"}, headers=marina).status_code == 403
+    assert client.post("/api/v2/loop/demo/reset", headers=business).status_code == 403
+    assert client.post("/api/v2/loop/demo/reset", headers=admin).status_code == 200
+    # Shoppers can always ask; a request can be answered only by its shop (or a signed link).
+    body = client.post("/api/v2/loop/agent/chat", headers=shopper, json={"city": "singapore", "history": [
+        {"role": "user", "text": "65W USB-C PD charger under S$60"}]}).json()
+    rid = body["request"]["id"]
+    assert client.post(f"/api/v2/loop/requests/{rid}/reply", headers=shopper,
+                       json={"shop_id": "sg-marina", "price": 49}).status_code == 403
+
+
+def test_one_tap_reply_link_lets_a_shop_answer_without_an_account(client, monkeypatch):
+    monkeypatch.setenv("LOOP_ENFORCE_ROLES", "true")
+    from app.commerce_loop import store
+    store.upsert_shops("singapore", [{"id": "osm-n42", "name": "Sim Lim Gadgets", "lat": 1.303, "lng": 103.853,
+                                      "area": "Rochor", "source": "openstreetmap", "phone": "+65 6123 4567"}])
+    shopper = {"X-NeedProof-Role": "shopper"}
+    rid = client.post("/api/v2/loop/agent/chat", headers=shopper, json={"city": "singapore", "history": [
+        {"role": "user", "text": "65W USB-C PD charger under S$60"}]}).json()["request"]["id"]
+    link = client.get(f"/api/v2/loop/requests/{rid}/reply-link", params={"shop_id": "osm-n42"}, headers=shopper).json()
+    assert link["direct"] and link["whatsapp_url"].startswith("https://wa.me/6561234567?text=")
+    assert f"/r/{rid}?shop=osm-n42&t=" in link["url"] and "65W" in link["text"]
+    token = link["url"].split("t=")[1]
+    view = client.get(f"/api/v2/loop/requests/{rid}/for-shop", params={"shop_id": "osm-n42", "t": token}).json()
+    assert view["shop"]["name"] == "Sim Lim Gadgets" and view["already_replied"] is None
+    assert client.get(f"/api/v2/loop/requests/{rid}/for-shop", params={"shop_id": "osm-n42", "t": "forged"}).status_code == 403
+    ok = client.post(f"/api/v2/loop/requests/{rid}/reply", json={
+        "shop_id": "osm-n42", "price": 45, "reply_token": token, "mock_hint": {"wattage_w": 65}})
+    assert ok.status_code == 200 and ok.json()["check"]["status"] == "PHOTO_MATCHES_REQUEST"
+    bad = client.post(f"/api/v2/loop/requests/{rid}/reply", json={"shop_id": "sg-marina", "price": 1, "reply_token": token})
+    assert bad.status_code == 403  # token is for one shop only
+
+
+def test_snap_to_search_needs_live_model(client):
+    import base64
+    img = base64.b64encode(open(PHOTOS / "1_charger_65w_correct.jpg", "rb").read()).decode()
+    r = client.post("/api/v2/loop/agent/snap", json={"image_base64": img, "image_mime": "image/jpeg"}).json()
+    assert r["mode"] == "mock" and r["need"] is None

@@ -17,6 +17,7 @@ from app.commerce_loop.agent import ShopperAgent
 from app.commerce_loop.insights import city_demand, demand_brief, export_events_ndjson
 from app.commerce_loop.locale import CITIES
 from app.commerce_loop.discovery import DiscoveryError, locate
+from app.commerce_loop.access import identity, require
 from app.commerce_loop.guard import ai_call_guard
 from app.commerce_loop.providers import get_providers, setting
 from app.commerce_loop.vision import read_photo
@@ -106,6 +107,27 @@ def agent_chat(body: ChatIn):
     return agent.chat([t.model_dump() for t in body.history])
 
 
+class SnapIn(BaseModel):
+    image_base64: str = Field(max_length=8_000_000)
+    image_mime: str
+
+
+@router.post("/agent/snap", dependencies=[Depends(ai_call_guard)])
+def snap_to_search(body: SnapIn):
+    """Snap to search: Gemini Vision reads an old charger or device label and writes the request."""
+    from app.commerce_loop.snap import need_from_photo
+
+    if body.image_mime not in ALLOWED_MIME:
+        raise HTTPException(status_code=415, detail="Use a JPEG, PNG, WEBP or HEIC photo")
+    try:
+        data = base64.b64decode(body.image_base64.split(",")[-1], validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="Image is not valid base64") from exc
+    if len(data) > MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="Photo must be under 5 MB")
+    return need_from_photo((data, body.image_mime))
+
+
 @router.get("/requests/{request_id}")
 def get_request(request_id: int):
     req = store.get_request(request_id)
@@ -162,10 +184,13 @@ class PhotoReplyIn(BaseModel):
     inventory_id: int | None = Field(default=None, description="Inventory row the shopkeeper approved from a draft")
     message: str | None = Field(default=None, max_length=500)
     approved_by_shopkeeper: bool = Field(default=True, description="Drafts are only sent after a person approves")
+    reply_token: str | None = Field(default=None, max_length=80, description="Signed one-tap reply link token")
 
 
 @router.post("/requests/{request_id}/reply", dependencies=[Depends(ai_call_guard)])
-def reply_with_photo(request_id: int, body: PhotoReplyIn):
+def reply_with_photo(request_id: int, body: PhotoReplyIn, request: Request):
+    if not body.reply_token or not _valid_reply_token(request_id, body.shop_id, body.reply_token):
+        require(request, "shopkeeper", shop_id=body.shop_id)
     req = store.get_request(request_id)
     if not req:
         raise HTTPException(status_code=404, detail="Request not found")
@@ -225,7 +250,8 @@ def _shop_or_404(shop_id: str) -> dict:
 
 
 @router.post("/shops/{shop_id}/inventory", dependencies=[Depends(ai_call_guard)])
-def upload_inventory(shop_id: str, body: InventoryUploadIn):
+def upload_inventory(shop_id: str, body: InventoryUploadIn, request: Request):
+    require(request, "shopkeeper", shop_id=shop_id)
     from app.commerce_loop.inventory import import_inventory
 
     _shop_or_404(shop_id)
@@ -243,7 +269,8 @@ def upload_inventory(shop_id: str, body: InventoryUploadIn):
 
 
 @router.post("/shops/{shop_id}/inventory/sample")
-def sample_inventory(shop_id: str):
+def sample_inventory(shop_id: str, request: Request):
+    require(request, "shopkeeper", shop_id=shop_id)
     from app.commerce_loop.inventory import import_sample
 
     _shop_or_404(shop_id)
@@ -274,7 +301,8 @@ def basket_plan(body: BasketIn):
 
 
 @router.get("/shops/{shop_id}/dashboard")
-def shop_dashboard(shop_id: str, days: int = 28):
+def shop_dashboard(shop_id: str, request: Request, days: int = 28):
+    require(request, "shopkeeper", "business", shop_id=shop_id)
     """My shop: this shop's inventory, the demand that reached it, missed sales, sales and customers."""
     from app.commerce_loop.myshop import dashboard
 
@@ -287,7 +315,8 @@ class ShopBriefIn(BaseModel):
 
 
 @router.post("/shops/{shop_id}/brief", dependencies=[Depends(ai_call_guard)])
-def shop_brief_endpoint(shop_id: str, body: ShopBriefIn):
+def shop_brief_endpoint(shop_id: str, body: ShopBriefIn, request: Request):
+    require(request, "shopkeeper", "business", shop_id=shop_id)
     from app.commerce_loop.myshop import shop_brief
 
     _shop_or_404(shop_id)
@@ -300,7 +329,8 @@ class InventoryEditIn(BaseModel):
 
 
 @router.post("/shops/{shop_id}/inventory/{item_id}")
-def edit_inventory_item(shop_id: str, item_id: int, body: InventoryEditIn):
+def edit_inventory_item(shop_id: str, item_id: int, body: InventoryEditIn, request: Request):
+    require(request, "shopkeeper", shop_id=shop_id)
     item = store.inventory_item(item_id)
     if not item or item["shop_id"] != shop_id:
         raise HTTPException(status_code=404, detail="Inventory item not found for this shop")
@@ -315,7 +345,8 @@ class SaleIn(BaseModel):
 
 
 @router.post("/shops/{shop_id}/sales")
-def record_sale(shop_id: str, body: SaleIn):
+def record_sale(shop_id: str, body: SaleIn, request: Request):
+    require(request, "shopkeeper", shop_id=shop_id)
     """The shopkeeper confirms a sale (e.g. the shopper came in); reduces stock and feeds the forecast."""
     _shop_or_404(shop_id)
     if body.inventory_id is not None:
@@ -349,10 +380,11 @@ def media(shop_id: str, name: str):
 
 
 @router.get("/requests/{request_id}/draft", dependencies=[Depends(ai_call_guard)])
-def request_draft(request_id: int, shop_id: str):
+def request_draft(request_id: int, shop_id: str, request: Request):
     """AI search over this shop's inventory -> a reply draft. Never sent without the shopkeeper's approval."""
     from app.commerce_loop.inventory import draft_reply
 
+    require(request, "shopkeeper", shop_id=shop_id)
     req = store.get_request(request_id)
     if not req:
         raise HTTPException(status_code=404, detail="Request not found")
@@ -360,6 +392,49 @@ def request_draft(request_id: int, shop_id: str):
     if shop["city"] != req["city"]:
         raise HTTPException(status_code=403, detail="This shop cannot see a request in another city")
     return draft_reply(req, shop_id)
+
+
+def _valid_reply_token(request_id: int, shop_id: str, value: str | None) -> bool:
+    from app.commerce_loop.replylink import valid
+
+    return valid(request_id, shop_id, value)
+
+
+@router.get("/requests/{request_id}/reply-link")
+def reply_link(request_id: int, shop_id: str, request: Request):
+    """Signed one-tap link (and WhatsApp message) so a real shop can answer this request from its phone."""
+    from app.commerce_loop.replylink import link
+
+    req = store.get_request(request_id)
+    shop = store.shop(shop_id)
+    if not req or not shop or shop["city"] != req["city"]:
+        raise HTTPException(status_code=404, detail="Request or shop not found")
+    base = setting("PUBLIC_BASE_URL") or str(request.base_url).replace("http://", "https://" if request.headers.get(
+        "x-forwarded-proto") == "https" else "http://")
+    origin = request.headers.get("origin")
+    return link(origin or base, req, shop)
+
+
+@router.get("/requests/{request_id}/for-shop")
+def request_for_shop(request_id: int, shop_id: str, t: str):
+    """What the shop sees when it opens a reply link (only with a valid token)."""
+    req = store.get_request(request_id)
+    shop = store.shop(shop_id)
+    if not req or not shop or not _valid_reply_token(request_id, shop_id, t):
+        raise HTTPException(status_code=403, detail="This reply link is not valid")
+    mine = [r for r in req["responses"] if r["shop_id"] == shop_id]
+    return {"request": {k: req[k] for k in ("id", "product", "specs", "budget", "currency", "language", "status",
+                                             "created_at")},
+            "shop": {"id": shop["id"], "name": shop["name"], "area": shop["area"]},
+            "already_replied": mine[-1] if mine else None}
+
+
+@router.get("/whoami")
+def whoami(request: Request):
+    from app.commerce_loop.access import enforced
+
+    who = identity(request)
+    return {"role": who.role, "shop_id": who.shop_id, "enforced": enforced()}
 
 
 @router.get("/engines")
@@ -402,14 +477,18 @@ def forget_shopper(shopper_id: str):
 
 
 @router.get("/cities/{city}/analytics")
-def analytics(city: str, shop_id: str | None = None):
+def analytics(city: str, request: Request, shop_id: str | None = None):
+    who = require(request, "business", "shopkeeper", shop_id=shop_id)
+    if who.role == "shopkeeper" and shop_id is None:
+        shop_id = who.shop_id
     from app.commerce_loop.analytics import shop_analytics
 
     return shop_analytics(_city(city), shop_id)
 
 
 @router.get("/cities/{city}/insights")
-def insights(city: str):
+def insights(city: str, request: Request):
+    require(request, "business")
     return city_demand(_city(city))
 
 
@@ -419,7 +498,8 @@ class BriefIn(BaseModel):
 
 
 @router.post("/cities/{city}/brief", dependencies=[Depends(ai_call_guard)])
-def brief(city: str, body: BriefIn):
+def brief(city: str, body: BriefIn, request: Request):
+    require(request, "business")
     city = _city(city)
     shop = store.shop(body.shop_id) if body.shop_id else None
     return demand_brief(city, body.language, shop["name"] if shop else None, shop_id=body.shop_id)
@@ -445,13 +525,15 @@ def available_models():
 
 
 @router.post("/demo/reset")
-def demo_reset():
+def demo_reset(request: Request):
+    require(request)  # admin only
     store.reset()
     return {"reset": True}
 
 
 @router.post("/analytics/bigquery/sync", dependencies=[Depends(ai_call_guard)])
-def bigquery_sync():
+def bigquery_sync(request: Request):
+    require(request, "business")
     """Load demand events into BigQuery and retrain the BigQuery ML forecast."""
     from app.commerce_loop.bigquery_loop import BigQueryUnavailable, sync
 
@@ -464,7 +546,8 @@ def bigquery_sync():
 
 
 @router.get("/cities/{city}/bigquery/forecast")
-def bigquery_forecast(city: str):
+def bigquery_forecast(city: str, request: Request):
+    require(request, "business")
     from app.commerce_loop.bigquery_loop import BigQueryUnavailable, forecast
 
     try:
@@ -476,7 +559,8 @@ def bigquery_forecast(city: str):
 
 
 @router.post("/cities/{city}/bigquery/brief", dependencies=[Depends(ai_call_guard)])
-def bigquery_brief(city: str):
+def bigquery_brief(city: str, request: Request):
+    require(request, "business")
     from app.commerce_loop.bigquery_loop import BigQueryUnavailable, ai_brief
 
     try:
@@ -488,7 +572,8 @@ def bigquery_brief(city: str):
 
 
 @router.post("/analytics/export")
-def analytics_export():
+def analytics_export(request: Request):
+    require(request, "business")
     path = os.path.join(os.path.dirname(store.db_path()), "demand_events.ndjson")
     return {"rows": export_events_ndjson(path), "path": path,
             "next": "bq load --source_format=NEWLINE_DELIMITED_JSON --autodetect needproof_loop.demand_events " + path}

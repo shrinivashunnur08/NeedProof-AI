@@ -6,6 +6,7 @@ const FreeShowcase = lazy(() => import("./FreeShowcase"));
 const NeedProofWorkspace = lazy(() => import("./NeedProofWorkspace"));
 const MerchantVerificationPage = lazy(() => import("./components/MerchantVerificationPage"));
 const LoopApp = lazy(() => import("./loop/LoopApp"));
+const ShopReplyPage = lazy(() => import("./loop/LoopApp").then((m) => ({ default: m.ShopReplyPage })));
 
 function RouteLoading() {
   return (
@@ -33,6 +34,10 @@ export default function NeedProofRouter() {
   // The hosted static showcase (production build without a backend) keeps its old home page.
   const hostedShowcase = import.meta.env.PROD && import.meta.env.VITE_PUBLIC_SHOWCASE === "true";
   // The commerce loop app is the home page; the earlier screens live under /classic.
+  const reply = path.match(/^\/r\/(\d+)\/?$/);
+  if (reply) {
+    return <Suspense fallback={<RouteLoading />}><ShopReplyPage requestId={Number(reply[1])} /></Suspense>;
+  }
   if (/^\/app\/?$/.test(path) || (path === "/" && !hostedShowcase)) {
     return <Suspense fallback={<RouteLoading />}><LoopApp /></Suspense>;
   }

@@ -10,14 +10,16 @@ Built for the **Google AI Builder Cup 2026 — Retail & Commerce** challenge, th
 
 **Live app on Google Cloud Run (Singapore): https://needproof-822406860102.asia-southeast1.run.app**
 
+Use the **Signed in as** dropdown at the top to switch role: **Shopper**, **Shopkeeper** (of one shop), **Business manager** or **Admin / jury**. Each role sees only its own screens, and the server checks the role on every private action.
+
 Three minutes:
-1. **Shopper** tab: type *"65W USB-C PD charger under S$60 today"* (or the same in Chinese, Portuguese or Hindi). Gemini extracts the need, checks shops with the NeedProof decision engine, shows them on a Google map with directions, ranks **who is worth asking for proof** (EVSI), and sends the request to nearby shops.
-2. **Shop** tab → **My shop** → **Load sample inventory**, then **Requests inbox**: the request has an **AI draft from the shop's own stock** (Vertex AI Search + Gemini). Approve & send; Gemini Vision checks the photo; the shopper sees it within about a second. **Shopper bought it** records the sale.
-3. **My shop** shows that shop's own numbers: requests near it, answered / missed / out of stock / not stocked, missed sales ("9 people asked for a 100W charger"), editable price and stock, and advice from Gemini.
-4. Ask for several items at once: *"a 65W charger, a USB-C cable and a power bank, S$120 total"*: the OR-Tools basket planner picks the cheapest mix of shops.
-5. Ask again later with *"I need a laptop charger again"*: NeedProof remembers the wattage and budget (**Forget me** deletes it).
-6. **Business** tab: forecast, stock risk, customer groups, bought-together rules and review priorities for the selected shop, plus the **BigQuery ML** forecast and a brief written by Gemini **inside BigQuery**.
-7. **Trust report**: how each answer is decided, live model tests, safeguards, and at the bottom every NeedProof engine with a **Run** button on live data.
+1. **Shopper**: type, speak 🎤 or **snap a photo** 📷 of your old charger's label (Gemini Vision reads "65W USB-C PD, 20V 3.25A"). Ask *"65W USB-C PD charger near Bugis under S$60 today"*. Gemini extracts the need, checks onboarded shops with the NeedProof decision engine, finds **real nearby shops via Google Places**, shows them on a Google map with directions, and ranks **who is worth asking for proof** (EVSI).
+2. **Reach any real shop on WhatsApp**: each real shop gets a **WhatsApp** button with the request and a signed one-tap reply link. The shopkeeper opens it on their phone (no app, no account), snaps the box, and Gemini Vision checks it; the shopper sees the answer live.
+3. **Shopkeeper** (of Marina Gadgets) → **My shop** → **Load sample inventory**, then the inbox: each request has an **AI draft from the shop's own stock** (Vertex AI Search + Gemini) to approve. **My shop** shows the shop's own demand: answered / missed / out of stock / not stocked, missed sales, editable price and stock, Gemini advice. **My analytics**: its forecast, stock risk, customer groups, bought-together, review priorities.
+4. Several items at once: *"a 65W charger, a USB-C cable and a power bank, S$120 total"*: the OR-Tools planner picks the cheapest mix of shops.
+5. Ask again later: *"I need a laptop charger again"*: NeedProof remembers wattage and budget (**Forget me** deletes it).
+6. **Business manager**: city-wide unmet demand, every shop's analytics, the **BigQuery ML** forecast and a brief written by Gemini **inside BigQuery**.
+7. **Trust report**: how each answer is decided, live model tests, safeguards, and every NeedProof engine with a **Run** button on live data.
 
 *Reset data* clears the shared data. Shops in Singapore, São Paulo and Mumbai are fictional; *Detect* switches to your real location and real nearby shops from OpenStreetMap.
 
@@ -36,11 +38,12 @@ Three minutes:
 
 | Google technology | Used for |
 |---|---|
-| **Gemini on Vertex AI** (`gemini-2.5-flash-lite`) | Intent extraction, agent with function calling, Gemini Vision photo checks, inventory reply drafts |
+| **Gemini on Vertex AI** (`gemini-2.5-flash-lite`) | Intent extraction, agent with function calling (search, basket, ask shops), Gemini Vision photo checks, snap-to-search, inventory reply drafts, shop advice |
 | **BigQuery** (asia-southeast1) | Demand events and views; **BigQuery ML ARIMA_PLUS** forecast; **BigQuery AI** `AI.GENERATE` brief |
 | **Vertex AI Search** | Natural-language search over each shop's uploaded inventory |
 | **Cloud Storage** | Private storage for shop product photos |
 | **Cloud Run + Cloud Build** | Hosting the FastAPI backend and React app in Singapore |
+| **Google Maps Platform** | Places API (New) finds real nearby shops and phone numbers; Maps Static API draws the shop map; Directions links |
 | **Looker Studio** | Dashboard on the BigQuery views (link in `docs/GOOGLE_CLOUD.md`) |
 | **Gemini API (AI Studio)** | Free local profile; one switch (`NEEDPROOF_PROFILE=free | google_full`) |
 
@@ -49,7 +52,7 @@ Not done yet: the live app keeps shop and request data in SQLite on a single Clo
 ## Evidence that it works
 
 - Live model tests: [`docs/EVAL_REPORT.md`](docs/EVAL_REPORT.md) (AI Studio) and [`docs/EVAL_REPORT_VERTEX.md`](docs/EVAL_REPORT_VERTEX.md) (Vertex AI): intent extraction in 5 languages including a prompt-injection attempt, 5 photo checks (correct charger, wrong wattage, fake brand, mixer grinder, cable), 4 inventory drafts. Run with `python backend/scripts/eval_live.py`.
-- 43 automated tests for the commerce loop (`backend/tests/test_commerce_loop.py`), run in CI with a mock model.
+- 46 automated tests for the commerce loop (`backend/tests/test_commerce_loop.py`), run in CI with a mock model.
 - Limits: 19 hand-written cases and 5 synthetic label photos, not real shop photos; demo shops and demand history are fictional.
 
 ## Run locally

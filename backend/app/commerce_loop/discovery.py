@@ -79,10 +79,18 @@ def _osm_shops(lat: float, lng: float, radius_m: int) -> list[dict]:
   way["shop"~"electronics|mobile_phone|computer|hifi"](around:{radius_m},{lat},{lng});
 );
 out center 40;"""
-    with httpx.Client(timeout=20, headers=UA) as c:
-        r = c.post(OVERPASS, data={"data": query})
-        r.raise_for_status()
-        elements = r.json().get("elements", [])
+    elements = None
+    for endpoint in (OVERPASS, "https://overpass.kumi.systems/api/interpreter"):
+        try:
+            with httpx.Client(timeout=20, headers=UA) as c:
+                r = c.post(endpoint, data={"data": query})
+                r.raise_for_status()
+                elements = r.json().get("elements", [])
+                break
+        except Exception as exc:  # noqa: BLE001 - public mirrors are rate-limited; try the next one
+            logger.warning("Overpass %s failed (%s)", endpoint, type(exc).__name__)
+    if elements is None:
+        raise DiscoveryError("OpenStreetMap shop search is unavailable right now")
     shops = []
     for el in elements:
         tags = el.get("tags", {})
@@ -94,7 +102,9 @@ out center 40;"""
         street = " ".join(x for x in (tags.get("addr:housenumber"), tags.get("addr:street")) if x)
         shops.append({"id": f"osm-{el['type'][0]}{el['id']}", "name": name, "lat": la, "lng": ln,
                       "area": tags.get("addr:suburb") or tags.get("addr:street") or tags.get("shop", "").replace("_", " "),
-                      "address": street or None, "source": "openstreetmap"})
+                      "address": street or None, "source": "openstreetmap",
+                      "phone": tags.get("contact:whatsapp") or tags.get("phone") or tags.get("contact:phone")
+                               or tags.get("contact:mobile")})
     return shops
 
 
@@ -104,7 +114,7 @@ def _google_shops(lat: float, lng: float, radius_m: int) -> list[dict]:
         raise DiscoveryError("MAPS_API_KEY is not set")
     body = {"includedTypes": ["electronics_store", "cell_phone_store"], "maxResultCount": 20,
             "locationRestriction": {"circle": {"center": {"latitude": lat, "longitude": lng}, "radius": float(radius_m)}}}
-    headers = {"X-Goog-Api-Key": key, "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location"}
+    headers = {"X-Goog-Api-Key": key, "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.internationalPhoneNumber"}
     with httpx.Client(timeout=15) as c:
         r = c.post(PLACES_NEARBY, json=body, headers=headers)
         r.raise_for_status()
@@ -112,7 +122,7 @@ def _google_shops(lat: float, lng: float, radius_m: int) -> list[dict]:
     return [{"id": f"gpl-{p['id']}", "name": p.get("displayName", {}).get("text", "Shop"),
              "lat": p.get("location", {}).get("latitude"), "lng": p.get("location", {}).get("longitude"),
              "area": (p.get("formattedAddress") or "").split(",")[0], "address": p.get("formattedAddress"),
-             "source": "google_places"} for p in places]
+             "phone": p.get("internationalPhoneNumber"), "source": "google_places"} for p in places]
 
 
 def nearby_shops(lat: float, lng: float, radius_m: int = 2500) -> tuple[list[dict], str]:

@@ -142,10 +142,15 @@ export type Brief = {
 
 const BASE = "/api/v2/loop";
 
+/** Demo identity chosen in the role dropdown; the server checks every shop-private call against it. */
+export type Persona = "shopper" | "shopkeeper" | "business" | "admin";
+export const identity: { role: Persona; shop: string } = { role: "shopper", shop: "" };
+
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(BASE + path, {
     ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    headers: { "Content-Type": "application/json", "X-NeedProof-Role": identity.role,
+      ...(identity.shop ? { "X-NeedProof-Shop": identity.shop } : {}), ...(init?.headers ?? {}) },
     cache: "no-store",
   });
   if (!res.ok) {
@@ -173,7 +178,7 @@ export const api = {
   cityRequests: (city: string) => call<LoopRequest[]>(`/cities/${city}/requests`),
   shops: (city: string) => call<Shop[]>(`/cities/${city}/shops`),
   reply: (id: number, body: { shop_id: string; price?: number; stock?: number; image_base64?: string; image_mime?: string;
-    inventory_id?: number; message?: string; approved_by_shopkeeper?: boolean }) =>
+    inventory_id?: number; message?: string; approved_by_shopkeeper?: boolean; reply_token?: string }) =>
     call<{ claim: Record<string, unknown>; check: PhotoCheck; mode: string; model: { latency_ms?: number; error?: string }; evidence_class?: string }>(
       `/requests/${id}/reply`, { method: "POST", body: JSON.stringify(body) }),
   insights: (city: string) => call<Insights>(`/cities/${city}/insights`),
@@ -199,6 +204,15 @@ export const api = {
     call<{ sale_id: number; product: string; qty: number; stock_left: number | null }>(`/shops/${shopId}/sales`, { method: "POST", body: JSON.stringify(body) }),
   engines: () => call<EngineCatalog>("/engines"),
   runEngine: (id: string) => call<EngineRun>(`/engines/${id}/run`, { method: "POST" }),
+  replyLink: (requestId: number, shopId: string) =>
+    call<{ url: string; text: string; phone: string | null; whatsapp_url: string; direct: boolean }>(`/requests/${requestId}/reply-link?shop_id=${encodeURIComponent(shopId)}`),
+  forShop: (requestId: number, shopId: string, t: string) =>
+    call<{ request: { id: number; product: string; specs: Record<string, unknown>; budget: number | null; currency: string | null; language: string; status: string; created_at: string };
+      shop: { id: string; name: string; area: string }; already_replied: ShopResponse | null }>(`/requests/${requestId}/for-shop?shop_id=${encodeURIComponent(shopId)}&t=${encodeURIComponent(t)}`),
+  snap: (image_base64: string, image_mime: string) =>
+    call<{ mode: string; message?: string; need: null | { is_relevant: boolean; what_i_see: string; item: string | null; brand: string | null;
+      model_number: string | null; wattage_w: number | null; connector: string | null; usb_pd: boolean | null; request_text: string; confidence: number };
+      model?: { latency_ms?: number } }>("/agent/snap", { method: "POST", body: JSON.stringify({ image_base64, image_mime }) }),
   reset: () => call<{ reset: boolean }>("/demo/reset", { method: "POST" }),
   exportBq: () => call<{ rows: number; next: string }>("/analytics/export", { method: "POST" }),
 };

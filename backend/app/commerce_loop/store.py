@@ -139,7 +139,8 @@ def conn() -> sqlite3.Connection:
 def _migrate(c: sqlite3.Connection) -> None:
     """Add columns introduced after the first release to an existing local database."""
     have = {r[1] for r in c.execute("PRAGMA table_info(shops)").fetchall()}
-    for col, ddl in (("lat", "REAL"), ("lng", "REAL"), ("source", "TEXT NOT NULL DEFAULT 'demo'"), ("address", "TEXT")):
+    for col, ddl in (("lat", "REAL"), ("lng", "REAL"), ("source", "TEXT NOT NULL DEFAULT 'demo'"), ("address", "TEXT"),
+                     ("phone", "TEXT")):
         if col not in have:
             c.execute(f"ALTER TABLE shops ADD COLUMN {col} {ddl}")
     c.execute("UPDATE shops SET name=REPLACE(name, ' (demo)', '') WHERE name LIKE '% (demo)'")
@@ -171,11 +172,11 @@ def upsert_shops(city: str, shops: list[dict]) -> int:
     with _LOCK:
         c = conn()
         c.executemany(
-            "INSERT INTO shops (id, city, name, area, lat, lng, source, address) VALUES (?,?,?,?,?,?,?,?)"
+            "INSERT INTO shops (id, city, name, area, lat, lng, source, address, phone) VALUES (?,?,?,?,?,?,?,?,?)"
             " ON CONFLICT(id) DO UPDATE SET name=excluded.name, area=excluded.area, lat=excluded.lat,"
-            " lng=excluded.lng, address=excluded.address",
+            " lng=excluded.lng, address=excluded.address, phone=COALESCE(excluded.phone, shops.phone)",
             [(x["id"], city, x["name"], x.get("area") or "", x.get("lat"), x.get("lng"), x["source"],
-              x.get("address")) for x in shops])
+              x.get("address"), x.get("phone")) for x in shops])
         c.commit()
     return len(shops)
 

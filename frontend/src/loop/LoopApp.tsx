@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./google-theme.css";
 import {
-  api, photoToBase64, fileToBase64, type Draft, type InventoryItem, type InventoryUpload,
+  api, identity, photoToBase64, fileToBase64, type Persona, type Draft, type InventoryItem, type InventoryUpload,
   type Brief, type ChatResult, type City, type Insights, type Intent, type LoopRequest, type NearbyShop, type Offer,
   type PhotoCheck, type ShopResponse, type ShopperLocation,
   type Providers, type Shop, type Analytics, type Profile, type BqForecast, type TrustReport, type ShopDashboard, type Basket, type ProofPlan,
@@ -72,14 +72,31 @@ function useCityVersion(cityId: string): number {
   return tick;
 }
 
+const PERSONAS: { id: Persona; label: string; does: string; tone: string; tabs: Role[] }[] = [
+  { id: "shopper", label: "Shopper", does: "Find which nearby shop can prove it has what you need", tone: "bg-teal-500 text-white", tabs: ["shopper", "trust"] },
+  { id: "shopkeeper", label: "Shopkeeper", does: "Answer requests with photo proof, manage stock, see your own demand", tone: "bg-emerald-500 text-white", tabs: ["shop", "business", "trust"] },
+  { id: "business", label: "Business manager", does: "Area or brand view: demand, forecasts, every shop's performance", tone: "bg-violet-500 text-white", tabs: ["business", "trust"] },
+  { id: "admin", label: "Admin / jury", does: "Every screen, every shop, reset data", tone: "bg-amber-500 text-slate-950", tabs: ["shopper", "shop", "business", "trust"] },
+];
+const DEFAULT_SHOP: Record<string, string> = { singapore: "sg-marina", "sao-paulo": "sp-paulista", mumbai: "mu-seaface" };
+
 function readParams() {
   const q = new URLSearchParams(window.location.search);
-  const role = (q.get("role") as Role) || "shopper";
-  return { role: ["shopper", "shop", "business", "trust", "engines"].includes(role) ? role : "shopper", city: q.get("city") || "singapore", shop: q.get("shop") || "" };
+  const role = (q.get("role") as Role) || "";
+  const asParam = q.get("as") as Persona | null;
+  const persona: Persona = asParam && PERSONAS.some((p) => p.id === asParam) ? asParam
+    : role === "shop" ? "shopkeeper" : role === "business" ? "business" : role === "engines" ? "admin" : "shopper";
+  const city = q.get("city") || "singapore";
+  const shop = q.get("shop") || (persona === "shopkeeper" ? DEFAULT_SHOP[city] ?? "" : "");
+  const allowed = PERSONAS.find((p) => p.id === persona)!.tabs;
+  const tab = (["shopper", "shop", "business", "trust", "engines"].includes(role) ? role : allowed[0]) as Role;
+  identity.role = persona;
+  identity.shop = shop;
+  return { role: tab === "engines" || allowed.includes(tab) ? tab : allowed[0], city, shop, persona };
 }
 
-function writeParams(role: Role, city: string, shop?: string) {
-  const q = new URLSearchParams({ role, city });
+function writeParams(role: Role, city: string, persona: Persona, shop?: string) {
+  const q = new URLSearchParams({ as: persona, role, city });
   if (shop) q.set("shop", shop);
   window.history.replaceState(null, "", `${window.location.pathname}?${q.toString()}`);
 }
@@ -248,12 +265,31 @@ function BasketCard({ b }: { b: Basket }) {
   );
 }
 
-function NearbyList({ shops, live }: { shops: NearbyShop[]; live: Map<string, ShopResponse> }) {
+function WhatsAppAsk({ requestId, shopId }: { requestId?: number; shopId: string }) {
+  const [link, setLink] = useState<{ whatsapp_url: string; url: string; direct: boolean } | null>(null);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!requestId) return;
+    let alive = true;
+    api.replyLink(requestId, shopId).then((x) => { if (alive) setLink(x); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [requestId, shopId]);
+  if (!requestId || !link) return null;
+  return (
+    <span className="flex items-center gap-1.5">
+      <a href={link.whatsapp_url} target="_blank" rel="noreferrer" title={link.direct ? "Opens WhatsApp with this shop's number and the request" : "No number on the map: pick the shop's WhatsApp contact"}
+        className="rounded-full bg-emerald-500 px-2 py-0.5 text-[11px] font-semibold text-white hover:opacity-90">WhatsApp{link.direct ? "" : " ⋯"}</a>
+      <button type="button" onClick={() => { void navigator.clipboard?.writeText(link.url); setCopied(true); }} className="text-[11px] text-teal-300 hover:underline">{copied ? "Link copied" : "Copy reply link"}</button>
+    </span>
+  );
+}
+
+function NearbyList({ shops, live, requestId }: { shops: NearbyShop[]; live: Map<string, ShopResponse>; requestId?: number }) {
   if (shops.length === 0) return null;
   return (
     <div className="mt-3 rounded-xl border border-slate-700/70 bg-slate-900/40 p-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Real shops nearby <span className="font-normal normal-case tracking-normal text-slate-500">· from {shops[0].source === "google_places" ? "Google Places" : "OpenStreetMap"} · no online stock info, asked for photo proof</span></p>
-      <ul className="mt-2 grid gap-1.5 sm:grid-cols-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Real shops nearby <span className="font-normal normal-case tracking-normal text-slate-500">· from {shops[0].source === "google_places" ? "Google Places" : "OpenStreetMap"} · no online stock info · send them your request on WhatsApp; they reply with one photo, no app needed</span></p>
+      <ul className="mt-2 grid gap-1.5">
         {shops.slice(0, 10).map((n) => {
           const reply = live.get(n.shop_id);
           return (
@@ -262,6 +298,7 @@ function NearbyList({ shops, live }: { shops: NearbyShop[]; live: Map<string, Sh
               <span className="flex shrink-0 items-center gap-1.5">
                 {n.distance_km != null && <span className="font-mono text-xs text-slate-400">{n.distance_km.toFixed(1)} km</span>}
                 <DirectionsLink lat={n.lat} lng={n.lng} />
+                {!reply && <WhatsAppAsk requestId={requestId} shopId={n.shop_id} />}
                 {reply && <StatusChip status={reply.status} />}
               </span>
             </li>
@@ -515,7 +552,7 @@ function AssistantTurn({ turn, version }: { turn: Turn; version: number }) {
       {r?.basket && <BasketCard b={r.basket} />}
       {r && r.offers.length > 0 && <ul className="mt-3 space-y-2">{r.offers.map((o) => <OfferCard key={o.shop_id + o.listing} offer={o} live={liveFor(o)} />)}</ul>}
       {r?.proof_plan && r.offers.length > 0 && <ProofPlanCard p={r.proof_plan} />}
-      {r?.nearby && <NearbyList shops={r.nearby} live={latestByShop} />}
+      {r?.nearby && <NearbyList shops={r.nearby} live={latestByShop} requestId={r.request?.id} />}
       {r && (r.offers.length > 0 || (r.nearby ?? []).length > 0) && (
         <ShopMap origin={r.location?.lat != null ? r.location : r.location ? { lat: r.location.city.lat, lng: r.location.city.lng, label: r.location.city.name } : null} pins={[
           ...r.offers.filter((o, i, a) => o.lat != null && o.lng != null && a.findIndex((x) => x.shop_id === o.shop_id) === i)
@@ -565,6 +602,40 @@ function ShopperView({ city, loc, onMoved }: { city: City; loc: ShopperLocation 
     api.profile(shopperId).then((x) => { if (alive) setProfile(x.profile); }).catch(() => undefined);
     return () => { alive = false; };
   }, [shopperId]);
+
+  const [snapBusy, setSnapBusy] = useState(false);
+  const [snapNote, setSnapNote] = useState("");
+  const [listening, setListening] = useState(false);
+  type SpeechCtor = new () => { lang: string; interimResults: boolean; onresult: (e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void; onend: () => void; onerror: () => void; start: () => void };
+  const speechApi = (window as unknown as { SpeechRecognition?: SpeechCtor; webkitSpeechRecognition?: SpeechCtor });
+  const SpeechImpl = speechApi.SpeechRecognition ?? speechApi.webkitSpeechRecognition;
+  const speechSupported = Boolean(SpeechImpl);
+  function listen() {
+    if (!SpeechImpl || listening) return;
+    const rec = new SpeechImpl();
+    rec.lang = navigator.language || "en-US";
+    rec.interimResults = false;
+    rec.onresult = (e) => { const text = e.results[0]?.[0]?.transcript ?? ""; if (text) setDraft((d) => (d ? `${d} ${text}` : text)); };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    setListening(true);
+    rec.start();
+  }
+  async function snap(file: File | undefined) {
+    if (!file) return;
+    setSnapBusy(true); setSnapNote("Gemini is reading your photo…");
+    try {
+      const p = await photoToBase64(file);
+      const r = await api.snap(p.data, p.mime);
+      if (r.need && r.need.is_relevant) {
+        setDraft(r.need.request_text);
+        setSnapNote(`From your photo: ${r.need.what_i_see} → “${r.need.request_text}”. Add your budget or place, then press Ask.`);
+      } else {
+        setSnapNote(r.message ?? (r.need ? `That photo shows: ${r.need.what_i_see}. Try the label of your charger or laptop.` : "Could not read the photo."));
+      }
+    } catch (e) { setSnapNote(e instanceof Error ? e.message : "Could not read the photo"); }
+    finally { setSnapBusy(false); }
+  }
 
   async function forget() {
     try { await api.forget(shopperId); setProfile(null); } catch (e) { setError(e instanceof Error ? e.message : "Could not forget profile"); }
@@ -621,7 +692,17 @@ function ShopperView({ city, loc, onMoved }: { city: City; loc: ShopperLocation 
         <div ref={endRef} />
       </div>
       <ErrorNote message={error} />
-      <form onSubmit={(e) => { e.preventDefault(); void send(draft); }} className="sticky bottom-3 flex gap-2 rounded-2xl border border-slate-700 bg-slate-900/95 p-2 backdrop-blur">
+      {snapNote && <p className="rounded-xl border border-indigo-400/30 bg-indigo-500/5 px-3 py-2 text-sm text-slate-200" aria-live="polite">{snapNote}</p>}
+      <form onSubmit={(e) => { e.preventDefault(); void send(draft); }} className="sticky bottom-3 flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-900/95 p-2 backdrop-blur">
+        <label title="Snap to search: photo of your old charger or your laptop's power label" className={`cursor-pointer rounded-full border border-slate-600 px-2.5 py-1.5 text-sm ${snapBusy ? "opacity-40" : "hover:border-teal-400"}`}>
+          <span aria-hidden="true">📷</span><span className="sr-only">Snap to search: photo of your old charger or device label</span>
+          <input type="file" accept="image/*" capture="environment" className="sr-only" disabled={snapBusy} onChange={(e) => void snap(e.target.files?.[0])} />
+        </label>
+        {speechSupported && (
+          <button type="button" onClick={listen} title="Speak your request" className={`rounded-full border px-2.5 py-1.5 text-sm ${listening ? "border-rose-400 text-rose-300" : "border-slate-600 hover:border-teal-400"}`}>
+            <span aria-hidden="true">🎤</span><span className="sr-only">{listening ? "Listening" : "Speak your request"}</span>
+          </button>
+        )}
         <label htmlFor="shopper-input" className="sr-only">Describe what you need</label>
         <input id="shopper-input" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="What do you need today? Any language." className="min-w-0 flex-1 bg-transparent px-2 text-[15px] text-slate-100 placeholder:text-slate-500 focus:outline-none" />
         <button type="submit" disabled={busy || !draft.trim()} className="rounded-xl bg-teal-500 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-40">Ask</button>
@@ -632,7 +713,7 @@ function ShopperView({ city, loc, onMoved }: { city: City; loc: ShopperLocation 
 
 /* ------------------------------ Shop ------------------------------ */
 
-function ReplyForm({ req, shopId, onDone }: { req: LoopRequest; shopId: string; onDone: () => void }) {
+function ReplyForm({ req, shopId, onDone, replyToken }: { req: LoopRequest; shopId: string; onDone: () => void; replyToken?: string }) {
   const [price, setPrice] = useState("");
   const [stock, setStock] = useState("1");
   const [photo, setPhoto] = useState<{ data: string; mime: string; preview: string } | null>(null);
@@ -658,7 +739,7 @@ function ReplyForm({ req, shopId, onDone }: { req: LoopRequest; shopId: string; 
     try {
       const r = await api.reply(req.id, {
         shop_id: shopId, price: price ? Number(price) : undefined, stock: stock ? Number(stock) : undefined,
-        image_base64: photo?.data, image_mime: photo?.mime,
+        image_base64: photo?.data, image_mime: photo?.mime, reply_token: replyToken,
       });
       setResult(r); onDone();
     } catch (e) {
@@ -1048,7 +1129,7 @@ function MyShopView({ shopId, version, invVersion, onInventoryChanged, onOpenBus
   );
 }
 
-function ShopView({ city, shopId, setShopId, onOpenBusiness }: { city: City; shopId: string; setShopId: (id: string) => void; onOpenBusiness: () => void }) {
+function ShopView({ city, shopId, setShopId, onOpenBusiness, locked = false }: { city: City; shopId: string; setShopId: (id: string) => void; onOpenBusiness: () => void; locked?: boolean }) {
   const [shops, setShops] = useState<Shop[]>([]);
   const [requests, setRequests] = useState<LoopRequest[]>([]);
   const [open, setOpen] = useState<number | null>(null);
@@ -1083,7 +1164,8 @@ function ShopView({ city, shopId, setShopId, onOpenBusiness }: { city: City; sho
   return (
     <section aria-label="Shop inbox" className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        <label htmlFor="shop-select" className="text-sm text-slate-400">Continue as</label>
+        {locked ? <p className="text-sm text-slate-300">Your shop: <span className="font-semibold text-slate-100">{shops.find((x) => x.id === shopId)?.name ?? shopId}</span></p> : <>
+        <label htmlFor="shop-select" className="text-sm text-slate-400">Act for shop</label>
         <select id="shop-select" value={shopId} onChange={(e) => setShopId(e.target.value)} className="max-w-full rounded-lg border border-slate-600 bg-slate-950 px-2 py-1.5 text-sm">
           {shops.some((s) => s.source === "demo") && <optgroup label="Onboarded shops">
             {shops.filter((s) => s.source === "demo").map((s) => <option key={s.id} value={s.id}>{s.name} · {s.area}</option>)}
@@ -1095,6 +1177,7 @@ function ShopView({ city, shopId, setShopId, onOpenBusiness }: { city: City; sho
         {shops.find((s) => s.id === shopId)?.source && shops.find((s) => s.id === shopId)?.source !== "demo" && (
           <span className="text-xs text-amber-200">Real business from map data. You are simulating its reply; it is not contacted.</span>
         )}
+        </>}
       </div>
       <ErrorNote message={error} />
       <div role="tablist" aria-label="Shop views" className="flex w-fit gap-1 rounded-full border border-slate-700 p-1">
@@ -1180,7 +1263,7 @@ function Bands({ a }: { a: Analytics["forecast"] }) {
   );
 }
 
-function ShopAnalytics({ city, initialShop }: { city: City; initialShop?: string }) {
+function ShopAnalytics({ city, initialShop, locked = false }: { city: City; initialShop?: string; locked?: boolean }) {
   const [shops, setShops] = useState<Shop[]>([]);
   const [shopId, setShopId] = useState(initialShop ?? "");
   const [a, setA] = useState<Analytics | null>(null);
@@ -1201,7 +1284,7 @@ function ShopAnalytics({ city, initialShop }: { city: City; initialShop?: string
     <section aria-label="Shop analytics" className="flex flex-col gap-3 rounded-xl border border-slate-700 bg-slate-900/40 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold text-slate-100">Shop analytics{a ? `: ${a.shop.name}` : ""}</h2>
-        {shops.length > 1 && (
+        {shops.length > 1 && !locked && (
           <label className="text-xs text-slate-400">Shop{" "}
             <select value={shopId || a?.shop.id || ""} onChange={(e) => setShopId(e.target.value)} className="rounded-lg border border-slate-600 bg-slate-950 px-2 py-1 text-sm text-slate-100">
               {shops.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -1326,7 +1409,7 @@ function BigQueryPanel({ city }: { city: City }) {
   );
 }
 
-function BusinessView({ city, bigquery, shopId }: { city: City; bigquery?: boolean; shopId?: string }) {
+function BusinessView({ city, bigquery, shopId, ownShopOnly = false }: { city: City; bigquery?: boolean; shopId?: string; ownShopOnly?: boolean }) {
   const [data, setData] = useState<Insights | null>(null);
   const [brief, setBrief] = useState<Brief | null>(null);
   const [lang, setLang] = useState("en");
@@ -1335,8 +1418,9 @@ function BusinessView({ city, bigquery, shopId }: { city: City; bigquery?: boole
   const [exportNote, setExportNote] = useState("");
 
   useEffect(() => {
+    if (ownShopOnly) return;
     api.insights(city.id).then(setData).catch((e) => setError(e instanceof Error ? e.message : "Could not load insights"));
-  }, [city.id]);
+  }, [city.id, ownShopOnly]);
 
   async function makeBrief() {
     setBusy(true); setError("");
@@ -1344,6 +1428,14 @@ function BusinessView({ city, bigquery, shopId }: { city: City; bigquery?: boole
   }
 
   const maxUnmet = useMemo(() => Math.max(1, ...(data?.products.map((p) => p.unmet) ?? [1])), [data]);
+  if (ownShopOnly) {
+    return (
+      <section aria-label="My analytics" className="flex flex-col gap-4">
+        <ShopAnalytics city={city} initialShop={shopId} locked />
+        <p className="text-xs text-slate-500">As a shopkeeper you see only your own shop. City-wide demand and other shops are visible to business managers.</p>
+      </section>
+    );
+  }
   return (
     <section aria-label="Demand insights" className="flex flex-col gap-4">
       <ShopAnalytics city={city} initialShop={shopId} />
@@ -1393,6 +1485,56 @@ function BusinessView({ city, bigquery, shopId }: { city: City; bigquery?: boole
         </article>
       )}
     </section>
+  );
+}
+
+/* ------------------------------ One-tap shop reply (from WhatsApp) ------------------------------ */
+
+export function ShopReplyPage({ requestId }: { requestId: number }) {
+  const q = new URLSearchParams(window.location.search);
+  const shopId = q.get("shop") ?? "";
+  const token = q.get("t") ?? "";
+  const [data, setData] = useState<Awaited<ReturnType<typeof api.forShop>> | null>(null);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    api.forShop(requestId, shopId, token).then((x) => { if (alive) setData(x); })
+      .catch((e) => { if (alive) setError(e instanceof Error ? e.message : "Link not valid"); });
+    return () => { alive = false; };
+  }, [requestId, shopId, token, done]);
+  const r = data?.request;
+  return (
+    <div className="np-google min-h-dvh bg-slate-950 text-slate-100">
+      <main className="mx-auto flex max-w-md flex-col gap-4 px-4 py-6">
+        <p className="text-lg font-bold">NeedProof <span className="font-normal text-slate-400">· shop reply</span></p>
+        <ErrorNote message={error} />
+        {data && r && (
+          <>
+            <div className="rounded-xl border border-slate-700 bg-slate-900 p-4">
+              <p className="text-sm text-slate-400">For <span className="font-semibold text-slate-100">{data.shop.name}</span></p>
+              <p className="mt-1 text-lg font-semibold text-slate-50">{r.product}</p>
+              <p className="text-sm text-slate-300">
+                {Object.entries(r.specs).map(([k, v]) => `${k.replace("_w", "").replaceAll("_", " ")} ${String(v)}`).join(" · ")}
+                {r.budget ? ` · budget ${r.currency} ${r.budget}` : ""}
+              </p>
+              <p className="mt-2 text-xs text-slate-400">A shopper nearby wants this today. Send one clear photo of the box or label; Gemini checks it against the request and the shopper sees your answer immediately. No app or account needed.</p>
+            </div>
+            {data.already_replied ? (
+              <div className="rounded-xl border border-emerald-400/40 p-4">
+                <p className="font-semibold text-slate-100">Reply sent. Thank you!</p>
+                <PhotoAnalysis claim={data.already_replied.claim} check={data.already_replied.check_result} mode={Object.keys(data.already_replied.claim).length ? "gemini" : "none"} />
+              </div>
+            ) : (
+              <ReplyForm req={{ id: r.id, city: "", product: r.product, specs: r.specs, budget: r.budget, currency: r.currency,
+                language: r.language, status: r.status, created_at: r.created_at, responses: [] }} shopId={shopId} replyToken={token}
+                onDone={() => setDone(true)} />
+            )}
+          </>
+        )}
+        <p className="text-[11px] text-slate-500">This link works only for this shop and this request. NeedProof never buys anything; shoppers decide.</p>
+      </main>
+    </div>
   );
 }
 
@@ -1610,6 +1752,7 @@ function TrustView({ focusEngines = false }: { focusEngines?: boolean }) {
 export default function LoopApp() {
   const [initial] = useState(readParams);
   const [role, setRole] = useState<Role>(initial.role as Role);
+  const [persona, setPersona] = useState<Persona>(initial.persona);
   const [cityId, setCityId] = useState(initial.city);
   const [shopId, setShopId] = useState(initial.shop);
   const [cities, setCities] = useState<City[]>([]);
@@ -1657,16 +1800,35 @@ export default function LoopApp() {
     detectedOnce.current = true;
     detect();
   }, [detect]);
-  useEffect(() => { writeParams(role, cityId, role === "shop" ? shopId : undefined); }, [role, cityId, shopId]);
+  useEffect(() => { writeParams(role, cityId, persona, persona === "shopkeeper" || role === "shop" ? shopId : undefined); }, [role, cityId, shopId, persona]);
 
   const city = cities.find((c) => c.id === cityId) ?? cities[0];
-  const tabs: { id: Role; label: string; hint: string }[] = [
+  const me = PERSONAS.find((p) => p.id === persona)!;
+  const [cityShops, setCityShops] = useState<Shop[]>([]);
+  useEffect(() => {
+    let alive = true;
+    api.shops(cityId).then((x) => { if (alive) setCityShops(x); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [cityId, resetKey]);
+  const tabs: { id: Role; label: string; hint: string }[] = ([
     { id: "shopper", label: "Shopper", hint: "Ask in any language" },
-    { id: "shop", label: "Shop", hint: "Reply with photo proof" },
-    { id: "business", label: "Business", hint: "Unmet demand" },
+    { id: "shop", label: persona === "shopkeeper" ? "My shop" : "Shop", hint: "Reply with photo proof" },
+    { id: "business", label: persona === "shopkeeper" ? "My analytics" : "Business", hint: "Demand and forecasts" },
     { id: "trust", label: "Trust report", hint: "How it decides" },
-  ];
-  const otherWindow = `${window.location.pathname}?role=${role === "shop" ? "shopper" : "shop"}&city=${cityId}`;
+  ] as { id: Role; label: string; hint: string }[]).filter((t) => me.tabs.includes(t.id));
+  const switchPersona = (p: Persona, shop?: string) => {
+    const nextShop = p === "shopkeeper" ? (shop || shopId || DEFAULT_SHOP[cityId] || "") : p === "admin" ? shopId : "";
+    identity.role = p;
+    identity.shop = nextShop;
+    setPersona(p);
+    if (nextShop !== shopId) setShopId(nextShop);
+    const allowed = PERSONAS.find((x) => x.id === p)!.tabs;
+    if (!allowed.includes(role)) setRole(allowed[0]);
+    setResetKey((k) => k + 1);
+  };
+  const otherWindow = persona === "shopper"
+    ? `${window.location.pathname}?as=shopkeeper&role=shop&city=${cityId}&shop=${DEFAULT_SHOP[cityId] ?? ""}`
+    : `${window.location.pathname}?as=shopper&role=shopper&city=${cityId}`;
 
   return (
     <div className="np-google min-h-dvh bg-slate-950 text-slate-100">
@@ -1691,7 +1853,31 @@ export default function LoopApp() {
                 <Chip tone={providers.live_model ? "green" : "amber"}>{providers.gemini.label}{providers.live_model ? ` · ${providers.gemini.model}` : ""}</Chip>
               </span>
             )}
-            <button type="button" onClick={() => api.reset().then(() => setResetKey((k) => k + 1))} className="text-xs text-slate-400 underline hover:text-slate-200">Reset data</button>
+            {persona === "admin" && <button type="button" onClick={() => api.reset().then(() => setResetKey((k) => k + 1))} className="text-xs text-slate-400 underline hover:text-slate-200">Reset data</button>}
+          </div>
+        </div>
+        <div className="mx-auto max-w-5xl px-4 pb-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-slate-700 bg-slate-900 px-3 py-2" role="group" aria-label="Your role">
+            <span className={`rounded-full px-3 py-1 text-sm font-semibold ${me.tone}`}>{me.label}</span>
+            <label htmlFor="persona" className="text-sm text-slate-400">Signed in as</label>
+            <select id="persona" value={persona} onChange={(e) => switchPersona(e.target.value as Persona)}
+              className="rounded-lg border border-slate-600 bg-slate-950 px-2 py-1.5 text-sm font-semibold">
+              {PERSONAS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+            {persona === "shopkeeper" && (
+              <>
+                <label htmlFor="persona-shop" className="text-sm text-slate-400">of</label>
+                <select id="persona-shop" value={shopId} onChange={(e) => switchPersona("shopkeeper", e.target.value)}
+                  className="max-w-[16rem] rounded-lg border border-slate-600 bg-slate-950 px-2 py-1.5 text-sm font-semibold">
+                  {cityShops.filter((x) => x.source === "demo").map((x) => <option key={x.id} value={x.id}>{x.name} · {x.area}</option>)}
+                  {cityShops.some((x) => x.source !== "demo") && <optgroup label="Nearby shops from the map">
+                    {cityShops.filter((x) => x.source !== "demo").map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                  </optgroup>}
+                </select>
+              </>
+            )}
+            <span className="text-xs text-slate-400">{me.does}</span>
+            <span className="ml-auto text-[11px] text-slate-500" title="Role and shop are checked by the server on every private action. Production would use Firebase Authentication.">Demo sign-in · server-checked</span>
           </div>
         </div>
         <div className="mx-auto max-w-5xl px-4 pb-2">
@@ -1705,18 +1891,18 @@ export default function LoopApp() {
               {t.label} <span className="hidden text-xs text-slate-500 xl:inline">· {t.hint}</span>
             </button>
           ))}
-          <a href={otherWindow} target="_blank" rel="noreferrer" className="ml-auto self-center pb-2 text-xs text-teal-300 hover:underline">Open {role === "shop" ? "shopper" : "shop"} view in a new window ↗</a>
+          <a href={otherWindow} target="_blank" rel="noreferrer" className="ml-auto self-center pb-2 text-xs text-teal-300 hover:underline">Open {persona === "shopper" ? "shopkeeper" : "shopper"} view in a new window ↗</a>
         </nav>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-6" key={`${resetKey}-${cityId}`}>
         <ErrorNote message={error} />
         {city && role === "shopper" && <ShopperView city={city} loc={loc && loc.cityId === city.id ? loc : null}
           onMoved={(c, lat, lng, label) => applyLocation(c, lat ?? c.lat ?? 0, lng ?? c.lng ?? 0, label ?? c.name, loc?.source ?? "openstreetmap", loc?.shopsFound ?? 0, false)} />}
-        {city && role === "shop" && <ShopView city={city} shopId={shopId} setShopId={setShopId} onOpenBusiness={() => setRole("business")} />}
+        {city && role === "shop" && <ShopView city={city} shopId={shopId} setShopId={setShopId} locked={persona === "shopkeeper"} onOpenBusiness={() => setRole("business")} />}
         {role === "trust" && <TrustView />}
         {role === "engines" && <TrustView focusEngines />}
-        {city && role === "business" && <BusinessView city={city} shopId={shopId} bigquery={providers?.analytics?.backend === "bigquery"} />}
-        <p className="mt-10 text-xs text-slate-500">Onboarded shops in Singapore, São Paulo and Mumbai are sample businesses with seeded history. Real shops come from public map data and are never contacted by NeedProof. The app never buys anything; listings are shop claims until a photo is checked.</p>
+        {city && role === "business" && <BusinessView city={city} shopId={shopId} ownShopOnly={persona === "shopkeeper"} bigquery={providers?.analytics?.backend === "bigquery"} />}
+        <p className="mt-10 text-xs text-slate-500">Onboarded shops in Singapore, São Paulo and Mumbai are sample businesses with seeded history. Real shops come from public map data and are contacted only when a shopper chooses to send them a WhatsApp request. The app never buys anything; listings are shop claims until a photo is checked.</p>
       </main>
     </div>
   );

@@ -110,7 +110,8 @@ def _segment_name(seg: dict) -> str:
 
 def shop_analytics(city: str, shop_id: str | None = None) -> dict:
     shops = [s for s in store.shops_in_city(city) if s["source"] == "demo"] or store.shops_in_city(city)
-    shop = next((s for s in shops if s["id"] == shop_id), shops[0] if shops else {"id": f"{city}-shop", "name": "Shop"})
+    own = store.shop(shop_id) if shop_id else None
+    shop = own if own and own["city"] == city else (shops[0] if shops else {"id": f"{city}-shop", "name": "Shop"})
     currency = CITIES[city]["currency"]
     sales = _sales_history(shop["id"], city)
     # Confirmed sales of this charger in the app are added to the seeded history on their day.

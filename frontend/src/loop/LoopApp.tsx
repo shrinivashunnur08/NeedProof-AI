@@ -4,7 +4,7 @@ import {
   api, photoToBase64, fileToBase64, type Draft, type InventoryItem, type InventoryUpload,
   type Brief, type ChatResult, type City, type Insights, type Intent, type LoopRequest, type NearbyShop, type Offer,
   type PhotoCheck, type ShopResponse, type ShopperLocation,
-  type Providers, type Shop, type Analytics, type Profile, type BqForecast, type TrustReport, type ShopDashboard, type Basket,
+  type Providers, type Shop, type Analytics, type Profile, type BqForecast, type TrustReport, type ShopDashboard, type Basket, type ProofPlan,
 } from "./api";
 
 type Role = "shopper" | "shop" | "business" | "trust";
@@ -179,6 +179,27 @@ function ShopMap({ origin, pins }: { origin?: { lat?: number | null; lng?: numbe
         ))}
       </figcaption>
     </figure>
+  );
+}
+
+function ProofPlanCard({ p }: { p: ProofPlan }) {
+  if (!p.ranked.length) return null;
+  return (
+    <details className="mt-3 rounded-xl border border-slate-700/70 bg-slate-900/40 p-3" open>
+      <summary className="cursor-pointer select-none text-sm font-semibold text-slate-100">Who is worth asking for proof first <span className="text-xs font-normal text-slate-400">· {p.advice}</span></summary>
+      <table className="mt-2 w-full text-sm">
+        <thead className="text-left text-xs text-slate-500"><tr><th className="py-1">Shop</th><th>Has it?</th><th>Replies</th><th title="Expected benefit of getting proof minus the cost of waiting (EVSI)">Value of asking</th><th /></tr></thead>
+        <tbody>{p.ranked.map((r) => (
+          <tr key={r.shop_id} className="border-t border-slate-800 text-slate-300">
+            <td className="py-1 text-slate-100">{r.shop}<span className="block text-[11px] text-slate-500">{r.basis}</span></td>
+            <td className="font-mono">{Math.round(r.p_has_it * 100)}%</td>
+            <td className="font-mono">{Math.round(r.reply_chance * 100)}%<span className="ml-1 font-sans text-[10px] text-slate-500">{r.history}</span></td>
+            <td className="font-mono">{r.net_value > 0 ? "+" : ""}{p.currency ?? ""} {r.net_value.toFixed(2)}</td>
+            <td>{r.worth_asking ? <Chip tone="green">Worth asking</Chip> : <Chip>{r.skip_reason ? r.skip_reason.replaceAll("_", " ").toLowerCase() : "low value"}</Chip>}</td>
+          </tr>))}</tbody>
+      </table>
+      <p className="mt-1 text-[11px] text-slate-500">{p.engine}. {p.assumptions}</p>
+    </details>
   );
 }
 
@@ -492,6 +513,7 @@ function AssistantTurn({ turn, version }: { turn: Turn; version: number }) {
       </p>
       {r?.basket && <BasketCard b={r.basket} />}
       {r && r.offers.length > 0 && <ul className="mt-3 space-y-2">{r.offers.map((o) => <OfferCard key={o.shop_id + o.listing} offer={o} live={liveFor(o)} />)}</ul>}
+      {r?.proof_plan && r.offers.length > 0 && <ProofPlanCard p={r.proof_plan} />}
       {r?.nearby && <NearbyList shops={r.nearby} live={latestByShop} />}
       {r && (r.offers.length > 0 || (r.nearby ?? []).length > 0) && (
         <ShopMap origin={r.location?.lat != null ? r.location : r.location ? { lat: r.location.city.lat, lng: r.location.city.lng, label: r.location.city.name } : null} pins={[

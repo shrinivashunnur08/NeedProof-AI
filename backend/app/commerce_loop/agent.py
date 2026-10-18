@@ -103,6 +103,7 @@ class ShopperAgent:
         self.offers: list[dict] = []
         self.request: dict | None = None
         self.basket: dict | None = None
+        self.proof_plan: dict | None = None
         self.language = "en"
 
     # ---- tools (exposed to Gemini through function calling) ----
@@ -159,6 +160,15 @@ class ShopperAgent:
                                   "budget_amount": budget_amount},
                   f"{len(offers)} listed offers, {sum(o['usable'] for o in offers)} usable, "
                   f"{len(self.nearby)} real shops nearby without a listing")
+        try:
+            from app.commerce_loop.proof_plan import plan as proof_plan
+
+            self.proof_plan = proof_plan(city_id, offers, self.nearby, budget_amount or None, CITIES[city_id]["currency"])
+            result["proof_plan"] = {"advice": self.proof_plan["advice"],
+                                    "ranked": [{k: r[k] for k in ("shop", "worth_asking", "net_value")}
+                                               for r in self.proof_plan["ranked"][:4]]}
+        except Exception as exc:  # noqa: BLE001 - advisory only
+            self._log("proof_plan", {}, f"error: {type(exc).__name__}")
         verified = any(o["usable"] and o["photo_proof"] == "PHOTO_MATCHES_REQUEST" for o in offers)
         if not verified and city_id == self.city:
             # Same step, no extra model round trip: send the need to nearby shops for photo proof.
@@ -344,7 +354,7 @@ class ShopperAgent:
 
         return {**base, "reply": reply or "Sorry, I could not answer that. Please try again.", "mode": mode,
                 "model": meta, "trace": self.trace, "offers": self.offers, "nearby": self.nearby,
-                "request": self.request, "profile": self.profile, "basket": self.basket,
+                "request": self.request, "profile": self.profile, "basket": self.basket, "proof_plan": self.proof_plan,
                 "addon": addon_suggestion(self.city, intent.item or "") if self.offers or self.request else None}
 
     # ---- personalization ----

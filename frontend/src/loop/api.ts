@@ -34,7 +34,12 @@ export type ChatResult = {
   trace: TraceStep[]; offers: Offer[]; request: { id: number; shops_notified: number } | null;
   intent?: Intent; intent_model?: { mode?: string; latency_ms?: number }; nearby?: NearbyShop[];
   location?: { city: City; lat?: number; lng?: number; label?: string };
-  remembered?: string[]; profile?: Profile | null; basket?: Basket | null; addon?: { item: string; share_pct: number; note: string } | null;
+  remembered?: string[]; profile?: Profile | null; basket?: Basket | null; proof_plan?: ProofPlan | null; addon?: { item: string; share_pct: number; note: string } | null;
+};
+export type ProofPlan = {
+  engine: string; advice: string; verified_available: boolean; currency?: string; assumptions?: string;
+  ranked: { shop: string; shop_id: string; basis: string; history: string; price: string | null; p_has_it: number;
+    reply_chance: number; net_value: number; worth_asking: boolean; skip_reason: string | null }[];
 };
 export type Basket = {
   status: string; items: string[]; budget: string | null; max_shops: number; solver: string; currency: string;

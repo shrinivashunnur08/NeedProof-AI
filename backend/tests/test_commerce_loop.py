@@ -472,3 +472,15 @@ def test_agent_plans_basket_for_several_items(client):
     pt = client.post("/api/v2/loop/agent/chat", json={"city": "singapore", "history": [
         {"role": "user", "text": "我需要一个65W充电器和一个充电宝"}]}).json()
     assert pt["basket"] and len(pt["basket"]["lines"]) == 2
+
+
+def test_proof_plan_ranks_who_to_ask(client):
+    body = client.post("/api/v2/loop/agent/chat", json={"city": "singapore", "history": [
+        {"role": "user", "text": "65W USB-C PD charger under S$60"}]}).json()
+    pp = body["proof_plan"]
+    assert pp["engine"].startswith("EVSI") and pp["ranked"]
+    top = pp["ranked"][0]
+    assert top["shop"] == "Harbour Tech" and top["worth_asking"] and top["history"] == "assumed"
+    lion = next(r for r in pp["ranked"] if r["shop"] == "Lion City Mobiles")
+    assert lion["p_has_it"] < top["p_has_it"] and lion["net_value"] < top["net_value"]
+    assert "Harbour Tech" in pp["advice"]

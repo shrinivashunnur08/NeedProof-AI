@@ -67,6 +67,8 @@ class ChatIn(BaseModel):
     lat: float | None = Field(default=None, ge=-90, le=90)
     lng: float | None = Field(default=None, ge=-180, le=180)
     location_label: str | None = Field(default=None, max_length=120)
+    shopper_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{3,40}$")
+    shopper_name: str = Field(default="Shopper", max_length=40)
 
 
 class LocateIn(BaseModel):
@@ -95,7 +97,7 @@ def agent_chat(body: ChatIn):
     if body.history[-1].role != "user" or not body.history[-1].text.strip():
         raise HTTPException(status_code=422, detail="Last turn must be a non-empty user message")
     origin = {"lat": body.lat, "lng": body.lng, "label": body.location_label} if body.lat is not None else None
-    agent = ShopperAgent(city, origin=origin)
+    agent = ShopperAgent(city, origin=origin, shopper_id=body.shopper_id, shopper_name=body.shopper_name)
     return agent.chat([t.model_dump() for t in body.history])
 
 
@@ -179,6 +181,26 @@ def reply_with_photo(request_id: int, body: PhotoReplyIn):
     return {"response_id": response_id, **result}
 
 
+@router.get("/shoppers/{shopper_id}")
+def shopper_profile(shopper_id: str):
+    return {"profile": store.get_profile(shopper_id)}
+
+
+@router.delete("/shoppers/{shopper_id}")
+def forget_shopper(shopper_id: str):
+    """'Forget me': deletes the saved profile. Past requests stay anonymous (no profile link is shown)."""
+    store.forget_profile(shopper_id)
+    store.execute("UPDATE requests SET shopper_id=NULL WHERE shopper_id=?", (shopper_id,))
+    return {"forgotten": True}
+
+
+@router.get("/cities/{city}/analytics")
+def analytics(city: str, shop_id: str | None = None):
+    from app.commerce_loop.analytics import shop_analytics
+
+    return shop_analytics(_city(city), shop_id)
+
+
 @router.get("/cities/{city}/insights")
 def insights(city: str):
     return city_demand(_city(city))
@@ -193,7 +215,7 @@ class BriefIn(BaseModel):
 def brief(city: str, body: BriefIn):
     city = _city(city)
     shop = store.shop(body.shop_id) if body.shop_id else None
-    return demand_brief(city, body.language, shop["name"] if shop else None)
+    return demand_brief(city, body.language, shop["name"] if shop else None, shop_id=body.shop_id)
 
 
 @router.get("/models")

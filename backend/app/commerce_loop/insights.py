@@ -67,8 +67,17 @@ Write in the requested language."""
 
 
 def demand_brief(city: str, language: str = "en", shop_name: str | None = None,
-                 gemini: Gemini | None = None) -> dict:
+                 gemini: Gemini | None = None, shop_id: str | None = None) -> dict:
     data = city_demand(city)
+    from app.commerce_loop.analytics import shop_analytics
+
+    a = shop_analytics(city, shop_id)
+    shop_facts = {"forecast_next_7_days_units": a["forecast"]["next_7_days_units"],
+                  "forecast_model": a["forecast"]["selected_model"], "on_hand": a["inventory"]["on_hand"],
+                  "stock_status": a["inventory"]["status"], "shortfall_units": a["inventory"]["shortfall_units"],
+                  "top_basket_rule": next((r for r in a["baskets"]["rules"] if r["if_bought"] == a["forecast"]["product"]),
+                                            a["baskets"]["rules"][0] if a["baskets"]["rules"] else None),
+                  "segments": [{k: s[k] for k in ("name", "share_pct")} for s in a["segments"]["items"]]}
     top = data["products"][:4]
     compact = [{k: p[k] for k in ("product", "asks", "answered", "unmet", "avg_budget", "last_7_days",
                                   "previous_7_days", "growth_pct", "forecast_next_7_days")} for p in top]
@@ -77,9 +86,13 @@ def demand_brief(city: str, language: str = "en", shop_name: str | None = None,
         try:
             prompt = (f"Shop: {shop_name or 'a local electronics shop'} in {data['city']}. Language: {language}.\n"
                       f"Demand over the last 28 days (asks = shopper requests, unmet = nobody confirmed stock):\n"
-                      f"{json.dumps(compact, ensure_ascii=False)}")
+                      f"{json.dumps(compact, ensure_ascii=False)}\n"
+                      f"This shop's own analytics (charger sales forecast, stock, baskets, segments; synthetic demo history):\n"
+                      f"{json.dumps(shop_facts, ensure_ascii=False)}\n"
+                      "Use the stock shortfall and the basket rule in the actions when they matter.")
             brief, meta = gemini.generate_json(prompt, DemandBrief, system=BRIEF_SYSTEM)
-            return {"brief": brief.model_dump(), "mode": "gemini", "model": meta, "data": compact}
+            return {"brief": brief.model_dump(), "mode": "gemini", "model": meta, "data": compact,
+                    "shop_facts": shop_facts}
         except GeminiUnavailable as exc:
             meta = {"error": str(exc)}
     else:
@@ -89,12 +102,17 @@ def demand_brief(city: str, language: str = "en", shop_name: str | None = None,
         headline=(f"{p['unmet']} shoppers in {data['city']} asked for {p['product']} and nobody confirmed stock."
                   if p else "No demand recorded yet."),
         actions=([f"Stock {p['product']} (typical budget {p['avg_budget']}).",
-                  f"Reply to open requests with a photo; demand grew {p['growth_pct']}% week on week.",
-                  f"Plan for about {p['forecast_next_7_days']} requests next week."] if p else []),
+                  f"Reply to open requests with a photo; demand {'grew' if p['growth_pct'] >= 0 else 'changed'} "
+                  f"{p['growth_pct']:+}% week on week.",
+                  f"Plan for about {p['forecast_next_7_days']} requests next week."]
+                 + ([f"Stock: {shop_facts['on_hand']} on hand vs {shop_facts['forecast_next_7_days_units']} forecast sales; "
+                     f"bundle a {shop_facts['top_basket_rule']['also_bought']} "
+                     f"({round(shop_facts['top_basket_rule']['confidence_pct'])}% of buyers add it)."]
+                    if shop_facts["top_basket_rule"] else []) if p else []),
         biggest_gap=p["product"] if p else "",
         caution="Based on seeded demo history plus live app requests.")
     return {"brief": brief.model_dump(), "mode": "mock" if gemini.is_mock else "fallback_mock", "model": meta,
-            "data": compact}
+            "data": compact, "shop_facts": shop_facts}
 
 
 def export_events_ndjson(path: str | Path) -> int:

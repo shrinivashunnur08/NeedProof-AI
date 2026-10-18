@@ -3,7 +3,7 @@ import {
   api, photoToBase64,
   type Brief, type ChatResult, type City, type Insights, type Intent, type LoopRequest, type NearbyShop, type Offer,
   type PhotoCheck, type ShopResponse, type ShopperLocation,
-  type Providers, type Shop,
+  type Providers, type Shop, type Analytics, type Profile,
 } from "./api";
 
 type Role = "shopper" | "shop" | "business";
@@ -271,7 +271,54 @@ function LocationBar({ loc, busy, error, onDetect, onSearch, demo }: {
   );
 }
 
+
+function EvidenceDrawer({ offer, live }: { offer: Offer; live?: ShopResponse }) {
+  const status = live?.status ?? offer.photo_proof;
+  const steps: { label: string; detail: string; state: "done" | "bad" | "todo" }[] = [
+    { label: "Shop listing", detail: `${offer.listing}, ${offer.price}, ${offer.listed_stock > 0 ? `${offer.listed_stock} in stock` : "out of stock"} (the shop's own claim)`, state: "done" },
+    {
+      label: "Photo proof read by Gemini Vision",
+      detail: status === "PHOTO_MATCHES_REQUEST" ? "Photo matches the request"
+        : status && status !== "NONE" ? (STATUS_TEXT[status] ?? status) : "Not sent yet; the shop has been asked",
+      state: status === "PHOTO_MATCHES_REQUEST" ? "done" : status && status !== "NONE" ? "bad" : "todo",
+    },
+    { label: "Independent verification", detail: "Not available in this demo (for example a marketplace audit or a store visit)", state: "todo" },
+  ];
+  const d = offer.decision;
+  return (
+    <div className="mt-3 space-y-3 rounded-lg border border-slate-700 bg-slate-950/60 p-3 text-xs">
+      <div>
+        <p className="font-semibold uppercase tracking-wide text-slate-400">Evidence ladder</p>
+        <ol className="mt-1.5 space-y-1.5">
+          {steps.map((st, i) => (
+            <li key={st.label} className="flex gap-2">
+              <span className={`mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${st.state === "done" ? "bg-emerald-500 text-slate-950" : st.state === "bad" ? "bg-rose-500 text-slate-950" : "bg-slate-700 text-slate-300"}`}>{i + 1}</span>
+              <span><span className="text-slate-100">{st.label}</span> <span className="text-slate-400">· {st.detail}</span></span>
+            </li>
+          ))}
+        </ol>
+      </div>
+      <div>
+        <p className="font-semibold uppercase tracking-wide text-slate-400">Spec check against your need</p>
+        <p className="mt-1 text-emerald-300">{offer.spec_check.matches.join(" · ") || "No matching specs confirmed"}</p>
+        {offer.spec_check.issues.length > 0 && <p className="text-rose-300">{offer.spec_check.issues.join(" · ")}</p>}
+      </div>
+      <div>
+        <p className="font-semibold uppercase tracking-wide text-slate-400">Decision engine (Evidence Passport + Next-Best-Proof)</p>
+        <p className="mt-1 text-slate-200">{d.state_text}{d.trust_state ? ` · trust: ${d.trust_state.replaceAll("_", " ").toLowerCase()}` : ""}{d.conflicts ? ` · ${d.conflicts} conflicts` : ""}</p>
+        {d.next_checks && d.next_checks.length > 0 && (
+          <ol className="mt-1.5 list-decimal space-y-1 pl-4 text-slate-300">
+            {d.next_checks.map((c) => <li key={c.label}><span className="text-slate-100">{c.label}</span> · {c.reason}</li>)}
+          </ol>
+        )}
+        <p className="mt-1.5 text-slate-500">Purchase is never authorised by the app{d.snapshot_sha256 ? ` · snapshot ${d.snapshot_sha256.slice(0, 12)}` : ""}</p>
+      </div>
+    </div>
+  );
+}
+
 function OfferCard({ offer, live }: { offer: Offer; live?: ShopResponse }) {
+  const [open, setOpen] = useState(false);
   const status = live?.status ?? offer.photo_proof;
   const verified = status === "PHOTO_MATCHES_REQUEST";
   return (
@@ -293,6 +340,10 @@ function OfferCard({ offer, live }: { offer: Offer; live?: ShopResponse }) {
         Decision engine: <span className="text-slate-200">{offer.decision.state_text}</span>
         {offer.decision.next_best_proof ? <> · next proof: <span className="text-slate-200">{offer.decision.next_best_proof.replaceAll("_", " ").toLowerCase()}</span></> : null}
       </p>
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="mt-2 text-xs font-semibold text-indigo-300 hover:underline">
+        {open ? "Hide evidence" : "Why this answer? See the evidence"}
+      </button>
+      {open && <EvidenceDrawer offer={offer} live={live} />}
     </li>
   );
 }
@@ -336,6 +387,11 @@ function AssistantTurn({ turn, version }: { turn: Turn; version: number }) {
   return (
     <div className="max-w-[46rem] rounded-2xl rounded-tl-sm border border-slate-700/60 bg-slate-800/60 p-4">
       {r?.intent && <IntentCard intent={r.intent} mode={r.intent_model?.mode} latency={r.intent_model?.latency_ms} />}
+      {r?.remembered && r.remembered.length > 0 && (
+        <p className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-violet-200">
+          <Chip tone="teal">Remembered</Chip>{r.remembered.join(" · ")}<span className="text-slate-400">(say otherwise to change it)</span>
+        </p>
+      )}
       <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-slate-100">
         {turn.text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
           part.startsWith("**") && part.endsWith("**") ? <strong key={i}>{part.slice(2, -2)}</strong> : part.replace(/^\* /gm, "• "))}
@@ -343,6 +399,11 @@ function AssistantTurn({ turn, version }: { turn: Turn; version: number }) {
       {r && r.offers.length > 0 && <ul className="mt-3 space-y-2">{r.offers.map((o) => <OfferCard key={o.shop_id + o.listing} offer={o} live={latestByShop.get(o.shop_id)} />)}</ul>}
       {r?.nearby && <NearbyList shops={r.nearby} live={latestByShop} />}
       {r?.request && <RequestTracker requestId={r.request.id} req={req} />}
+      {r?.addon && (
+        <p className="mt-3 rounded-lg border border-violet-400/30 bg-violet-500/10 px-3 py-2 text-sm text-violet-100">
+          Tip for you: {r.addon.note}. Ask the shop if you need one too. <span className="text-xs text-slate-400">(basket analysis, 14B.2)</span>
+        </p>
+      )}
       {r && (
         <details className="mt-3 text-xs text-slate-400">
           <summary className="cursor-pointer select-none text-slate-300">How the agent worked ({r.trace.length} tool calls · {r.mode === "gemini" ? `Gemini ${r.model.latency_ms ?? "?"} ms` : r.mode})</summary>
@@ -366,8 +427,20 @@ function ShopperView({ city, loc, onMoved }: { city: City; loc: ShopperLocation 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
+  const persona = PERSONA[city.id] ?? "Demo shopper";
+  const shopperId = `demo-${city.id}-${persona.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`.slice(0, 40);
+  const [profile, setProfile] = useState<Profile | null>(null);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [turns]);
+  useEffect(() => {
+    let alive = true;
+    api.profile(shopperId).then((x) => { if (alive) setProfile(x.profile); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [shopperId]);
+
+  async function forget() {
+    try { await api.forget(shopperId); setProfile(null); } catch (e) { setError(e instanceof Error ? e.message : "Could not forget profile"); }
+  }
 
   async function send(text: string) {
     const message = text.trim();
@@ -375,8 +448,10 @@ function ShopperView({ city, loc, onMoved }: { city: City; loc: ShopperLocation 
     const next: Turn[] = [...turns, { role: "user", text: message }];
     setTurns(next); setDraft(""); setBusy(true); setError("");
     try {
-      const result = await api.chat(city.id, next.map((t) => ({ role: t.role, text: t.text })), loc && loc.cityId === city.id ? loc : null);
+      const result = await api.chat(city.id, next.map((t) => ({ role: t.role, text: t.text })), loc && loc.cityId === city.id ? loc : null,
+        { id: shopperId, name: persona });
       setTurns([...next, { role: "assistant", text: result.reply, result }]);
+      if (result.profile !== undefined) setProfile(result.profile);
       if (result.location && result.location.city.id !== city.id) {
         onMoved(result.location.city, result.location.lat, result.location.lng, result.location.label);
       }
@@ -390,9 +465,19 @@ function ShopperView({ city, loc, onMoved }: { city: City; loc: ShopperLocation 
   return (
     <section aria-label="Shopper assistant" className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-slate-400">Shopping as <span className="font-semibold text-slate-200">{PERSONA[city.id] ?? "Demo shopper"} (demo)</span> in {city.name} ({city.symbol}). Write in any language.</p>
+        <p className="text-sm text-slate-400">Shopping as <span className="font-semibold text-slate-200">{persona} (demo)</span> in {city.name} ({city.symbol}). Write in any language.</p>
         {turns.length > 0 && <button type="button" onClick={() => setTurns([])} className="text-xs text-slate-400 underline hover:text-slate-200">New conversation</button>}
       </div>
+      {profile && (profile.device || profile.needs.length > 0 || profile.budget) && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-violet-400/30 bg-violet-500/5 px-3 py-2 text-xs text-slate-300">
+          <span className="font-semibold text-violet-200">What NeedProof remembers about {persona}:</span>
+          {profile.device && <Chip>device {profile.device}</Chip>}
+          {profile.budget && <Chip>usual budget {city.symbol}{profile.budget}</Chip>}
+          {profile.language && <Chip>language {profile.language}</Chip>}
+          {profile.needs.slice(-3).map((n, i) => <Chip key={i}>{n.item}{n.wattage_w ? ` ${n.wattage_w}W` : ""}{n.at ? ` · ${n.at}` : ""}</Chip>)}
+          <button type="button" onClick={() => void forget()} className="ml-auto text-rose-200 underline hover:text-rose-100">Forget me</button>
+        </div>
+      )}
       {turns.length === 0 && (
         <div className="flex flex-wrap gap-2">
           {(SAMPLE_PROMPTS[city.id] ?? ["I need a 65W USB-C PD charger for my laptop today", "I need a laptop charger", "USB-C cable for fast charging near me"]).map((p) => (
@@ -544,6 +629,7 @@ function ShopView({ city, shopId, setShopId }: { city: City; shopId: string; set
                 <p className="font-semibold text-slate-100">#{r.id} · {r.product}</p>
                 <div className="flex gap-1.5">
                   {seen && !seen.has(r.id) && <Chip tone="teal">New</Chip>}
+                  {(r.shopper_past_requests ?? 0) > 0 && <Chip tone="slate">Returning shopper · {r.shopper_past_requests} past</Chip>}
                   {r.status === "ANSWERED" ? <Chip tone="green">Answered</Chip> : <Chip tone="amber">Open</Chip>}
                   {mine && <StatusChip status={mine.status} />}
                 </div>
@@ -576,6 +662,114 @@ function Sparkline({ values }: { values: number[] }) {
   );
 }
 
+function Bands({ a }: { a: Analytics["forecast"] }) {
+  const all = [...a.history, ...a.daily.map((d) => d.high)];
+  const max = Math.max(1, ...all);
+  const n = a.history.length + a.daily.length;
+  const w = 560, h = 120;
+  const x = (i: number) => (i / (n - 1)) * w;
+  const y = (v: number) => h - (v / max) * (h - 8) - 4;
+  const hist = a.history.map((v, i) => `${x(i)},${y(v)}`).join(" ");
+  const off = a.history.length;
+  const band = [...a.daily.map((d, i) => `${x(off + i)},${y(d.high)}`), ...[...a.daily].reverse().map((d, i) => `${x(off + a.daily.length - 1 - i)},${y(d.low)}`)].join(" ");
+  const fc = [`${x(off - 1)},${y(a.history[off - 1] ?? 0)}`, ...a.daily.map((d, i) => `${x(off + i)},${y(d.units)}`)].join(" ");
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="h-32 w-full" role="img" aria-label="Daily units sold, last 28 days, and 7-day forecast with an 80% band">
+      <polygon points={band} className="fill-violet-400/20" />
+      <polyline points={hist} fill="none" strokeWidth="1.5" className="stroke-teal-300" />
+      <polyline points={fc} fill="none" strokeWidth="2" strokeDasharray="4 3" className="stroke-violet-300" />
+      <line x1={x(off - 1)} x2={x(off - 1)} y1={0} y2={h} className="stroke-slate-600" strokeDasharray="2 3" />
+    </svg>
+  );
+}
+
+function ShopAnalytics({ city }: { city: City }) {
+  const [shops, setShops] = useState<Shop[]>([]);
+  const [shopId, setShopId] = useState("");
+  const [a, setA] = useState<Analytics | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let alive = true;
+    api.shops(city.id).then((x) => { if (alive) setShops(x.filter((s) => s.source === "demo")); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [city.id]);
+  useEffect(() => {
+    let alive = true;
+    api.analytics(city.id, shopId || undefined).then((x) => { if (alive) { setA(x); setError(""); } })
+      .catch((e) => { if (alive) setError(e instanceof Error ? e.message : "Analytics failed"); });
+    return () => { alive = false; };
+  }, [city.id, shopId]);
+  const status = a?.inventory.status ?? "";
+  return (
+    <section aria-label="Shop analytics" className="flex flex-col gap-3 rounded-xl border border-slate-700 bg-slate-900/40 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-base font-semibold text-slate-100">Shop analytics{a ? `: ${a.shop.name}` : ""}</h2>
+        {shops.length > 1 && (
+          <label className="text-xs text-slate-400">Shop{" "}
+            <select value={shopId || a?.shop.id || ""} onChange={(e) => setShopId(e.target.value)} className="rounded-lg border border-slate-600 bg-slate-950 px-2 py-1 text-sm text-slate-100">
+              {shops.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </label>
+        )}
+      </div>
+      <ErrorNote message={error} />
+      {a && (
+        <>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="rounded-lg border border-slate-700 p-3">
+              <p className="text-xs uppercase tracking-wide text-slate-400">Sales forecast · {a.forecast.product}</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-50">{a.forecast.next_7_days_units} units <span className="text-sm font-normal text-slate-400">next 7 days</span></p>
+              <Bands a={a.forecast} />
+              <table className="mt-1 w-full text-xs">
+                <thead className="text-left text-slate-500"><tr><th>Model (backtested)</th><th>MAE</th><th>WAPE</th></tr></thead>
+                <tbody>{a.forecast.models.map((m) => (
+                  <tr key={m.model} className={m.model === a.forecast.selected_model ? "text-teal-200" : "text-slate-400"}>
+                    <td>{m.model}{m.model === a.forecast.selected_model ? " ✓ selected" : ""}</td><td className="font-mono">{m.mae}</td><td className="font-mono">{m.wape_pct ?? "–"}%</td>
+                  </tr>))}</tbody>
+              </table>
+              <p className="mt-1 text-[11px] text-slate-500">{a.forecast.method}</p>
+            </div>
+            <div className="rounded-lg border border-slate-700 p-3">
+              <p className="text-xs uppercase tracking-wide text-slate-400">Inventory risk · {a.inventory.sku}</p>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <span className="text-2xl font-semibold text-slate-50">{a.inventory.on_hand} on hand</span>
+                <Chip tone={/REVIEW|SHORT|RISK/.test(status) ? "amber" : "green"}>{status.replaceAll("_", " ").toLowerCase() || "ok"}</Chip>
+              </div>
+              <ul className="mt-2 space-y-1 text-sm text-slate-300">
+                <li>Stockout days (last 56): <span className="font-mono">{a.inventory.stockout_days_56}</span></li>
+                {a.inventory.coverage_days != null && <li>Coverage at current sales: <span className="font-mono">{a.inventory.coverage_days}</span> days</li>}
+                {a.inventory.shortfall_units != null && <li>Shortfall before the next delivery (5-day lead): <span className="font-mono text-rose-200">{a.inventory.shortfall_units}</span> units</li>}
+                {a.inventory.review_signals != null && <li>Stock records to review: <span className="font-mono">{a.inventory.review_signals}</span></li>}
+              </ul>
+              <p className="mt-2 text-[11px] text-slate-500">{a.inventory.method}</p>
+            </div>
+            <div className="rounded-lg border border-slate-700 p-3">
+              <p className="text-xs uppercase tracking-wide text-slate-400">Customer segments</p>
+              <ul className="mt-2 space-y-2">{a.segments.items.map((g) => (
+                <li key={g.name + g.count} className="text-sm">
+                  <div className="flex justify-between text-slate-200"><span>{g.name}</span><span className="font-mono">{g.share_pct}%</span></div>
+                  <div className="h-1.5 rounded bg-slate-800"><div className="h-1.5 rounded bg-teal-400/70" style={{ width: `${g.share_pct}%` }} /></div>
+                  <p className="text-xs text-slate-500">{g.count} customers · last visit ~{g.recency_days} d · {g.orders_90d} orders/90 d · {g.spend_90d}</p>
+                </li>))}</ul>
+              <p className="mt-2 text-[11px] text-slate-500">{a.segments.method}</p>
+            </div>
+            <div className="rounded-lg border border-slate-700 p-3">
+              <p className="text-xs uppercase tracking-wide text-slate-400">Basket analysis · bought together</p>
+              <ul className="mt-2 space-y-1.5 text-sm">{a.baskets.rules.map((r) => (
+                <li key={r.if_bought + r.also_bought} className="flex flex-wrap justify-between gap-2 text-slate-300">
+                  <span>{r.if_bought} → <span className="text-slate-100">{r.also_bought}</span></span>
+                  <span className="font-mono text-xs text-slate-400">{Math.round(r.confidence_pct)}% · lift {r.lift}</span>
+                </li>))}</ul>
+              <p className="mt-2 text-[11px] text-slate-500">{a.baskets.method} · {a.baskets.basket_count} baskets</p>
+            </div>
+          </div>
+          <p className="text-xs text-amber-200/80">{a.data_note}</p>
+        </>
+      )}
+    </section>
+  );
+}
+
 function BusinessView({ city }: { city: City }) {
   const [data, setData] = useState<Insights | null>(null);
   const [brief, setBrief] = useState<Brief | null>(null);
@@ -596,7 +790,8 @@ function BusinessView({ city }: { city: City }) {
   const maxUnmet = useMemo(() => Math.max(1, ...(data?.products.map((p) => p.unmet) ?? [1])), [data]);
   return (
     <section aria-label="Demand insights" className="flex flex-col gap-4">
-      <p className="text-sm text-slate-300">What shoppers in {city.name} asked for in the last 28 days, and how much of it no shop confirmed.</p>
+      <ShopAnalytics city={city} />
+      <p className="text-sm text-slate-300">City demand: what shoppers in {city.name} asked for in the last 28 days, and how much of it no shop confirmed.</p>
       <ErrorNote message={error} />
       <div className="overflow-x-auto rounded-xl border border-slate-700">
         <table className="w-full min-w-[640px] text-sm">

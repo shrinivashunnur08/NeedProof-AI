@@ -53,8 +53,13 @@ def _detect_language(text: str) -> str:
 
 
 class ShopperAgent:
-    def __init__(self, city: str, gemini: Gemini | None = None, origin: dict | None = None):
+    def __init__(self, city: str, gemini: Gemini | None = None, origin: dict | None = None,
+                 shopper_id: str | None = None, shopper_name: str = "Shopper"):
         self.city = city
+        self.shopper_id = shopper_id
+        self.shopper_name = shopper_name
+        self.profile = store.get_profile(shopper_id) if shopper_id else None
+        self.remembered: list[str] = []
         self.origin = origin or {}
         self.nearby: list[dict] = []
         self.intent: ShopperIntent | None = None
@@ -141,7 +146,8 @@ class ShopperAgent:
         specs = {k: v for k, v in {"wattage_w": required_wattage_w or None, "connector": connector or None}.items() if v}
         specs.update({k: v for k, v in required_specs_from_text(product).items() if k not in specs})
         currency = CITIES[self.city]["currency"]
-        rid = store.create_request(self.city, product, specs, budget_amount or None, currency, language, product)
+        rid = store.create_request(self.city, product, specs, budget_amount or None, currency, language, product,
+                                   shopper_id=self.shopper_id)
         shops = store.shops_in_city(self.city)
         self.request = {"id": rid, "shops_notified": len(shops), "product": product, "specs": specs,
                         "budget": budget_amount or None, "currency": currency}
@@ -224,6 +230,7 @@ class ShopperAgent:
         # Step 1: Gemini extracts a structured intent (item, specs, budget, urgency, place, missing info).
         self.intent, intent_meta = extract_intent(history, self.city, self.gemini)
         intent = self.intent
+        self._apply_profile(intent)
         self.language = intent.language or self.language
         filled = [k for k in ("item", "wattage_w", "connector", "budget_amount", "urgency", "location_text")
                   if getattr(intent, k)]
@@ -234,7 +241,8 @@ class ShopperAgent:
         if intent.location_text and intent.location_text.casefold() not in (self.origin.get("label") or "").casefold():
             self._resolve_location(intent.location_text)
         base = {"intent": intent.model_dump(), "intent_model": intent_meta,
-                "location": {"city": CITIES[self.city], **self.origin}}
+                "location": {"city": CITIES[self.city], **self.origin},
+                "remembered": self.remembered, "profile": self.profile}
         # Step 3: ask one follow-up question when the item, or a spec that decides the product, is missing.
         if self._needs_clarification(intent):
             return {**base, "reply": intent.clarifying_question or "Which item do you need?", "mode": "clarify",
@@ -250,15 +258,63 @@ class ShopperAgent:
                 context = (f"Shopper's location: {self.origin.get('label') or city['name']} "
                            f"(city {city['name']}, currency {city['currency']}).\n"
                            f"Extracted intent (use it for tool arguments): {intent.model_dump_json(exclude_none=True)}")
+                if self.remembered:
+                    context += ("\nFilled from this shopper's saved profile (mention it briefly so they can correct it): "
+                                + "; ".join(self.remembered))
                 reply, meta = self.gemini.run_agent(
                     system=SYSTEM + "\n" + context, history=history[-12:],
                     tools=[self.find_offers, self.ask_nearby_shops])
             except GeminiUnavailable as exc:
                 reply, mode = self._mock_reply(last), "fallback_mock"
                 meta = {"error": str(exc)}
+        self._save_profile(intent)
+        from app.commerce_loop.analytics import addon_suggestion
+
         return {**base, "reply": reply or "Sorry, I could not answer that. Please try again.", "mode": mode,
                 "model": meta, "trace": self.trace, "offers": self.offers, "nearby": self.nearby,
-                "request": self.request}
+                "request": self.request, "profile": self.profile,
+                "addon": addon_suggestion(self.city, intent.item or "") if self.offers or self.request else None}
+
+    # ---- personalization ----
+    def _apply_profile(self, intent: ShopperIntent) -> None:
+        """Fill gaps in this turn's intent from what the shopper told us before (never overrides this turn)."""
+        prof = self.profile
+        if not prof:
+            return
+        item = (intent.item or "").casefold()
+        past = next((n for n in reversed(prof.get("needs") or [])
+                     if item and n.get("item") and (n["item"].casefold() in item or item in n["item"].casefold()
+                                                    or ("charger" in item and "charger" in n["item"].casefold()))), None)
+        if not intent.device_model and prof.get("device"):
+            intent.device_model = prof["device"]
+            self.remembered.append(f"device {prof['device']}")
+        if past:
+            if not intent.wattage_w and past.get("wattage_w"):
+                intent.wattage_w = past["wattage_w"]
+                self.remembered.append(f"{past['wattage_w']}W from your last {past['item']}")
+            if not intent.connector and past.get("connector"):
+                intent.connector = past["connector"]
+                self.remembered.append(f"connector {past['connector']}")
+        if not intent.budget_amount and prof.get("budget") and prof.get("currency") == CITIES[self.city]["currency"]:
+            intent.budget_amount = prof["budget"]
+            intent.budget_currency = prof["currency"]
+            self.remembered.append(f"usual budget {Money(prof['budget'], prof['currency']).format()}")
+        if self.remembered:
+            intent.missing_info = [m for m in intent.missing_info
+                                   if not any(w in m.casefold() for w in ("watt", "device", "model", "budget"))]
+            intent.clarifying_question = None if intent.wattage_w or intent.device_model else intent.clarifying_question
+        self._log("shopper_profile", {"shopper": self.shopper_id},
+                  "remembered " + ("; ".join(self.remembered) if self.remembered else "nothing relevant"))
+
+    def _save_profile(self, intent: ShopperIntent) -> None:
+        if not self.shopper_id or not intent.item:
+            return
+        need = {"item": intent.item, "wattage_w": intent.wattage_w, "connector": intent.connector,
+                "at": store.now_iso()[:10]}
+        self.profile = store.save_profile(
+            self.shopper_id, self.city, self.shopper_name, device=intent.device_model,
+            budget=intent.budget_amount, currency=intent.budget_currency or CITIES[self.city]["currency"],
+            language=intent.language, need=need)
 
     @staticmethod
     def _needs_clarification(intent: ShopperIntent) -> bool:

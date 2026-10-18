@@ -68,8 +68,16 @@ def evaluate_offer(product: str, budget: float | None, price: float, stock: int)
     if isinstance(actions, list) and actions:
         first = actions[0]
         next_label = first.get("label") or first.get("title") or first.get("action_id") if isinstance(first, dict) else None
+    passport = result.get("evidence_passport") or {}
+    next_checks = [{"rank": a.get("rank"), "label": a.get("label"), "reason": a.get("reason"),
+                    "check": a.get("suggested_human_check")}
+                   for a in (queue.get("actions") or [])[:3] if isinstance(a, dict)]
     return {
         "engine": "17C orchestration + 17D passport + 17E next-best-proof",
+        "trust_state": passport.get("overall_trust_state"),
+        "unresolved": [u.get("label") for u in passport.get("unresolved_verification") or [] if isinstance(u, dict)],
+        "conflicts": len(passport.get("conflicts") or []),
+        "next_checks": next_checks,
         "workflow_state": state,
         "state_text": STATE_TEXT.get(state, state.replace("_", " ").title()),
         "next_best_proof": queue.get("recommended_action_id") or next_label,

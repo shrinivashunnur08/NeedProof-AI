@@ -192,7 +192,8 @@ def test_insights_and_brief(client):
     assert top["product_key"] == "65w usb-c pd charger" and top["unmet"] > 0
     assert len(top["daily_series"]) == 28 and top["live_asks"] >= 1
     brief = client.post("/api/v2/loop/cities/singapore/brief", json={"language": "en"}).json()
-    assert brief["brief"]["headline"] and len(brief["brief"]["actions"]) == 3
+    assert brief["brief"]["headline"] and len(brief["brief"]["actions"]) == 4
+    assert "bundle" in brief["brief"]["actions"][-1] and brief["shop_facts"]["forecast_model"]
 
 
 def test_disabled_in_production_unless_enabled(client, monkeypatch):
@@ -250,3 +251,34 @@ def test_locate_registers_real_city_and_shops(client, monkeypatch):
     assert body["request"]["shops_notified"] == 2
     shops = client.get("/api/v2/loop/cities/kuala-lumpur/shops").json()
     assert all(s["source"] == "openstreetmap" for s in shops)
+
+
+def test_shop_analytics_uses_14b_engines(client):
+    a = client.get("/api/v2/loop/cities/singapore/analytics").json()
+    assert a["currency"] == "SGD" and len(a["forecast"]["models"]) >= 3
+    assert a["forecast"]["selected_model"] and len(a["forecast"]["daily"]) == 7
+    assert a["inventory"]["status"] and a["segments"]["items"]
+    assert any(r["if_bought"].startswith("65W") for r in a["baskets"]["rules"])
+
+
+def test_profile_remembers_and_forgets(client):
+    sid = "test-shopper-1"
+    first = client.post("/api/v2/loop/agent/chat", json={
+        "city": "singapore", "shopper_id": sid, "shopper_name": "Mei",
+        "history": [{"role": "user", "text": "65W USB-C PD charger under S$60"}]}).json()
+    assert first["profile"]["needs"][-1]["wattage_w"] == 65
+    assert first["addon"] and "cable" in first["addon"]["item"].lower()
+    # A vague follow-up a week later is filled from the profile instead of asking again.
+    again = client.post("/api/v2/loop/agent/chat", json={
+        "city": "singapore", "shopper_id": sid,
+        "history": [{"role": "user", "text": "I need a laptop charger again"}]}).json()
+    assert again["mode"] != "clarify" and again["intent"]["wattage_w"] == 65
+    assert any("65W" in r for r in again["remembered"])
+    reqs = client.get("/api/v2/loop/cities/singapore/requests").json()
+    assert reqs[0]["shopper_past_requests"] >= 1
+    assert client.delete(f"/api/v2/loop/shoppers/{sid}").json()["forgotten"]
+    assert client.get(f"/api/v2/loop/shoppers/{sid}").json()["profile"] is None
+    fresh = client.post("/api/v2/loop/agent/chat", json={
+        "city": "singapore", "shopper_id": sid,
+        "history": [{"role": "user", "text": "I need a laptop charger"}]}).json()
+    assert fresh["mode"] == "clarify" and fresh["remembered"] == []

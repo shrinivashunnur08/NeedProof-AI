@@ -21,7 +21,11 @@ export type SpecCheck = { ok: boolean; issues: string[]; matches: string[] };
 export type Offer = {
   shop_id: string; shop: string; area: string; distance_km?: number | null; listing: string; price: string; currency: string;
   listed_stock: number; spec_check: SpecCheck; over_budget: boolean; usable: boolean; photo_proof: string;
-  decision: { workflow_state: string; state_text: string; next_best_proof: string | null; purchase_allowed: boolean };
+  decision: {
+    workflow_state: string; state_text: string; next_best_proof: string | null; purchase_allowed: boolean;
+    trust_state?: string; unresolved?: string[]; conflicts?: number; snapshot_sha256?: string;
+    next_checks?: { rank: number; label: string; reason: string; check: string }[];
+  };
 };
 export type TraceStep = { tool: string; args: Record<string, unknown>; result: string };
 export type ChatResult = {
@@ -29,6 +33,23 @@ export type ChatResult = {
   trace: TraceStep[]; offers: Offer[]; request: { id: number; shops_notified: number } | null;
   intent?: Intent; intent_model?: { mode?: string; latency_ms?: number }; nearby?: NearbyShop[];
   location?: { city: City; lat?: number; lng?: number; label?: string };
+  remembered?: string[]; profile?: Profile | null; addon?: { item: string; share_pct: number; note: string } | null;
+};
+export type Profile = {
+  id: string; name: string; city: string; device: string | null; budget: number | null; currency: string | null;
+  language: string | null; needs: { item: string; wattage_w?: number | null; connector?: string | null; at?: string }[];
+};
+export type Analytics = {
+  shop: { id: string; name: string }; currency: string; data_note: string;
+  forecast: { product: string; selected_model: string; models: { model: string; mae: number; wape_pct: number | null }[];
+    next_7_days_units: number; daily: { day: string; units: number; low: number; high: number }[]; history: number[];
+    shortfall_before_restock: number | null; method: string };
+  inventory: { sku: string; on_hand: number; stockout_days_56: number; coverage_days: number | null; status: string | null;
+    shortfall_units: number | null; review_signals: number | null; actions: unknown[]; method: string };
+  segments: { items: { name: string; share_pct: number; count: number; recency_days: number; orders_90d: number; spend_90d: string }[];
+    silhouette: number | null; method: string };
+  baskets: { rules: { if_bought: string; also_bought: string; confidence_pct: number; lift: number; orders: number }[];
+    basket_count: number; method: string };
 };
 export type PhotoCheck = { status: string; issues: string[]; missing: string[]; matches: string[]; cautions?: string[] };
 export type ShopResponse = {
@@ -38,6 +59,7 @@ export type ShopResponse = {
 export type LoopRequest = {
   id: number; city: string; product: string; specs: Record<string, unknown>; budget: number | null;
   currency: string | null; language: string; status: string; created_at: string; responses: ShopResponse[];
+  shopper_past_requests?: number;
 };
 export type Shop = { id: string; city: string; name: string; area: string; source?: string; lat?: number; lng?: number };
 export type DemandProduct = {
@@ -69,9 +91,15 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   status: () => call<{ providers: Providers; cities: City[]; discovery: string }>("/status"),
-  chat: (city: string, history: { role: "user" | "assistant"; text: string }[], loc?: ShopperLocation | null) =>
+  chat: (city: string, history: { role: "user" | "assistant"; text: string }[], loc?: ShopperLocation | null,
+         shopper?: { id: string; name: string }) =>
     call<ChatResult>("/agent/chat", { method: "POST", body: JSON.stringify({
-      city, history, lat: loc?.lat, lng: loc?.lng, location_label: loc?.label }) }),
+      city, history, lat: loc?.lat, lng: loc?.lng, location_label: loc?.label,
+      shopper_id: shopper?.id, shopper_name: shopper?.name }) }),
+  profile: (id: string) => call<{ profile: Profile | null }>(`/shoppers/${id}`),
+  forget: (id: string) => call<{ forgotten: boolean }>(`/shoppers/${id}`, { method: "DELETE" }),
+  analytics: (city: string, shopId?: string) =>
+    call<Analytics>(`/cities/${city}/analytics${shopId ? `?shop_id=${encodeURIComponent(shopId)}` : ""}`),
   locate: (body: { lat?: number; lng?: number; query?: string; near_city?: string }) =>
     call<Located>("/locate", { method: "POST", body: JSON.stringify(body) }),
   request: (id: number) => call<LoopRequest>(`/requests/${id}`),
@@ -81,8 +109,8 @@ export const api = {
     call<{ claim: Record<string, unknown>; check: PhotoCheck; mode: string; model: { latency_ms?: number; error?: string } }>(
       `/requests/${id}/reply`, { method: "POST", body: JSON.stringify(body) }),
   insights: (city: string) => call<Insights>(`/cities/${city}/insights`),
-  brief: (city: string, language: string) =>
-    call<Brief>(`/cities/${city}/brief`, { method: "POST", body: JSON.stringify({ language }) }),
+  brief: (city: string, language: string, shopId?: string) =>
+    call<Brief>(`/cities/${city}/brief`, { method: "POST", body: JSON.stringify({ language, shop_id: shopId || null }) }),
   reset: () => call<{ reset: boolean }>("/demo/reset", { method: "POST" }),
   exportBq: () => call<{ rows: number; next: string }>("/analytics/export", { method: "POST" }),
 };

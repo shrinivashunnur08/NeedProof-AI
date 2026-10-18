@@ -21,6 +21,9 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS shops (
   id TEXT PRIMARY KEY, city TEXT NOT NULL, name TEXT NOT NULL, area TEXT NOT NULL,
   lat REAL, lng REAL, source TEXT NOT NULL DEFAULT 'demo', address TEXT);
+CREATE TABLE IF NOT EXISTS shopper_profiles (
+  id TEXT PRIMARY KEY, city TEXT, name TEXT, device TEXT, budget REAL, currency TEXT, language TEXT,
+  needs TEXT NOT NULL DEFAULT '[]', updated_at TEXT);
 CREATE TABLE IF NOT EXISTS cities (
   id TEXT PRIMARY KEY, name TEXT NOT NULL, country TEXT, lat REAL, lng REAL);
 CREATE TABLE IF NOT EXISTS listings (
@@ -115,6 +118,9 @@ def _migrate(c: sqlite3.Connection) -> None:
     for col, ddl in (("lat", "REAL"), ("lng", "REAL"), ("source", "TEXT NOT NULL DEFAULT 'demo'"), ("address", "TEXT")):
         if col not in have:
             c.execute(f"ALTER TABLE shops ADD COLUMN {col} {ddl}")
+    have_req = {r[1] for r in c.execute("PRAGMA table_info(requests)").fetchall()}
+    if "shopper_id" not in have_req:
+        c.execute("ALTER TABLE requests ADD COLUMN shopper_id TEXT")
     for shop_id, (lat, lng) in _SHOP_COORDS.items():
         c.execute("UPDATE shops SET lat=?, lng=? WHERE id=? AND lat IS NULL", (lat, lng, shop_id))
     c.commit()
@@ -148,7 +154,7 @@ def upsert_shops(city: str, shops: list[dict]) -> int:
 def reset() -> None:
     with _LOCK:
         c = conn()
-        for table in ("shops", "listings", "requests", "responses", "demand_events"):
+        for table in ("shops", "listings", "requests", "responses", "demand_events", "shopper_profiles"):
             c.execute(f"DELETE FROM {table}")
         _seed(c)
 
@@ -232,11 +238,11 @@ def listings_for(shop_id: str) -> list[dict]:
 
 
 def create_request(city: str, product: str, specs: dict, budget: float | None, currency: str | None,
-                   language: str, raw_text: str) -> int:
+                   language: str, raw_text: str, shopper_id: str | None = None) -> int:
     rid = execute(
-        "INSERT INTO requests (city, product, specs, budget, currency, language, raw_text, status, created_at)"
-        " VALUES (?,?,?,?,?,?,?,?,?)",
-        (city, product, json.dumps(specs), budget, currency, language, raw_text[:500], "OPEN", now_iso()))
+        "INSERT INTO requests (city, product, specs, budget, currency, language, raw_text, status, created_at, shopper_id)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?)",
+        (city, product, json.dumps(specs), budget, currency, language, raw_text[:500], "OPEN", now_iso(), shopper_id))
     record_demand(city, product, specs, budget, currency, answered=False)
     return rid
 
@@ -264,7 +270,39 @@ def open_requests(city: str) -> list[dict]:
     for r in out:
         r["specs"] = json.loads(r["specs"])
         r["responses"] = responses_for(r["id"])
+        sid = r.get("shopper_id")
+        r["shopper_past_requests"] = (rows("SELECT COUNT(*) AS n FROM requests WHERE shopper_id=? AND id<?",
+                                           (sid, r["id"]))[0]["n"] if sid else 0)
     return out
+
+
+def get_profile(shopper_id: str) -> dict | None:
+    found = rows("SELECT * FROM shopper_profiles WHERE id=?", (shopper_id,))
+    if not found:
+        return None
+    prof = found[0]
+    prof["needs"] = json.loads(prof["needs"] or "[]")
+    return prof
+
+
+def save_profile(shopper_id: str, city: str, name: str, *, device: str | None = None, budget: float | None = None,
+                 currency: str | None = None, language: str | None = None, need: dict | None = None) -> dict:
+    prof = get_profile(shopper_id) or {"id": shopper_id, "city": city, "name": name, "device": None, "budget": None,
+                                       "currency": None, "language": None, "needs": []}
+    prof.update({k: v for k, v in {"device": device, "budget": budget, "currency": currency,
+                                   "language": language}.items() if v})
+    if need and (not prof["needs"] or {k: v for k, v in prof["needs"][-1].items() if k != "at"}
+                 != {k: v for k, v in need.items() if k != "at"}):
+        prof["needs"] = (prof["needs"] + [need])[-8:]
+    execute("INSERT OR REPLACE INTO shopper_profiles (id, city, name, device, budget, currency, language, needs, updated_at)"
+            " VALUES (?,?,?,?,?,?,?,?,?)",
+            (shopper_id, city, name, prof["device"], prof["budget"], prof["currency"], prof["language"],
+             json.dumps(prof["needs"]), now_iso()))
+    return prof
+
+
+def forget_profile(shopper_id: str) -> None:
+    execute("DELETE FROM shopper_profiles WHERE id=?", (shopper_id,))
 
 
 def responses_for(request_id: int) -> list[dict]:

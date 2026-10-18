@@ -3,7 +3,7 @@ import {
   api, photoToBase64, fileToBase64, type Draft, type InventoryItem, type InventoryUpload,
   type Brief, type ChatResult, type City, type Insights, type Intent, type LoopRequest, type NearbyShop, type Offer,
   type PhotoCheck, type ShopResponse, type ShopperLocation,
-  type Providers, type Shop, type Analytics, type Profile,
+  type Providers, type Shop, type Analytics, type Profile, type BqForecast,
 } from "./api";
 
 type Role = "shopper" | "shop" | "business";
@@ -931,7 +931,56 @@ function ShopAnalytics({ city }: { city: City }) {
   );
 }
 
-function BusinessView({ city }: { city: City }) {
+function BigQueryPanel({ city }: { city: City }) {
+  const [fc, setFc] = useState<BqForecast | null>(null);
+  const [brief, setBrief] = useState<{ bullets: string[]; engine: string; seconds: number } | null>(null);
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const [note, setNote] = useState("");
+  const [reload, setReload] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    api.bqForecast(city.id).then((x) => { if (alive) { setFc(x); setError(""); } })
+      .catch((e) => { if (alive) setError(e instanceof Error ? e.message : "BigQuery unavailable"); });
+    return () => { alive = false; };
+  }, [city.id, reload]);
+  async function run(label: string, fn: () => Promise<void>) {
+    setBusy(label); setError("");
+    try { await fn(); } catch (e) { setError(e instanceof Error ? e.message : `${label} failed`); } finally { setBusy(""); }
+  }
+  return (
+    <section aria-label="BigQuery" className="flex flex-col gap-3 rounded-xl border border-sky-500/30 bg-sky-500/5 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-base font-semibold text-slate-100">Google Cloud: BigQuery ML forecast and BigQuery AI</h2>
+        {fc && <a href={fc.console_url} target="_blank" rel="noreferrer" className="text-xs text-sky-300 underline">Open in BigQuery ↗</a>}
+      </div>
+      <ErrorNote message={error} />
+      {fc && (
+        <table className="w-full text-sm">
+          <thead className="text-left text-xs text-slate-400"><tr><th className="py-1">Product</th><th>Requests next 7 days</th><th>90% interval</th></tr></thead>
+          <tbody>{fc.rows.map((r) => (
+            <tr key={r.product_key} className="border-t border-slate-800 text-slate-200">
+              <td className="py-1">{r.product_key}</td><td className="font-mono">{r.next_7_days}</td><td className="font-mono text-slate-400">{r.low}–{r.high}</td>
+            </tr>))}</tbody>
+        </table>
+      )}
+      {fc && <p className="text-[11px] text-slate-500">{fc.engine} · model {fc.model}</p>}
+      <div className="flex flex-wrap gap-2">
+        <button type="button" disabled={!!busy} onClick={() => void run("Brief", async () => { setBrief(await api.bqBrief(city.id)); })} className="rounded-lg bg-sky-500 px-3 py-1.5 text-sm font-semibold text-slate-950 disabled:opacity-40">{busy === "Brief" ? "Gemini is writing inside BigQuery…" : "Write brief with BigQuery AI"}</button>
+        <button type="button" disabled={!!busy} onClick={() => void run("Sync", async () => { const r = await api.bqSync(); setNote(`Loaded ${r.rows} events to ${r.location} and retrained ARIMA_PLUS in ${r.seconds}s`); setReload((n) => n + 1); })} className="rounded-lg border border-slate-600 px-3 py-1.5 text-sm text-slate-200 hover:border-sky-400 disabled:opacity-40">{busy === "Sync" ? "Syncing…" : "Sync live requests + retrain"}</button>
+      </div>
+      {note && <p className="text-xs text-slate-400">{note}</p>}
+      {brief && (
+        <div className="rounded-lg border border-sky-500/30 p-3">
+          <ul className="list-disc space-y-1 pl-5 text-sm text-slate-200">{brief.bullets.map((b) => <li key={b}>{b}</li>)}</ul>
+          <p className="mt-1 text-xs text-slate-500">{brief.engine} · {brief.seconds}s · AI.GENERATE over the unmet_demand view</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function BusinessView({ city, bigquery }: { city: City; bigquery?: boolean }) {
   const [data, setData] = useState<Insights | null>(null);
   const [brief, setBrief] = useState<Brief | null>(null);
   const [lang, setLang] = useState("en");
@@ -952,6 +1001,7 @@ function BusinessView({ city }: { city: City }) {
   return (
     <section aria-label="Demand insights" className="flex flex-col gap-4">
       <ShopAnalytics city={city} />
+      {bigquery && <BigQueryPanel city={city} />}
       <p className="text-sm text-slate-300">City demand: what shoppers in {city.name} asked for in the last 28 days, and how much of it no shop confirmed.</p>
       <ErrorNote message={error} />
       <div className="overflow-x-auto rounded-xl border border-slate-700">
@@ -1108,7 +1158,7 @@ export default function LoopApp() {
         {city && role === "shopper" && <ShopperView city={city} loc={loc && loc.cityId === city.id ? loc : null}
           onMoved={(c, lat, lng, label) => applyLocation(c, lat ?? c.lat ?? 0, lng ?? c.lng ?? 0, label ?? c.name, loc?.source ?? "openstreetmap", loc?.shopsFound ?? 0, false)} />}
         {city && role === "shop" && <ShopView city={city} shopId={shopId} setShopId={setShopId} />}
-        {city && role === "business" && <BusinessView city={city} />}
+        {city && role === "business" && <BusinessView city={city} bigquery={providers?.analytics?.backend === "bigquery"} />}
         <p className="mt-10 text-xs text-slate-500">Demo cities use fictional shops and demand history. Real shops come from public map data and are never contacted by this demo. The app never buys anything; listings are shop claims until a photo is checked.</p>
       </main>
     </div>

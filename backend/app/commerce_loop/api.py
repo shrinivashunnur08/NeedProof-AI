@@ -349,6 +349,43 @@ def demo_reset():
     return {"reset": True}
 
 
+@router.post("/analytics/bigquery/sync")
+def bigquery_sync():
+    """Load demand events into BigQuery and retrain the BigQuery ML forecast."""
+    from app.commerce_loop.bigquery_loop import BigQueryUnavailable, sync
+
+    try:
+        return sync()
+    except BigQueryUnavailable as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 - permissions, quota, network
+        raise HTTPException(status_code=502, detail=f"BigQuery: {type(exc).__name__}: {str(exc)[:200]}") from exc
+
+
+@router.get("/cities/{city}/bigquery/forecast")
+def bigquery_forecast(city: str):
+    from app.commerce_loop.bigquery_loop import BigQueryUnavailable, forecast
+
+    try:
+        return forecast(_city(city))
+    except BigQueryUnavailable as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"BigQuery: {type(exc).__name__}: {str(exc)[:200]}") from exc
+
+
+@router.post("/cities/{city}/bigquery/brief")
+def bigquery_brief(city: str):
+    from app.commerce_loop.bigquery_loop import BigQueryUnavailable, ai_brief
+
+    try:
+        return ai_brief(_city(city))
+    except BigQueryUnavailable as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"BigQuery: {type(exc).__name__}: {str(exc)[:200]}") from exc
+
+
 @router.post("/analytics/export")
 def analytics_export():
     path = os.path.join(os.path.dirname(store.db_path()), "demand_events.ndjson")

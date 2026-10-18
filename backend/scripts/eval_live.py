@@ -136,13 +136,16 @@ def main() -> int:
     write_report(results)
     total = sum(len(results[k]) for k in ("intent", "photo", "draft"))
     passed = sum(r["ok"] for k in ("intent", "photo", "draft") for r in results[k])
-    print(f"\n{passed}/{total} passed. Report: docs/EVAL_REPORT.md")
+    tag = os.environ.get("EVAL_TAG", "").strip()
+    print(f"\n{passed}/{total} passed. Report: docs/EVAL_REPORT{'_' + tag.upper() if tag else ''}.md")
     return 0
 
 
 def write_report(r: dict) -> None:
     docs = ROOT.parent / "docs"
-    (docs / "eval_results.json").write_text(json.dumps(r, indent=2, ensure_ascii=False), encoding="utf-8")
+    tag = os.environ.get("EVAL_TAG", "").strip()
+    suffix = f"_{tag.upper()}" if tag else ""
+    (docs / f"eval_results{suffix.lower()}.json").write_text(json.dumps(r, indent=2, ensure_ascii=False), encoding="utf-8")
 
     def score(k):
         rows = r[k]
@@ -173,7 +176,7 @@ def write_report(r: dict) -> None:
                      f"{x['got_sku'] or 'none'} | {(x['message'] or x['reason'] or '').replace('|', '/')[:140]} |")
     lines += ["", "Limits: 19 hand-written cases and 5 synthetic label photos. This shows the pipeline works with the live",
               "model; it is not a benchmark on real shop photos."]
-    (docs / "EVAL_REPORT.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (docs / f"EVAL_REPORT{suffix}.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

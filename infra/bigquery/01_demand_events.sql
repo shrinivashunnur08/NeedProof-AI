@@ -1,3 +1,4 @@
+-- Dataset location: asia-southeast1 (Singapore). Create with: bq --location=asia-southeast1 mk --dataset needproof_loop
 -- Demand events table. Load with:
 --   POST /api/v2/loop/analytics/export   (writes demand_events.ndjson)
 --   bq load --source_format=NEWLINE_DELIMITED_JSON --autodetect needproof_loop.demand_events demand_events.ndjson

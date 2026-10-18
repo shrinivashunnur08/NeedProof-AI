@@ -361,3 +361,10 @@ def test_draft_never_offers_wrong_item_or_spec(client):
             rid = store.create_request("singapore", text, {}, None, "SGD", "en", text)
         d = client.get(f"/api/v2/loop/requests/{rid}/draft", params={"shop_id": "sg-marina"}).json()
         assert d["draft"] is None, (text, d)
+
+
+def test_bigquery_endpoints_explain_when_not_configured(client, monkeypatch):
+    monkeypatch.setenv("ANALYTICS_BACKEND", "local")
+    r = client.get("/api/v2/loop/cities/singapore/bigquery/forecast")
+    assert r.status_code == 409 and "ANALYTICS_BACKEND=bigquery" in r.json()["detail"]
+    assert client.post("/api/v2/loop/analytics/bigquery/sync").status_code == 409

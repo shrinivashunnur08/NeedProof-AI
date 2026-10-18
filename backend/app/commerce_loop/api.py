@@ -16,7 +16,8 @@ from app.commerce_loop import store
 from app.commerce_loop.agent import ShopperAgent
 from app.commerce_loop.insights import city_demand, demand_brief, export_events_ndjson
 from app.commerce_loop.locale import CITIES
-from app.commerce_loop.providers import get_providers
+from app.commerce_loop.discovery import DiscoveryError, locate
+from app.commerce_loop.providers import get_providers, setting
 from app.commerce_loop.vision import read_photo
 
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
@@ -34,6 +35,7 @@ router = APIRouter(prefix="/api/v2/loop", tags=["commerce-loop"], dependencies=[
 
 
 def _city(city: str) -> str:
+    store.conn()  # loads cities discovered earlier
     if city not in CITIES:
         raise HTTPException(status_code=404, detail="Unknown city")
     return city
@@ -42,7 +44,9 @@ def _city(city: str) -> str:
 @router.get("/status")
 def status():
     store.conn()
-    return {"providers": get_providers().public_status(), "cities": list(CITIES.values()),
+    return {"providers": get_providers().public_status(),
+            "cities": [c for c in CITIES.values() if c.get("demo")],
+            "discovery": setting("DISCOVERY", "osm").lower(),
             "data_note": "Shops and listings are fictional demo data."}
 
 
@@ -60,6 +64,29 @@ class ChatTurn(BaseModel):
 class ChatIn(BaseModel):
     city: str
     history: list[ChatTurn] = Field(min_length=1, max_length=30)
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lng: float | None = Field(default=None, ge=-180, le=180)
+    location_label: str | None = Field(default=None, max_length=120)
+
+
+class LocateIn(BaseModel):
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lng: float | None = Field(default=None, ge=-180, le=180)
+    query: str | None = Field(default=None, max_length=120)
+    near_city: str | None = None
+
+
+@router.post("/locate")
+def locate_shopper(body: LocateIn):
+    """Detected position or typed place -> city, currency and real shops nearby."""
+    if body.query is None and (body.lat is None or body.lng is None):
+        raise HTTPException(status_code=422, detail="Send lat/lng or a place name")
+    try:
+        return locate(lat=body.lat, lng=body.lng, query=body.query, near_city=body.near_city)
+    except DiscoveryError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 - network issues with public map services
+        raise HTTPException(status_code=502, detail=f"Location service unavailable ({type(exc).__name__})") from exc
 
 
 @router.post("/agent/chat")
@@ -67,7 +94,8 @@ def agent_chat(body: ChatIn):
     city = _city(body.city)
     if body.history[-1].role != "user" or not body.history[-1].text.strip():
         raise HTTPException(status_code=422, detail="Last turn must be a non-empty user message")
-    agent = ShopperAgent(city)
+    origin = {"lat": body.lat, "lng": body.lng, "label": body.location_label} if body.lat is not None else None
+    agent = ShopperAgent(city, origin=origin)
     return agent.chat([t.model_dump() for t in body.history])
 
 
@@ -93,9 +121,11 @@ async def city_events(city: str, request: Request):
     city = _city(city)
 
     async def stream():
-        last, idle = None, 0
-        yield "retry: 2000\n\n"
-        while not await request.is_disconnected():
+        # Each stream lives at most 60 s; EventSource reconnects on its own. This keeps
+        # `uvicorn --reload` and graceful shutdowns from waiting on open connections.
+        last, idle, started = None, 0, asyncio.get_running_loop().time()
+        yield "retry: 1000\n\n"
+        while not await request.is_disconnected() and asyncio.get_running_loop().time() - started < 60:
             version = await asyncio.to_thread(_city_version, city)
             if version != last:
                 last, idle = version, 0

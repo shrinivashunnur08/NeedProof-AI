@@ -31,6 +31,7 @@ class PhotoClaim(BaseModel):
     authenticity_cues: list[str] = Field(default_factory=list)
     concerns: list[str] = Field(default_factory=list, description="Visible red flags only, never 'missing X'")
     confidence: float = Field(default=0.5, ge=0, le=1)
+    analysis_summary: str | None = Field(default=None, description="Two short English sentences: what the photo shows and how it compares with the request")
 
 
 def check_photo(request: dict, claim: PhotoClaim, shop_price: float | None) -> dict:
@@ -119,7 +120,7 @@ def read_photo(request: dict, image: tuple[bytes, str] | None, shop_price: float
                 "mode": "mock", "model": meta, "evidence_class": evidence}
     prompt = (f"The shopper asked for: {request.get('product')} with specs {request.get('specs')}. "
               "First decide what kind of item the photo shows and whether it is the same kind of item. "
-              "Then read the visible details.")
+              "Then read the visible details and write analysis_summary.")
     try:
         claim, meta = gemini.generate_json(prompt, PhotoClaim, system=VISION_SYSTEM, image=image)
     except GeminiUnavailable as exc:

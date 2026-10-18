@@ -12,6 +12,7 @@ from app.commerce_loop.vision import PhotoClaim, check_photo
 def isolated(tmp_path, monkeypatch):
     monkeypatch.setenv("LOOP_DB_PATH", str(tmp_path / "loop.db"))
     monkeypatch.setenv("GEMINI_BACKEND", "mock")
+    monkeypatch.setenv("DISCOVERY", "off")  # no network in tests
     monkeypatch.delenv("COMMERCE_LOOP_ENABLED", raising=False)
     monkeypatch.delenv("ENVIRONMENT", raising=False)
     yield
@@ -77,7 +78,9 @@ def test_agent_finds_offers_and_asks_shops(client):
     assert r.status_code == 200
     body = r.json()
     tools = [t["tool"] for t in body["trace"]]
-    assert tools[0] == "find_offers" and "ask_nearby_shops" in tools
+    assert tools[0] == "extract_intent" and tools[1] == "find_offers" and "ask_nearby_shops" in tools
+    assert body["intent"]["wattage_w"] == 65 and body["intent"]["budget_amount"] == 60
+    assert body["intent"]["budget_currency"] == "SGD" and body["intent"]["urgency"] == "today"
     shops = {o["shop"]: o for o in body["offers"]}
     assert shops["Harbour Tech (demo)"]["usable"] is True
     assert shops["Lion City Mobiles (demo)"]["usable"] is False  # listed but out of stock
@@ -217,3 +220,33 @@ def test_city_version_changes_on_request_and_reply(client):
     client.post(f"/api/v2/loop/requests/{rid}/reply", json={"shop_id": "sg-harbour", "mock_hint": {}})
     assert _city_version("singapore") != v1
     assert _city_version("mumbai") == "0-0-0"
+
+
+def test_vague_charger_request_gets_a_follow_up_question(client):
+    body = client.post("/api/v2/loop/agent/chat", json={
+        "city": "singapore", "history": [{"role": "user", "text": "I need a laptop charger today"}]}).json()
+    assert body["mode"] == "clarify" and body["request"] is None
+    assert "wattage" in body["intent"]["missing_info"]
+
+
+def test_locate_registers_real_city_and_shops(client, monkeypatch):
+    from app.commerce_loop import discovery
+    monkeypatch.setenv("DISCOVERY", "osm")
+    discovery._CACHE.clear()
+    monkeypatch.setattr(discovery, "reverse_geocode", lambda lat, lng: {
+        "city": "Kuala Lumpur", "area": "Bukit Bintang", "country_code": "my", "label": "Bukit Bintang, Kuala Lumpur"})
+    monkeypatch.setattr(discovery, "nearby_shops", lambda lat, lng, radius_m=2500: ([
+        {"id": "osm-n1", "name": "Plaza Gadget", "lat": 3.1466, "lng": 101.7110, "area": "Jalan Bukit Bintang",
+         "address": None, "source": "openstreetmap"},
+        {"id": "osm-n2", "name": "Low Yat Mobile", "lat": 3.1440, "lng": 101.7100, "area": "", "address": None,
+         "source": "openstreetmap"}], "openstreetmap"))
+    loc = client.post("/api/v2/loop/locate", json={"lat": 3.1478, "lng": 101.7130}).json()
+    assert loc["city"]["id"] == "kuala-lumpur" and loc["city"]["currency"] == "MYR" and loc["shops_found"] == 2
+    assert loc["nearest"][0]["distance_km"] < 1
+    body = client.post("/api/v2/loop/agent/chat", json={
+        "city": "kuala-lumpur", "lat": 3.1478, "lng": 101.7130,
+        "history": [{"role": "user", "text": "65W USB-C PD charger under RM150"}]}).json()
+    assert {n["shop"] for n in body["nearby"]} == {"Plaza Gadget", "Low Yat Mobile"}
+    assert body["request"]["shops_notified"] == 2
+    shops = client.get("/api/v2/loop/cities/kuala-lumpur/shops").json()
+    assert all(s["source"] == "openstreetmap" for s in shops)

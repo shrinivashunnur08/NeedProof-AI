@@ -13,6 +13,7 @@ from typing import Any
 from app.commerce_loop import store
 from app.commerce_loop.engine import evaluate_offer, required_specs_from_text, spec_check
 from app.commerce_loop.gemini import Gemini, GeminiUnavailable
+from app.commerce_loop.intent import ShopperIntent, extract_intent
 from app.commerce_loop.locale import CITIES, Money, parse_money, resolve_city
 
 SYSTEM = """You are the shopping assistant of NeedProof, used by shoppers in any city and language.
@@ -23,7 +24,8 @@ Rules:
 2. Before naming any shop, call find_offers. Use only shop names, prices and states returned by tools.
 3. A shop listing is the shop's own claim, not proof. Say "listed" for listings. Say "photo-verified" only when
    photo_proof is PHOTO_MATCHES_REQUEST.
-4. If the item, its key spec (for example wattage or connector) or the city is unclear, ask ONE short question first.
+4. An intent was already extracted for you; use it for tool arguments. Mention the nearest shops with their distance
+   when distance_km is known. Real shops without an online listing may still stock the item: say so.
 5. If no offer is photo-verified, find_offers already asks nearby shops for photo proof and returns shops_asked.
    Tell the shopper how many shops were asked and that they will see replies here. Call ask_nearby_shops only if
    the shopper asks you to contact shops for a different item.
@@ -51,8 +53,11 @@ def _detect_language(text: str) -> str:
 
 
 class ShopperAgent:
-    def __init__(self, city: str, gemini: Gemini | None = None):
+    def __init__(self, city: str, gemini: Gemini | None = None, origin: dict | None = None):
         self.city = city
+        self.origin = origin or {}
+        self.nearby: list[dict] = []
+        self.intent: ShopperIntent | None = None
         self.gemini = gemini or Gemini()
         self.trace: list[dict] = []
         self.offers: list[dict] = []
@@ -88,6 +93,7 @@ class ShopperAgent:
                 usable = item["stock"] > 0 and specs["ok"] and not over_budget
                 offers.append({
                     "shop_id": shop["id"], "shop": shop["name"], "area": shop["area"],
+                    "distance_km": self._distance(shop),
                     "listing": item["product"], "price": Money(item["price"], item["currency"]).format(),
                     "price_amount": item["price"], "currency": item["currency"],
                     "listed_stock": item["stock"], "spec_check": specs, "over_budget": over_budget,
@@ -95,12 +101,22 @@ class ShopperAgent:
                 })
         offers.sort(key=lambda o: (not o["usable"], o["photo_proof"] != "PHOTO_MATCHES_REQUEST", o["price_amount"]))
         self.offers = offers
+        listed = {o["shop_id"] for o in offers}
+        nearby = [{"shop_id": s["id"], "shop": s["name"], "area": s["area"], "distance_km": self._distance(s),
+                   "source": s["source"], "photo_proof": self._photo_proof(city_id, s["id"], product)}
+                  for s in store.shops_in_city(city_id) if s["id"] not in listed and s["source"] != "demo"]
+        nearby.sort(key=lambda x: x["distance_km"] if x["distance_km"] is not None else 99)
+        self.nearby = nearby[:12]
         result = {"city": CITIES[city_id]["name"], "currency": CITIES[city_id]["currency"],
                   "offers": [{k: v for k, v in o.items() if k not in {"price_amount"}} for o in offers],
-                  "note": "Listings are shop claims. photo_proof shows whether a shop has sent photo evidence."}
+                  "nearby_shops_without_online_listing": [{k: n[k] for k in ("shop", "area", "distance_km")}
+                                                          for n in self.nearby[:8]],
+                  "note": "Listings are shop claims. photo_proof shows whether a shop has sent photo evidence. "
+                          "Nearby shops without a listing are real businesses from map data that may stock the item."}
         self._log("find_offers", {"product": product, "city": city_id, "required_wattage_w": required_wattage_w,
                                   "budget_amount": budget_amount},
-                  f"{len(offers)} offers, {sum(o['usable'] for o in offers)} usable")
+                  f"{len(offers)} listed offers, {sum(o['usable'] for o in offers)} usable, "
+                  f"{len(self.nearby)} real shops nearby without a listing")
         verified = any(o["usable"] and o["photo_proof"] == "PHOTO_MATCHES_REQUEST" for o in offers)
         if not verified and city_id == self.city:
             # Same step, no extra model round trip: send the need to nearby shops for photo proof.
@@ -171,6 +187,27 @@ class ShopperAgent:
             return {"error": "Could not reach shops right now."}
 
     # ---- helpers ----
+    def _distance(self, shop: dict) -> float | None:
+        if self.origin.get("lat") is None or shop.get("lat") is None:
+            return None
+        from app.commerce_loop.discovery import haversine_km
+
+        return haversine_km(self.origin["lat"], self.origin["lng"], shop["lat"], shop["lng"])
+
+    def _resolve_location(self, text: str) -> None:
+        """If the shopper named a place, move the search there (any city, any country)."""
+        from app.commerce_loop.discovery import DiscoveryError, locate
+
+        try:
+            loc = locate(query=text, near_city=self.city)
+        except (DiscoveryError, Exception) as exc:  # noqa: BLE001 - keep the current location
+            self._log("resolve_location", {"place": text}, f"not found ({type(exc).__name__})")
+            return
+        self.city = loc["city"]["id"]
+        self.origin = {"lat": loc["lat"], "lng": loc["lng"], "label": loc["label"]}
+        self._log("resolve_location", {"place": text},
+                  f"{loc['label']} · {loc['shops_found']} real shops from {loc['source']}")
+
     def _photo_proof(self, city: str, shop_id: str, product: str) -> str:
         found = store.rows(
             "SELECT r.status FROM responses r JOIN requests q ON q.id=r.request_id WHERE q.city=? AND r.shop_id=?"
@@ -184,37 +221,61 @@ class ShopperAgent:
     def chat(self, history: list[dict]) -> dict:
         last = next((h["text"] for h in reversed(history) if h.get("role") == "user"), "")
         self.language = _detect_language(last)
+        # Step 1: Gemini extracts a structured intent (item, specs, budget, urgency, place, missing info).
+        self.intent, intent_meta = extract_intent(history, self.city, self.gemini)
+        intent = self.intent
+        self.language = intent.language or self.language
+        filled = [k for k in ("item", "wattage_w", "connector", "budget_amount", "urgency", "location_text")
+                  if getattr(intent, k)]
+        self._log("extract_intent", {"message": last[:80]},
+                  f"{intent_meta.get('mode')}: {', '.join(filled) or 'nothing clear yet'}"
+                  + (f"; missing {', '.join(intent.missing_info)}" if intent.missing_info else ""))
+        # Step 2: a place named in the message overrides the detected location.
+        if intent.location_text and intent.location_text.casefold() not in (self.origin.get("label") or "").casefold():
+            self._resolve_location(intent.location_text)
+        base = {"intent": intent.model_dump(), "intent_model": intent_meta,
+                "location": {"city": CITIES[self.city], **self.origin}}
+        # Step 3: ask one follow-up question when the item, or a spec that decides the product, is missing.
+        if self._needs_clarification(intent):
+            return {**base, "reply": intent.clarifying_question or "Which item do you need?", "mode": "clarify",
+                    "model": intent_meta, "trace": self.trace, "offers": [], "nearby": [], "request": None}
+        # Step 4: Gemini agent with function calling over the decision engine and real shops.
         mode = "gemini"
         meta: dict[str, Any] = {}
         if self.gemini.is_mock:
             reply, mode = self._mock_reply(last), "mock"
         else:
             try:
-                city_line = f"Shopper's city: {CITIES[self.city]['name']} (currency {CITIES[self.city]['currency']})."
+                city = CITIES[self.city]
+                context = (f"Shopper's location: {self.origin.get('label') or city['name']} "
+                           f"(city {city['name']}, currency {city['currency']}).\n"
+                           f"Extracted intent (use it for tool arguments): {intent.model_dump_json(exclude_none=True)}")
                 reply, meta = self.gemini.run_agent(
-                    system=SYSTEM + "\n" + city_line, history=history[-12:],
+                    system=SYSTEM + "\n" + context, history=history[-12:],
                     tools=[self.find_offers, self.ask_nearby_shops])
             except GeminiUnavailable as exc:
                 reply, mode = self._mock_reply(last), "fallback_mock"
                 meta = {"error": str(exc)}
-        return {"reply": reply or "Sorry, I could not answer that. Please try again.", "mode": mode, "model": meta,
-                "trace": self.trace, "offers": self.offers, "request": self.request}
+        return {**base, "reply": reply or "Sorry, I could not answer that. Please try again.", "mode": mode,
+                "model": meta, "trace": self.trace, "offers": self.offers, "nearby": self.nearby,
+                "request": self.request}
+
+    @staticmethod
+    def _needs_clarification(intent: ShopperIntent) -> bool:
+        if not intent.item:
+            return True
+        is_charger = "charger" in f"{intent.item} {intent.category}".casefold()
+        return bool(intent.clarifying_question) and is_charger and not intent.wattage_w and not intent.device_model
 
     def _mock_reply(self, text: str) -> str:
-        """Deterministic stand-in used in tests and when no model key is configured."""
-        need = _need_from_text(text, self.city)
-        watt = need["specs"].get("wattage_w")
-        if re.search(r"cable|cabo", text, re.IGNORECASE):
-            product = "USB-C cable"
-        elif re.search(r"power bank", text, re.IGNORECASE):
-            product = "Power bank"
-        else:
-            product = f"{watt}W USB-C PD charger" if watt else "USB-C charger"
-        if not re.search(r"charger|cable|power bank|carregador|cabo|चार्जर|充电", text, re.IGNORECASE):
+        """Deterministic stand-in used in tests and when no model key is configured; uses the extracted intent."""
+        intent = self.intent
+        if intent is None or not intent.item:
             return "What item do you need, and is there a key spec such as wattage or connector?"
-        budget = need["money"].amount if need["money"] else 0.0
-        found = self.find_offers(product, required_wattage_w=need["specs"].get("wattage_w", 0),
-                                 connector=need["specs"].get("connector", ""), budget_amount=budget)
+        product = intent.item
+        budget = float(intent.budget_amount or 0)
+        found = self.find_offers(product, required_wattage_w=intent.wattage_w or 0,
+                                 connector=intent.connector or "", budget_amount=budget)
         usable = [o for o in found["offers"] if o["usable"]]
         lines = [f"I checked {len(found['offers'])} listings in {found['city']}."]
         for o in found["offers"][:3]:
@@ -222,8 +283,9 @@ class ShopperAgent:
                 "listed in stock" if o["listed_stock"] > 0 else "listed but out of stock")
             extra = "; " + o["spec_check"]["issues"][0] if o["spec_check"]["issues"] else ""
             lines.append(f"- {o['shop']}: {o['listing']}, {o['price']} ({status}{extra})")
+        if self.nearby:
+            lines.append(f"{len(self.nearby)} more real shops nearby have no online listing.")
         if not any(o["photo_proof"] == "PHOTO_MATCHES_REQUEST" for o in usable):
-            sent = self.ask_nearby_shops(product, need["specs"].get("wattage_w", 0),
-                                         need["specs"].get("connector", ""), budget)
+            sent = self.ask_nearby_shops(product, intent.wattage_w or 0, intent.connector or "", budget)
             lines.append(f"None is photo-verified yet, so I asked {sent['shops_notified']} nearby shops to send a photo.")
         return "\n".join(lines)

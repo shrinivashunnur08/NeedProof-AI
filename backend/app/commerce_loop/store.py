@@ -19,7 +19,10 @@ _CONN_PATH: str | None = None
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS shops (
-  id TEXT PRIMARY KEY, city TEXT NOT NULL, name TEXT NOT NULL, area TEXT NOT NULL);
+  id TEXT PRIMARY KEY, city TEXT NOT NULL, name TEXT NOT NULL, area TEXT NOT NULL,
+  lat REAL, lng REAL, source TEXT NOT NULL DEFAULT 'demo', address TEXT);
+CREATE TABLE IF NOT EXISTS cities (
+  id TEXT PRIMARY KEY, name TEXT NOT NULL, country TEXT, lat REAL, lng REAL);
 CREATE TABLE IF NOT EXISTS listings (
   id INTEGER PRIMARY KEY AUTOINCREMENT, shop_id TEXT NOT NULL, product TEXT NOT NULL,
   specs TEXT NOT NULL, price REAL NOT NULL, currency TEXT NOT NULL, stock INTEGER NOT NULL);
@@ -98,10 +101,48 @@ def conn() -> sqlite3.Connection:
             _CONN = sqlite3.connect(path, check_same_thread=False)
             _CONN.row_factory = sqlite3.Row
             _CONN.executescript(SCHEMA)
+            _migrate(_CONN)
             _CONN_PATH = path
+            _load_cities(_CONN)
             if _CONN.execute("SELECT COUNT(*) FROM shops").fetchone()[0] == 0:
                 _seed(_CONN)
         return _CONN
+
+
+def _migrate(c: sqlite3.Connection) -> None:
+    """Add columns introduced after the first release to an existing local database."""
+    have = {r[1] for r in c.execute("PRAGMA table_info(shops)").fetchall()}
+    for col, ddl in (("lat", "REAL"), ("lng", "REAL"), ("source", "TEXT NOT NULL DEFAULT 'demo'"), ("address", "TEXT")):
+        if col not in have:
+            c.execute(f"ALTER TABLE shops ADD COLUMN {col} {ddl}")
+    for shop_id, (lat, lng) in _SHOP_COORDS.items():
+        c.execute("UPDATE shops SET lat=?, lng=? WHERE id=? AND lat IS NULL", (lat, lng, shop_id))
+    c.commit()
+
+
+def _load_cities(c: sqlite3.Connection) -> None:
+    from app.commerce_loop.locale import register_city
+
+    for row in c.execute("SELECT * FROM cities").fetchall():
+        register_city(row["name"], row["country"] or "", row["lat"], row["lng"])
+
+
+def save_city(city: dict) -> None:
+    execute("INSERT OR REPLACE INTO cities (id, name, country, lat, lng) VALUES (?,?,?,?,?)",
+            (city["id"], city["name"], city.get("country"), city.get("lat"), city.get("lng")))
+
+
+def upsert_shops(city: str, shops: list[dict]) -> int:
+    with _LOCK:
+        c = conn()
+        c.executemany(
+            "INSERT INTO shops (id, city, name, area, lat, lng, source, address) VALUES (?,?,?,?,?,?,?,?)"
+            " ON CONFLICT(id) DO UPDATE SET name=excluded.name, area=excluded.area, lat=excluded.lat,"
+            " lng=excluded.lng, address=excluded.address",
+            [(x["id"], city, x["name"], x.get("area") or "", x.get("lat"), x.get("lng"), x["source"],
+              x.get("address")) for x in shops])
+        c.commit()
+    return len(shops)
 
 
 def reset() -> None:
@@ -112,8 +153,16 @@ def reset() -> None:
         _seed(c)
 
 
+_SHOP_COORDS = {
+    "sg-harbour": (1.3003, 103.8556), "sg-lioncity": (1.3048, 103.8318), "sg-marina": (1.3329, 103.7436),
+    "sp-paulista": (-23.5614, -46.6559), "sp-centro": (-23.5450, -46.6340), "sp-vila": (-23.5891, -46.6349),
+    "mu-seaface": (19.0176, 72.8170), "mu-gateway": (19.1197, 72.8468), "mu-metro": (19.0178, 72.8478),
+}
+
+
 def _seed(c: sqlite3.Connection) -> None:
-    c.executemany("INSERT INTO shops VALUES (?,?,?,?)", SHOPS)
+    c.executemany("INSERT INTO shops (id, city, name, area, lat, lng, source) VALUES (?,?,?,?,?,?,'demo')",
+                  [(i, ci, n, a, *_SHOP_COORDS.get(i, (None, None))) for i, ci, n, a in SHOPS])
     c.executemany(
         "INSERT INTO listings (shop_id, product, specs, price, currency, stock) VALUES (?,?,?,?,?,?)",
         [(s, p, json.dumps(sp), pr, cur, st) for s, p, sp, pr, cur, st in LISTINGS],
@@ -167,7 +216,7 @@ def execute(sql: str, params: tuple = ()) -> int:
 
 
 def shops_in_city(city: str) -> list[dict]:
-    return rows("SELECT * FROM shops WHERE city=? ORDER BY name", (city,))
+    return rows("SELECT * FROM shops WHERE city=? ORDER BY source='demo' DESC, name", (city,))
 
 
 def shop(shop_id: str) -> dict | None:

@@ -19,10 +19,32 @@ function RouteLoading() {
   );
 }
 
+function ClassicBar() {
+  return (
+    <div className="sticky top-0 z-50 flex flex-wrap items-center justify-between gap-2 border-b border-teal-500/30 bg-[#06231f] px-4 py-2 text-sm text-teal-100">
+      <span><strong>Evidence lab</strong> · the decision engine, Evidence Passport and benchmarks behind NeedProof</span>
+      <a href="/" className="rounded-md bg-teal-500 px-3 py-1 text-xs font-semibold text-slate-950 hover:bg-teal-400">← Back to the NeedProof app</a>
+    </div>
+  );
+}
+
 export default function NeedProofRouter() {
-  // The commerce loop app lives at /app in every mode.
-  if (/^\/app\/?$/.test(window.location.pathname)) {
+  const path = window.location.pathname;
+  // The hosted static showcase (production build without a backend) keeps its old home page.
+  const hostedShowcase = import.meta.env.PROD && import.meta.env.VITE_PUBLIC_SHOWCASE === "true";
+  // The commerce loop app is the home page; the earlier screens live under /classic.
+  if (/^\/app\/?$/.test(path) || (path === "/" && !hostedShowcase)) {
     return <Suspense fallback={<RouteLoading />}><LoopApp /></Suspense>;
+  }
+  if (path.startsWith("/classic")) {
+    return (
+      <>
+        <ClassicBar />
+        {import.meta.env.VITE_PUBLIC_SHOWCASE === "true"
+          ? <Suspense fallback={<RouteLoading />}><FreeShowcase /></Suspense>
+          : <Suspense fallback={<RouteLoading />}><NeedProofWorkspace /></Suspense>}
+      </>
+    );
   }
   // Preserve the previous precedence: showcase mode wins over verify routes.
   if (import.meta.env.VITE_PUBLIC_SHOWCASE === "true") {

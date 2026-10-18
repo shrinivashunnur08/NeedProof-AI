@@ -13,6 +13,36 @@ CITIES = {
                "symbol": "₹", "languages": ["hi", "mr", "en"], "tz": "Asia/Kolkata"},
 }
 
+# Currency by ISO country code for cities discovered at runtime (fallback USD).
+COUNTRY_CURRENCY = {
+    "sg": "SGD", "br": "BRL", "in": "INR", "us": "USD", "gb": "GBP", "my": "MYR", "id": "IDR", "th": "THB",
+    "ph": "PHP", "vn": "VND", "jp": "JPY", "kr": "KRW", "cn": "CNY", "hk": "HKD", "tw": "TWD", "au": "AUD",
+    "nz": "NZD", "ae": "AED", "sa": "SAR", "de": "EUR", "fr": "EUR", "es": "EUR", "it": "EUR", "nl": "EUR",
+    "ie": "EUR", "pt": "EUR", "ca": "CAD", "mx": "MXN", "za": "ZAR", "ng": "NGN", "ke": "KES", "eg": "EGP",
+}
+CITY_CENTERS = {"singapore": (1.2966, 103.8520), "sao-paulo": (-23.5613, -46.6565), "mumbai": (19.0176, 72.8562)}
+for _cid, (_lat, _lng) in CITY_CENTERS.items():
+    CITIES[_cid].update({"lat": _lat, "lng": _lng, "demo": True})
+
+
+def slug(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text.casefold()).strip("-")[:40] or "here"
+
+
+def register_city(name: str, country_code: str, lat: float, lng: float) -> dict:
+    """Add a real city discovered from the shopper's location (kept in memory and in the store)."""
+    for city in CITIES.values():
+        if city["name"].casefold() == name.casefold() or slug(city["name"]) == slug(name):
+            return city
+    cc = (country_code or "").lower()
+    currency = COUNTRY_CURRENCY.get(cc, "USD")
+    city = {"id": slug(name), "name": name, "country": cc.upper(), "currency": currency,
+            "symbol": SYMBOLS.get(currency, currency + " "), "languages": [], "tz": "", "lat": lat, "lng": lng,
+            "demo": False}
+    CITIES[city["id"]] = city
+    return city
+
+
 CITY_ALIASES = {
     "singapore": "singapore", "sg": "singapore", "新加坡": "singapore", "singapura": "singapore",
     "சிங்கப்பூர்": "singapore",
@@ -22,13 +52,14 @@ CITY_ALIASES = {
 
 # Longest tokens first so "S$" wins over "$" and "R$" over "$".
 _CURRENCY_TOKENS = [
-    ("US$", "USD"), ("S$", "SGD"), ("R$", "BRL"), ("SGD", "SGD"), ("BRL", "BRL"), ("INR", "INR"),
+    ("US$", "USD"), ("S$", "SGD"), ("R$", "BRL"), ("RM", "MYR"), ("MYR", "MYR"), ("A$", "AUD"), ("HK$", "HKD"), ("SGD", "SGD"), ("BRL", "BRL"), ("INR", "INR"),
     ("USD", "USD"), ("GBP", "GBP"), ("EUR", "EUR"), ("JPY", "JPY"), ("Rs.", "INR"), ("Rs", "INR"),
     ("₹", "INR"), ("£", "GBP"), ("€", "EUR"), ("¥", "JPY"), ("元", "SGD"), ("新币", "SGD"),
     ("reais", "BRL"), ("real", "BRL"), ("rupees", "INR"), ("रुपये", "INR"), ("रुपए", "INR"),
     ("dollars", "USD"), ("$", "USD"),
 ]
-SYMBOLS = {"SGD": "S$", "BRL": "R$", "INR": "₹", "USD": "US$", "GBP": "£", "EUR": "€", "JPY": "¥"}
+SYMBOLS = {"SGD": "S$", "BRL": "R$", "INR": "₹", "USD": "US$", "GBP": "£", "EUR": "€", "JPY": "¥", "MYR": "RM",
+           "AUD": "A$", "IDR": "Rp", "THB": "฿", "PHP": "₱", "HKD": "HK$", "AED": "AED ", "CAD": "C$"}
 
 _NUM = r"(\d{1,3}(?:[.,\s]\d{3})+|\d+(?:[.,]\d{1,2})?)\s*(k|K|mil|thousand|हजार|千)?"
 

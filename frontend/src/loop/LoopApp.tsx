@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   api, photoToBase64,
-  type Brief, type ChatResult, type City, type Insights, type LoopRequest, type Offer, type PhotoCheck, type ShopResponse,
+  type Brief, type ChatResult, type City, type Insights, type Intent, type LoopRequest, type NearbyShop, type Offer,
+  type PhotoCheck, type ShopResponse, type ShopperLocation,
   type Providers, type Shop,
 } from "./api";
 
@@ -106,13 +107,177 @@ function ErrorNote({ message }: { message: string }) {
 
 /* ------------------------------ Shopper ------------------------------ */
 
+
+const LANG_NAMES: Record<string, string> = { en: "English", zh: "Chinese", pt: "Portuguese", hi: "Hindi", ta: "Tamil", ms: "Malay", es: "Spanish", mr: "Marathi" };
+
+function IntentCard({ intent, mode, latency }: { intent: Intent; mode?: string; latency?: number }) {
+  const fields: [string, string | null][] = [
+    ["Item", intent.item],
+    ["Wattage", intent.wattage_w ? `${intent.wattage_w}W` : null],
+    ["Connector", intent.connector],
+    ["USB PD", intent.usb_pd ? "required" : null],
+    ["Device", intent.device_model],
+    ["Budget", intent.budget_amount ? `${intent.budget_currency ?? ""} ${intent.budget_amount}`.trim() : null],
+    ["Needed", intent.urgency],
+    ["Place", intent.location_text],
+    ["Language", LANG_NAMES[intent.language] ?? intent.language],
+  ];
+  return (
+    <div className="mb-3 rounded-xl border border-indigo-400/30 bg-indigo-500/5 p-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-indigo-200">
+        What I understood <span className="font-normal normal-case tracking-normal text-slate-400">· intent extracted by {mode === "gemini" ? `Gemini${latency ? `, ${latency} ms` : ""}` : mode}</span>
+      </p>
+      <dl className="mt-2 flex flex-wrap gap-1.5">
+        {fields.filter(([, v]) => v).map(([k, v]) => (
+          <div key={k} className="rounded-lg bg-slate-900/70 px-2 py-1 text-xs"><dt className="inline text-slate-400">{k}: </dt><dd className="inline text-slate-100">{v}</dd></div>
+        ))}
+        {intent.features.filter((f) => !/usb-?c|pd|power delivery|\d+\s*w/i.test(f)).slice(0, 4).map((f) => (
+          <div key={f} className="rounded-lg bg-slate-900/70 px-2 py-1 text-xs text-slate-200">{f}</div>
+        ))}
+      </dl>
+      {intent.missing_info.length > 0 && (
+        <p className="mt-2 text-xs text-amber-200">Still needed: {intent.missing_info.join(", ")}</p>
+      )}
+    </div>
+  );
+}
+
+function NearbyList({ shops, live }: { shops: NearbyShop[]; live: Map<string, ShopResponse> }) {
+  if (shops.length === 0) return null;
+  return (
+    <div className="mt-3 rounded-xl border border-slate-700/70 bg-slate-900/40 p-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Real shops nearby <span className="font-normal normal-case tracking-normal text-slate-500">· from {shops[0].source === "google_places" ? "Google Places" : "OpenStreetMap"} · no online stock info, asked for photo proof</span></p>
+      <ul className="mt-2 grid gap-1.5 sm:grid-cols-2">
+        {shops.slice(0, 10).map((n) => {
+          const reply = live.get(n.shop_id);
+          return (
+            <li key={n.shop_id} className="flex min-w-0 items-center justify-between gap-2 rounded-lg bg-slate-900/70 px-2 py-1.5 text-sm">
+              <span className="min-w-0 truncate text-slate-100">{n.shop}<span className="text-slate-500"> · {n.area}</span></span>
+              <span className="flex shrink-0 items-center gap-1.5">
+                {n.distance_km != null && <span className="font-mono text-xs text-slate-400">{n.distance_km.toFixed(1)} km</span>}
+                {reply && <StatusChip status={reply.status} />}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+const ANALYSIS_STEPS = ["Identifying the item", "Reading ratings and labels", "Checking authenticity cues", "Comparing with the request"];
+
+function AnalysingSteps() {
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    const t = window.setInterval(() => setStep((x) => Math.min(x + 1, ANALYSIS_STEPS.length - 1)), 700);
+    return () => window.clearInterval(t);
+  }, []);
+  return (
+    <ol className="space-y-1 text-xs" aria-live="polite">
+      {ANALYSIS_STEPS.map((label, i) => (
+        <li key={label} className={i < step ? "text-emerald-300" : i === step ? "text-teal-200" : "text-slate-500"}>
+          {i < step ? "✓" : i === step ? "◌" : "·"} {label}{i === step ? "…" : ""}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function PhotoAnalysis({ claim, check, mode, latency }: { claim: Record<string, unknown>; check: PhotoCheck; mode: string; latency?: number }) {
+  const c = claim as {
+    product_category?: string; is_requested_item_type?: boolean | null; brand?: string; model_number?: string; product_name?: string;
+    wattage_w?: number; connector?: string; usb_pd?: boolean | null; visible_price?: number; visible_currency?: string;
+    authenticity_cues?: string[]; concerns?: string[]; confidence?: number; analysis_summary?: string;
+  };
+  const conf = Math.round((c.confidence ?? 0) * 100);
+  const row = (label: string, value: React.ReactNode, tone: "ok" | "bad" | "plain" = "plain") => (
+    <div className="grid grid-cols-[7.5rem_1fr] gap-2">
+      <dt className="text-slate-400">{label}</dt>
+      <dd className={`min-w-0 break-words ${tone === "ok" ? "text-emerald-300" : tone === "bad" ? "text-rose-300" : "text-slate-100"}`}>{value}</dd>
+    </div>
+  );
+  return (
+    <div className="rounded-xl border border-indigo-400/30 bg-slate-950/70 p-3" aria-live="polite">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-indigo-200">Gemini Vision analysis</p>
+        <StatusChip status={check.status} />
+      </div>
+      {mode !== "gemini" ? (
+        <p className="mt-2 text-xs text-slate-400">{check.issues[0] ?? "The photo was not read by a model."}</p>
+      ) : (
+        <>
+          {c.analysis_summary && <p className="mt-2 text-sm text-slate-200">{c.analysis_summary}</p>}
+          <dl className="mt-3 space-y-1.5 text-xs">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">1 · Identified</p>
+            {row("Item type", `${c.product_category ?? "unknown"}${c.is_requested_item_type === false ? " (not what was asked)" : ""}`, c.is_requested_item_type === false ? "bad" : "plain")}
+            {row("Brand / model", [c.brand, c.model_number].filter(Boolean).join(" · ") || "not visible")}
+            <p className="pt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">2 · Read from the label</p>
+            {row("Wattage", c.wattage_w ? `${c.wattage_w}W` : "not visible")}
+            {row("Connector", c.connector ?? "not visible")}
+            {row("USB PD", c.usb_pd == null ? "not visible" : c.usb_pd ? "yes" : "no")}
+            {c.visible_price != null && row("Price on tag", `${c.visible_currency ?? ""} ${c.visible_price}`)}
+            <p className="pt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">3 · Authenticity</p>
+            {row("Cues seen", (c.authenticity_cues ?? []).join(", ") || "none visible", (c.authenticity_cues ?? []).length ? "ok" : "plain")}
+            {row("Red flags", (c.concerns ?? []).join(", ") || "none", (c.concerns ?? []).length ? "bad" : "ok")}
+            <p className="pt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">4 · Against the request</p>
+            {check.matches.length > 0 && row("Matches", check.matches.join(" · "), "ok")}
+            {check.issues.length > 0 && row("Conflicts", check.issues.join(" · "), "bad")}
+            {(check.cautions ?? []).length > 0 && row("Cautions", (check.cautions ?? []).join(" · "))}
+          </dl>
+          <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
+            <span>Model confidence</span>
+            <span className="h-1.5 w-28 overflow-hidden rounded bg-slate-800"><span className="block h-full bg-indigo-400" style={{ width: `${conf}%` }} /></span>
+            <span className="font-mono">{conf}%</span>
+            {latency != null && <span className="ml-auto font-mono">{latency} ms</span>}
+          </div>
+        </>
+      )}
+      <p className="mt-2 text-[11px] text-slate-500">AI-read shop evidence: stronger than a listing, still not independent verification. The verdict comes from code comparing these fields with the request.</p>
+    </div>
+  );
+}
+
+function LocationBar({ loc, busy, error, onDetect, onSearch, demo }: {
+  loc: ShopperLocation | null; busy: boolean; error: string; demo: boolean;
+  onDetect: () => void; onSearch: (q: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [q, setQ] = useState("");
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-sm">
+      <span aria-hidden="true">📍</span>
+      {editing ? (
+        <form className="flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); if (q.trim()) { onSearch(q.trim()); setEditing(false); } }}>
+          <label htmlFor="place" className="sr-only">Area or address</label>
+          <input id="place" autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Area, street or city" className="w-56 rounded-lg border border-slate-600 bg-slate-950 px-2 py-1 text-sm" />
+          <button type="submit" className="rounded-lg bg-teal-500 px-2.5 py-1 text-xs font-semibold text-slate-950">Use</button>
+          <button type="button" onClick={() => setEditing(false)} className="text-xs text-slate-400 underline">Cancel</button>
+        </form>
+      ) : (
+        <>
+          <span className="text-slate-100">{busy ? "Finding your location…" : loc ? loc.label : demo ? "Demo city" : "Location not set"}</span>
+          {loc && !busy && (
+            <span className="text-xs text-slate-400">
+              · {loc.detected ? "detected" : "chosen"} · {loc.shopsFound} real shops nearby{loc.shopsFound ? ` (${loc.source === "google_places" ? "Google Places" : "OpenStreetMap"})` : ""}
+            </span>
+          )}
+          <button type="button" onClick={() => setEditing(true)} className="text-xs text-teal-300 underline">Change</button>
+          <button type="button" onClick={onDetect} className="text-xs text-slate-400 underline">Detect</button>
+        </>
+      )}
+      {error && <span className="text-xs text-amber-300">{error}</span>}
+    </div>
+  );
+}
+
 function OfferCard({ offer, live }: { offer: Offer; live?: ShopResponse }) {
   const status = live?.status ?? offer.photo_proof;
   const verified = status === "PHOTO_MATCHES_REQUEST";
   return (
     <li className="rounded-xl border border-slate-700/70 bg-slate-900/60 p-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="font-semibold text-slate-100">{offer.shop} <span className="font-normal text-slate-400">· {offer.area}</span></p>
+        <p className="font-semibold text-slate-100">{offer.shop} <span className="font-normal text-slate-400">· {offer.area}{offer.distance_km != null ? ` · ${offer.distance_km.toFixed(1)} km` : ""}</span></p>
         <p className="font-mono text-sm text-slate-100">{offer.price}</p>
       </div>
       <p className="mt-0.5 text-sm text-slate-300">{offer.listing}</p>
@@ -145,6 +310,7 @@ function RequestTracker({ requestId, req }: { requestId: number; req: LoopReques
               {r.price != null && <span className="font-mono text-slate-300">{r.price}</span>}
               <StatusChip status={r.status} />
             </div>
+            {typeof r.claim.analysis_summary === "string" && <p className="mt-1 text-xs text-slate-300"><span className="text-indigo-200">Gemini Vision:</span> {r.claim.analysis_summary}</p>}
             {r.check_result.issues.length > 0 && <p className="mt-1 text-xs text-rose-300">{r.check_result.issues.join(" · ")}</p>}
             {r.check_result.matches.length > 0 && <p className="mt-1 text-xs text-emerald-300">{r.check_result.matches.join(" · ")}</p>}
             {(r.check_result.cautions ?? []).length > 0 && <p className="mt-1 text-xs text-amber-200">{(r.check_result.cautions ?? []).join(" · ")}</p>}
@@ -169,11 +335,13 @@ function AssistantTurn({ turn, version }: { turn: Turn; version: number }) {
   for (const x of req?.responses ?? []) latestByShop.set(x.shop_id, x);
   return (
     <div className="max-w-[46rem] rounded-2xl rounded-tl-sm border border-slate-700/60 bg-slate-800/60 p-4">
+      {r?.intent && <IntentCard intent={r.intent} mode={r.intent_model?.mode} latency={r.intent_model?.latency_ms} />}
       <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-slate-100">
         {turn.text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
           part.startsWith("**") && part.endsWith("**") ? <strong key={i}>{part.slice(2, -2)}</strong> : part.replace(/^\* /gm, "• "))}
       </p>
       {r && r.offers.length > 0 && <ul className="mt-3 space-y-2">{r.offers.map((o) => <OfferCard key={o.shop_id + o.listing} offer={o} live={latestByShop.get(o.shop_id)} />)}</ul>}
+      {r?.nearby && <NearbyList shops={r.nearby} live={latestByShop} />}
       {r?.request && <RequestTracker requestId={r.request.id} req={req} />}
       {r && (
         <details className="mt-3 text-xs text-slate-400">
@@ -191,7 +359,7 @@ function AssistantTurn({ turn, version }: { turn: Turn; version: number }) {
   );
 }
 
-function ShopperView({ city }: { city: City }) {
+function ShopperView({ city, loc, onMoved }: { city: City; loc: ShopperLocation | null; onMoved: (c: City, lat?: number, lng?: number, label?: string) => void }) {
   const version = useCityVersion(city.id);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
@@ -207,8 +375,11 @@ function ShopperView({ city }: { city: City }) {
     const next: Turn[] = [...turns, { role: "user", text: message }];
     setTurns(next); setDraft(""); setBusy(true); setError("");
     try {
-      const result = await api.chat(city.id, next.map((t) => ({ role: t.role, text: t.text })));
+      const result = await api.chat(city.id, next.map((t) => ({ role: t.role, text: t.text })), loc && loc.cityId === city.id ? loc : null);
       setTurns([...next, { role: "assistant", text: result.reply, result }]);
+      if (result.location && result.location.city.id !== city.id) {
+        onMoved(result.location.city, result.location.lat, result.location.lng, result.location.label);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "The assistant is unavailable.");
     } finally {
@@ -219,12 +390,12 @@ function ShopperView({ city }: { city: City }) {
   return (
     <section aria-label="Shopper assistant" className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-slate-400">Shopping as <span className="font-semibold text-slate-200">{PERSONA[city.id] ?? "Demo shopper"} (demo)</span> in {city.name}. Write in any language.</p>
+        <p className="text-sm text-slate-400">Shopping as <span className="font-semibold text-slate-200">{PERSONA[city.id] ?? "Demo shopper"} (demo)</span> in {city.name} ({city.symbol}). Write in any language.</p>
         {turns.length > 0 && <button type="button" onClick={() => setTurns([])} className="text-xs text-slate-400 underline hover:text-slate-200">New conversation</button>}
       </div>
       {turns.length === 0 && (
         <div className="flex flex-wrap gap-2">
-          {(SAMPLE_PROMPTS[city.id] ?? []).map((p) => (
+          {(SAMPLE_PROMPTS[city.id] ?? ["I need a 65W USB-C PD charger for my laptop today", "I need a laptop charger", "USB-C cable for fast charging near me"]).map((p) => (
             <button key={p} type="button" onClick={() => send(p)} className="rounded-full border border-slate-600 bg-slate-800/60 px-3 py-1.5 text-left text-sm text-slate-200 hover:border-teal-400 hover:text-white">{p}</button>
           ))}
         </div>
@@ -233,7 +404,7 @@ function ShopperView({ city }: { city: City }) {
         {turns.map((t, i) => t.role === "user"
           ? <div key={i} className="ml-auto max-w-[36rem] rounded-2xl rounded-tr-sm bg-teal-600/90 px-4 py-2.5 text-[15px] text-white">{t.text}</div>
           : <AssistantTurn key={i} turn={t} version={version} />)}
-        {busy && <p role="status" className="text-sm text-slate-400">Gemini is checking nearby shops…</p>}
+        {busy && <p role="status" className="text-sm text-slate-400">Gemini is understanding your request and checking nearby shops…</p>}
         <div ref={endRef} />
       </div>
       <ErrorNote message={error} />
@@ -248,27 +419,13 @@ function ShopperView({ city }: { city: City }) {
 
 /* ------------------------------ Shop ------------------------------ */
 
-function ClaimTable({ claim }: { claim: Record<string, unknown> }) {
-  const rows = Object.entries(claim).filter(([, v]) => v !== null && v !== "" && !(Array.isArray(v) && v.length === 0));
-  return (
-    <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
-      {rows.map(([k, v]) => (
-        <div key={k} className="contents">
-          <dt className="text-slate-400">{k.replaceAll("_", " ")}</dt>
-          <dd className="min-w-0 break-words text-slate-200">{Array.isArray(v) ? v.join(", ") : String(v)}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
 function ReplyForm({ req, shopId, onDone }: { req: LoopRequest; shopId: string; onDone: () => void }) {
   const [price, setPrice] = useState("");
   const [stock, setStock] = useState("1");
   const [photo, setPhoto] = useState<{ data: string; mime: string; preview: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [result, setResult] = useState<{ claim: Record<string, unknown>; check: PhotoCheck; mode: string } | null>(null);
+  const [result, setResult] = useState<{ claim: Record<string, unknown>; check: PhotoCheck; mode: string; model: { latency_ms?: number } } | null>(null);
 
   async function onFile(file: File | undefined) {
     if (!file) return;
@@ -324,17 +481,13 @@ function ReplyForm({ req, shopId, onDone }: { req: LoopRequest; shopId: string; 
         </button>
         <ErrorNote message={error} />
       </div>
-      {result && (
-        <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-3" aria-live="polite">
-          <div className="flex flex-wrap items-center gap-2"><StatusChip status={result.check.status} /><span className="text-xs text-slate-400">{result.mode === "gemini" ? "read by Gemini Vision" : "not read by a model"}</span></div>
-          {result.check.matches.length > 0 && <p className="mt-2 text-xs text-emerald-300">✓ {result.check.matches.join(" · ")}</p>}
-          {result.check.issues.length > 0 && <p className="mt-1 text-xs text-rose-300">✗ {result.check.issues.join(" · ")}</p>}
-          {result.check.missing.length > 0 && <p className="mt-1 text-xs text-amber-200">? {result.check.missing.join(" · ")}</p>}
-          {(result.check.cautions ?? []).length > 0 && <p className="mt-1 text-xs text-amber-200">! {(result.check.cautions ?? []).join(" · ")}</p>}
-          <div className="mt-2"><ClaimTable claim={result.claim} /></div>
-          <p className="mt-2 text-[11px] text-slate-500">AI-read shop evidence. Stronger than a listing, still not independent verification.</p>
+      {busy && !result && (
+        <div className="rounded-xl border border-indigo-400/30 bg-slate-950/70 p-3">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-indigo-200">Gemini Vision is analysing the photo</p>
+          <AnalysingSteps />
         </div>
       )}
+      {result && <PhotoAnalysis claim={result.claim} check={result.check} mode={result.mode} latency={result.model?.latency_ms} />}
     </div>
   );
 }
@@ -366,11 +519,18 @@ function ShopView({ city, shopId, setShopId }: { city: City; shopId: string; set
   return (
     <section aria-label="Shop inbox" className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-slate-400">Continue as</span>
-        {shops.map((s) => (
-          <button key={s.id} type="button" onClick={() => setShopId(s.id)} aria-pressed={s.id === shopId}
-            className={`rounded-full px-3 py-1 text-sm ring-1 ${s.id === shopId ? "bg-teal-500 text-slate-950 ring-teal-400" : "text-slate-300 ring-slate-600 hover:ring-teal-400"}`}>{s.name}</button>
-        ))}
+        <label htmlFor="shop-select" className="text-sm text-slate-400">Continue as</label>
+        <select id="shop-select" value={shopId} onChange={(e) => setShopId(e.target.value)} className="max-w-full rounded-lg border border-slate-600 bg-slate-950 px-2 py-1.5 text-sm">
+          {shops.some((s) => s.source === "demo") && <optgroup label="Demo shops">
+            {shops.filter((s) => s.source === "demo").map((s) => <option key={s.id} value={s.id}>{s.name} · {s.area}</option>)}
+          </optgroup>}
+          {shops.some((s) => s.source !== "demo") && <optgroup label="Real shops nearby (simulated reply)">
+            {shops.filter((s) => s.source !== "demo").map((s) => <option key={s.id} value={s.id}>{s.name}{s.area ? ` · ${s.area}` : ""}</option>)}
+          </optgroup>}
+        </select>
+        {shops.find((s) => s.id === shopId)?.source && shops.find((s) => s.id === shopId)?.source !== "demo" && (
+          <span className="text-xs text-amber-200">Real business from map data. You are simulating its reply; it is not contacted.</span>
+        )}
       </div>
       <ErrorNote message={error} />
       <p className="text-sm text-slate-300">Shopper requests near <span className="font-semibold">{shop?.name ?? "your shop"}</span> in {city.name}. Reply with a photo so Gemini can check it.</p>
@@ -495,11 +655,47 @@ export default function LoopApp() {
   const [providers, setProviders] = useState<Providers | null>(null);
   const [error, setError] = useState("");
   const [resetKey, setResetKey] = useState(0);
+  const [loc, setLoc] = useState<ShopperLocation | null>(null);
+  const [locBusy, setLocBusy] = useState(false);
+  const [locError, setLocError] = useState("");
+
+  const applyLocation = useCallback((c: City, lat: number, lng: number, label: string, source: string, shopsFound: number, detected: boolean) => {
+    setCities((prev) => (prev.some((x) => x.id === c.id) ? prev : [...prev, c]));
+    setLoc({ lat, lng, label, cityId: c.id, source, shopsFound, detected });
+    setCityId(c.id);
+  }, []);
+
+  const nearCity = cityId;
+  const locateBy = useCallback(async (body: { lat?: number; lng?: number; query?: string }, detected: boolean) => {
+    setLocBusy(true); setLocError("");
+    try {
+      const r = await api.locate({ ...body, near_city: nearCity });
+      applyLocation(r.city, r.lat, r.lng, r.label, r.source, r.shops_found, detected);
+    } catch (e) {
+      setLocError(e instanceof Error ? e.message : "Location lookup failed");
+    } finally { setLocBusy(false); }
+  }, [applyLocation, nearCity]);
+
+  const detect = useCallback(() => {
+    if (!("geolocation" in navigator)) { setLocError("This browser cannot share location; type a place instead"); return; }
+    setLocBusy(true); setLocError("");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { void locateBy({ lat: pos.coords.latitude, lng: pos.coords.longitude }, true); },
+      () => { setLocBusy(false); setLocError("Location not shared; using the demo city. Use Change to type a place."); },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
+  }, [locateBy]);
 
   useEffect(() => {
-    api.status().then((s) => { setCities(s.cities); setProviders(s.providers); })
+    api.status().then((s) => { setCities((prev) => [...s.cities, ...prev.filter((p) => !s.cities.some((c) => c.id === p.id))]); setProviders(s.providers); })
       .catch(() => setError("Backend not reachable. Start FastAPI on port 8000."));
   }, []);
+  // Detect the shopper's location once, unless the link already names a city.
+  const detectedOnce = useRef(false);
+  useEffect(() => {
+    if (detectedOnce.current || new URLSearchParams(window.location.search).has("city")) return;
+    detectedOnce.current = true;
+    detect();
+  }, [detect]);
   useEffect(() => { writeParams(role, cityId, role === "shop" ? shopId : undefined); }, [role, cityId, shopId]);
 
   const city = cities.find((c) => c.id === cityId) ?? cities[0];
@@ -521,7 +717,12 @@ export default function LoopApp() {
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <label htmlFor="city" className="sr-only">City</label>
             <select id="city" value={cityId} onChange={(e) => setCityId(e.target.value)} className="rounded-lg border border-slate-600 bg-slate-950 px-2 py-1.5 text-sm">
-              {cities.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.symbol})</option>)}
+              {cities.some((c) => !c.demo) && <optgroup label="Your location">
+                {cities.filter((c) => !c.demo).map((c) => <option key={c.id} value={c.id}>{c.name} ({c.symbol.trim()})</option>)}
+              </optgroup>}
+              <optgroup label="Demo cities (seeded shops)">
+                {cities.filter((c) => c.demo).map((c) => <option key={c.id} value={c.id}>{c.name} ({c.symbol})</option>)}
+              </optgroup>
             </select>
             {providers && (
               <span title={`${providers.gemini.model} · analytics: ${providers.analytics.label}`}>
@@ -529,7 +730,12 @@ export default function LoopApp() {
               </span>
             )}
             <button type="button" onClick={() => api.reset().then(() => setResetKey((k) => k + 1))} className="text-xs text-slate-400 underline hover:text-slate-200">Reset demo</button>
+            <a href="/classic" className="text-xs text-slate-400 underline hover:text-slate-200" title="The decision engine, Evidence Passport and benchmarks">Evidence lab</a>
           </div>
+        </div>
+        <div className="mx-auto max-w-5xl px-4 pb-2">
+          <LocationBar loc={loc && loc.cityId === cityId ? loc : null} busy={locBusy} error={locError}
+            demo={!!city?.demo} onDetect={detect} onSearch={(q) => void locateBy({ query: q }, false)} />
         </div>
         <nav aria-label="Role" className="mx-auto flex max-w-5xl gap-1 px-4">
           {tabs.map((t) => (
@@ -543,10 +749,11 @@ export default function LoopApp() {
       </header>
       <main className="mx-auto max-w-5xl px-4 py-6" key={`${resetKey}-${cityId}`}>
         <ErrorNote message={error} />
-        {city && role === "shopper" && <ShopperView city={city} />}
+        {city && role === "shopper" && <ShopperView city={city} loc={loc && loc.cityId === city.id ? loc : null}
+          onMoved={(c, lat, lng, label) => applyLocation(c, lat ?? c.lat ?? 0, lng ?? c.lng ?? 0, label ?? c.name, loc?.source ?? "openstreetmap", loc?.shopsFound ?? 0, false)} />}
         {city && role === "shop" && <ShopView city={city} shopId={shopId} setShopId={setShopId} />}
         {city && role === "business" && <BusinessView city={city} />}
-        <p className="mt-10 text-xs text-slate-500">All shops, listings and demand history are fictional demo data. The app never buys anything; listings are shop claims until a photo is checked.</p>
+        <p className="mt-10 text-xs text-slate-500">Demo cities use fictional shops and demand history. Real shops come from public map data and are never contacted by this demo. The app never buys anything; listings are shop claims until a photo is checked.</p>
       </main>
     </div>
   );

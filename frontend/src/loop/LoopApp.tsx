@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   api, photoToBase64,
-  type Brief, type ChatResult, type City, type Insights, type LoopRequest, type Offer, type PhotoCheck,
+  type Brief, type ChatResult, type City, type Insights, type LoopRequest, type Offer, type PhotoCheck, type ShopResponse,
   type Providers, type Shop,
 } from "./api";
 
@@ -44,6 +44,30 @@ const STATUS_TEXT: Record<string, string> = {
   NONE: "No photo yet",
 };
 
+/** Live updates for a city: Server-Sent Events push, plus refresh on focus and a slow safety poll. */
+function useCityVersion(cityId: string): number {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const bump = () => setTick((t) => t + 1);
+    let source: EventSource | null = null;
+    try {
+      source = new EventSource(`/api/v2/loop/cities/${cityId}/events`);
+      source.addEventListener("change", bump);
+    } catch { /* fall back to polling */ }
+    const onVisible = () => { if (document.visibilityState === "visible") bump(); };
+    window.addEventListener("focus", bump);
+    document.addEventListener("visibilitychange", onVisible);
+    const poll = window.setInterval(bump, 10000);
+    return () => {
+      source?.close();
+      window.removeEventListener("focus", bump);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.clearInterval(poll);
+    };
+  }, [cityId]);
+  return tick;
+}
+
 function readParams() {
   const q = new URLSearchParams(window.location.search);
   const role = (q.get("role") as Role) || "shopper";
@@ -82,8 +106,9 @@ function ErrorNote({ message }: { message: string }) {
 
 /* ------------------------------ Shopper ------------------------------ */
 
-function OfferCard({ offer }: { offer: Offer }) {
-  const verified = offer.photo_proof === "PHOTO_MATCHES_REQUEST";
+function OfferCard({ offer, live }: { offer: Offer; live?: ShopResponse }) {
+  const status = live?.status ?? offer.photo_proof;
+  const verified = status === "PHOTO_MATCHES_REQUEST";
   return (
     <li className="rounded-xl border border-slate-700/70 bg-slate-900/60 p-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -92,7 +117,8 @@ function OfferCard({ offer }: { offer: Offer }) {
       </div>
       <p className="mt-0.5 text-sm text-slate-300">{offer.listing}</p>
       <div className="mt-2 flex flex-wrap gap-1.5">
-        {verified ? <Chip tone="green">Photo-verified</Chip> : <Chip>Listing only (shop's claim)</Chip>}
+        {verified ? <Chip tone="green">Photo-verified</Chip>
+          : live ? <StatusChip status={live.status} /> : <Chip>Listing only (shop's claim)</Chip>}
         {offer.listed_stock > 0 ? <Chip tone="teal">Listed in stock: {offer.listed_stock}</Chip> : <Chip tone="red">Listed out of stock</Chip>}
         {offer.spec_check.issues.map((i) => <Chip key={i} tone="red">{i}</Chip>)}
         {offer.spec_check.matches.map((m) => <Chip key={m} tone="green">{m}</Chip>)}
@@ -106,18 +132,10 @@ function OfferCard({ offer }: { offer: Offer }) {
   );
 }
 
-function RequestTracker({ requestId }: { requestId: number }) {
-  const [req, setReq] = useState<LoopRequest | null>(null);
-  useEffect(() => {
-    let alive = true;
-    const load = () => api.request(requestId).then((r) => { if (alive) setReq(r); }).catch(() => undefined);
-    load();
-    const t = window.setInterval(load, 3000);
-    return () => { alive = false; window.clearInterval(t); };
-  }, [requestId]);
+function RequestTracker({ requestId, req }: { requestId: number; req: LoopRequest | null }) {
   return (
     <div className="mt-3 rounded-xl border border-teal-500/30 bg-teal-500/5 p-3" aria-live="polite">
-      <p className="text-sm font-semibold text-teal-200">Request #{requestId} sent to nearby shops · waiting for photo proof</p>
+      <p className="text-sm font-semibold text-teal-200">Request #{requestId} sent to nearby shops · {req?.status === "ANSWERED" ? "photo proof received" : "waiting for photo proof"} <span className="ml-1 inline-block h-2 w-2 animate-pulse rounded-full bg-teal-300 align-middle" aria-hidden="true" /> <span className="text-xs font-normal text-slate-400">live</span></p>
       {req && req.responses.length === 0 && <p className="mt-1 text-xs text-slate-400">No replies yet. Open the Shop tab in another window to reply as a shop.</p>}
       <ul className="mt-2 space-y-2">
         {req?.responses.map((r) => (
@@ -137,16 +155,26 @@ function RequestTracker({ requestId }: { requestId: number }) {
   );
 }
 
-function AssistantTurn({ turn }: { turn: Turn }) {
+function AssistantTurn({ turn, version }: { turn: Turn; version: number }) {
   const r = turn.result;
+  const requestId = r?.request?.id;
+  const [req, setReq] = useState<LoopRequest | null>(null);
+  useEffect(() => {
+    if (!requestId) return;
+    let alive = true;
+    api.request(requestId).then((x) => { if (alive) setReq(x); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [requestId, version]);
+  const latestByShop = new Map<string, ShopResponse>();
+  for (const x of req?.responses ?? []) latestByShop.set(x.shop_id, x);
   return (
     <div className="max-w-[46rem] rounded-2xl rounded-tl-sm border border-slate-700/60 bg-slate-800/60 p-4">
       <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-slate-100">
         {turn.text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
           part.startsWith("**") && part.endsWith("**") ? <strong key={i}>{part.slice(2, -2)}</strong> : part.replace(/^\* /gm, "• "))}
       </p>
-      {r && r.offers.length > 0 && <ul className="mt-3 space-y-2">{r.offers.map((o) => <OfferCard key={o.shop_id + o.listing} offer={o} />)}</ul>}
-      {r?.request && <RequestTracker requestId={r.request.id} />}
+      {r && r.offers.length > 0 && <ul className="mt-3 space-y-2">{r.offers.map((o) => <OfferCard key={o.shop_id + o.listing} offer={o} live={latestByShop.get(o.shop_id)} />)}</ul>}
+      {r?.request && <RequestTracker requestId={r.request.id} req={req} />}
       {r && (
         <details className="mt-3 text-xs text-slate-400">
           <summary className="cursor-pointer select-none text-slate-300">How the agent worked ({r.trace.length} tool calls · {r.mode === "gemini" ? `Gemini ${r.model.latency_ms ?? "?"} ms` : r.mode})</summary>
@@ -164,6 +192,7 @@ function AssistantTurn({ turn }: { turn: Turn }) {
 }
 
 function ShopperView({ city }: { city: City }) {
+  const version = useCityVersion(city.id);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -203,7 +232,7 @@ function ShopperView({ city }: { city: City }) {
       <div className="flex flex-col gap-3">
         {turns.map((t, i) => t.role === "user"
           ? <div key={i} className="ml-auto max-w-[36rem] rounded-2xl rounded-tr-sm bg-teal-600/90 px-4 py-2.5 text-[15px] text-white">{t.text}</div>
-          : <AssistantTurn key={i} turn={t} />)}
+          : <AssistantTurn key={i} turn={t} version={version} />)}
         {busy && <p role="status" className="text-sm text-slate-400">Gemini is checking nearby shops…</p>}
         <div ref={endRef} />
       </div>
@@ -323,10 +352,15 @@ function ShopView({ city, shopId, setShopId }: { city: City; shopId: string; set
     }).catch((e) => setError(e instanceof Error ? e.message : "Could not load shops"));
   }, [city.id, shopId, setShopId]);
 
+  const version = useCityVersion(city.id);
+  const [seen, setSeen] = useState<Set<number> | null>(null);
   const load = useCallback(() => {
-    api.cityRequests(city.id).then(setRequests).catch(() => undefined);
+    api.cityRequests(city.id).then((list) => {
+      setRequests(list);
+      setSeen((prev) => prev ?? new Set(list.map((x) => x.id)));
+    }).catch(() => undefined);
   }, [city.id]);
-  useEffect(() => { load(); const t = window.setInterval(load, 3000); return () => window.clearInterval(t); }, [load]);
+  useEffect(() => { load(); }, [load, version]);
 
   const shop = shops.find((s) => s.id === shopId);
   return (
@@ -349,6 +383,7 @@ function ShopView({ city, shopId, setShopId }: { city: City; shopId: string; set
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="font-semibold text-slate-100">#{r.id} · {r.product}</p>
                 <div className="flex gap-1.5">
+                  {seen && !seen.has(r.id) && <Chip tone="teal">New</Chip>}
                   {r.status === "ANSWERED" ? <Chip tone="green">Answered</Chip> : <Chip tone="amber">Open</Chip>}
                   {mine && <StatusChip status={mine.status} />}
                 </div>

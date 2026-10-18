@@ -205,3 +205,15 @@ def test_reset_restores_seed(client):
     assert store.rows("SELECT COUNT(*) AS n FROM requests")[0]["n"] == 1
     client.post("/api/v2/loop/demo/reset")
     assert store.rows("SELECT COUNT(*) AS n FROM requests")[0]["n"] == 0
+
+
+def test_city_version_changes_on_request_and_reply(client):
+    from app.commerce_loop.api import _city_version
+    v0 = _city_version("singapore")
+    rid = client.post("/api/v2/loop/agent/chat", json={
+        "city": "singapore", "history": [{"role": "user", "text": "65W USB-C charger under S$60"}]}).json()["request"]["id"]
+    v1 = _city_version("singapore")
+    assert v1 != v0
+    client.post(f"/api/v2/loop/requests/{rid}/reply", json={"shop_id": "sg-harbour", "mock_hint": {}})
+    assert _city_version("singapore") != v1
+    assert _city_version("mumbai") == "0-0-0"

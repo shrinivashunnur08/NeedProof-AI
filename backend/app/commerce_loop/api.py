@@ -1,12 +1,15 @@
 """HTTP API for the commerce loop: /api/v2/loop/*"""
 from __future__ import annotations
 
+import asyncio
 import base64
 import binascii
+import json
 import os
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.commerce_loop import store
@@ -74,6 +77,37 @@ def get_request(request_id: int):
     if not req:
         raise HTTPException(status_code=404, detail="Request not found")
     return req
+
+
+def _city_version(city: str) -> str:
+    row = store.rows(
+        "SELECT (SELECT COALESCE(MAX(id),0) FROM requests WHERE city=?) AS r,"
+        " (SELECT COALESCE(MAX(x.id),0) FROM responses x JOIN requests q ON q.id=x.request_id WHERE q.city=?) AS s,"
+        " (SELECT COUNT(*) FROM requests WHERE city=?) AS n", (city, city, city))[0]
+    return f"{row['r']}-{row['s']}-{row['n']}"
+
+
+@router.get("/cities/{city}/events")
+async def city_events(city: str, request: Request):
+    """Server-Sent Events: pushes a new version whenever a request or a shop reply lands in this city."""
+    city = _city(city)
+
+    async def stream():
+        last, idle = None, 0
+        yield "retry: 2000\n\n"
+        while not await request.is_disconnected():
+            version = await asyncio.to_thread(_city_version, city)
+            if version != last:
+                last, idle = version, 0
+                yield f"event: change\ndata: {json.dumps({'version': version})}\n\n"
+            else:
+                idle += 1
+                if idle % 15 == 0:
+                    yield ": keep-alive\n\n"
+            await asyncio.sleep(1)
+
+    return StreamingResponse(stream(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
 
 @router.get("/cities/{city}/requests")

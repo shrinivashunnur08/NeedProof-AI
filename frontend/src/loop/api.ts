@@ -94,7 +94,8 @@ export type TrustReport = {
   limits: string[];
 };
 export type ShopDashboard = {
-  shop: { id: string; name: string; area: string; city: string; currency: string };
+  shop: { id: string; name: string; area: string; city: string; currency: string; kind?: string; kind_label?: string; source?: string };
+  routing?: { shop_category: string; counted: number; routed_elsewhere: { category: string; requests: number }[]; how: string };
   period_days: number;
   kpis: { requests_reached: number; answered: number; could_serve: number; reply_rate_pct: number | null;
     median_reply_minutes: number | null; units_sold: number; revenue: string | null; missed_sales_requests: number };

@@ -54,8 +54,15 @@ def dashboard(shop_id: str, days: int = 28) -> dict:
     currency = CITIES[city]["currency"]
     money = lambda v: Money(v, currency).format() if v is not None else None  # noqa: E731
     inventory = store.inventory_for(shop_id)
-    reqs = store.rows("SELECT * FROM requests WHERE city=? AND created_at >= datetime('now', ?) ORDER BY id",
-                      (city, f"-{days} day"))
+    from app.commerce_loop.categories import CATEGORIES, shop_serves
+
+    all_reqs = store.rows("SELECT * FROM requests WHERE city=? AND created_at >= datetime('now', ?) ORDER BY id",
+                          (city, f"-{days} day"))
+    kind = shop.get("kind") or "general"
+    # Only requests routed to this kind of shop (Gemini's shop_category vs the shop's Google Places type):
+    # an electronics shop's demand and missed sales never include potatoes or shirts.
+    reqs = [r for r in all_reqs if shop_serves(kind, r.get("category"))]
+    elsewhere = Counter(r.get("category") or "general" for r in all_reqs if not shop_serves(kind, r.get("category")))
     mine = {r["request_id"]: r for r in store.rows(
         "SELECT request_id, MIN(created_at) AS created_at, MAX(status) AS status FROM responses WHERE shop_id=?"
         " GROUP BY request_id", (shop_id,))}
@@ -129,7 +136,13 @@ def dashboard(shop_id: str, days: int = 28) -> dict:
     total = len(reqs)
     reachable = total - outcome["not_stocked"]
     return {
-        "shop": {"id": shop["id"], "name": shop["name"], "area": shop["area"], "city": city, "currency": currency},
+        "shop": {"id": shop["id"], "name": shop["name"], "area": shop["area"], "city": city, "currency": currency,
+                 "kind": kind, "kind_label": CATEGORIES.get(kind, {}).get("label", "General store"),
+                 "source": shop.get("source")},
+        "routing": {"shop_category": kind, "counted": len(reqs),
+                    "routed_elsewhere": [{"category": c, "requests": n} for c, n in elsewhere.most_common()],
+                    "how": "Gemini picks the shop category for each request; this shop's category comes from its "
+                           "Google Places type. Only matching requests count here."},
         "period_days": days,
         "kpis": {
             "requests_reached": total,
@@ -147,7 +160,8 @@ def dashboard(shop_id: str, days: int = 28) -> dict:
         "customers": {"known": len(customers), "returning": sum(c["requests"] > 1 for c in customers)},
         "sales": [{"product": s["product"], "qty": s["qty"], "price": money(s["unit_price"]), "at": s["created_at"]}
                   for s in reversed(sales)][:10],
-        "note": "Live data from this app: requests in this city, this shop's replies, its inventory and confirmed sales.",
+        "note": "Live data from this app: requests for this kind of shop in this city, this shop's replies, its "
+                "inventory and confirmed sales.",
     }
 
 
@@ -157,13 +171,14 @@ class ShopBrief(BaseModel):
     watch_out: str = Field(description="One risk to watch (stock, price or missed replies)")
 
 
-SHOP_BRIEF_SYSTEM = """You coach the owner of one small electronics shop. Use only the numbers given.
+SHOP_BRIEF_SYSTEM = """You coach the owner of one small shop (its category is given). Use only the numbers given.
+Only suggest products that fit the shop's category.
 Name products, counts and prices. Plain language. Write in the requested language."""
 
 
 def shop_brief(shop_id: str, language: str = "en", gemini: Gemini | None = None) -> dict:
     d = dashboard(shop_id)
-    facts = {"shop": d["shop"]["name"], "kpis": d["kpis"], "outcomes": d["outcomes"],
+    facts = {"shop": d["shop"]["name"], "shop_category": d["shop"]["kind_label"], "kpis": d["kpis"], "outcomes": d["outcomes"],
              "missed_sales": d["missed_sales"][:4],
              "inventory": [{k: i[k] for k in ("product", "price_text", "stock", "asks", "sold", "budget_fit_pct", "low_stock")}
                            for i in d["inventory"]][:10]}

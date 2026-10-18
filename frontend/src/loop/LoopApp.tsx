@@ -1135,9 +1135,18 @@ function MyShopView({ shopId, version, invVersion, onInventoryChanged, onOpenBus
             <h2 className="text-lg font-semibold text-slate-50">{d.shop.name} <span className="text-sm font-normal text-slate-400">· {d.shop.area} · last {d.period_days} days</span></h2>
             <button type="button" onClick={onOpenBusiness} className="text-sm text-teal-300 hover:underline">Forecast, customer groups and bought-together for this shop →</button>
           </div>
+          {d.routing && (
+            <p className="-mt-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-400" title={d.routing.how}>
+              <Chip tone="teal">{d.shop.kind_label ?? d.routing.shop_category} shop</Chip>
+              <span>Showing only {d.routing.shop_category === "general" ? "" : `${d.routing.shop_category} `}requests routed to this kind of shop (Gemini picks each request's shop category).</span>
+              {d.routing.routed_elsewhere.length > 0 && (
+                <span>Not counted here: {d.routing.routed_elsewhere.map((x) => `${x.requests} ${x.category}`).join(", ")} request{d.routing.routed_elsewhere.reduce((n, x) => n + x.requests, 0) !== 1 ? "s" : ""}, sent to those shops instead.</span>
+              )}
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
             {[
-              ["Requests near you", d.kpis.requests_reached, ""],
+              ["Requests for your kind of shop", d.kpis.requests_reached, ""],
               ["Answered by you", d.kpis.answered, d.kpis.reply_rate_pct != null ? `${d.kpis.reply_rate_pct}% of those you could serve` : ""],
               ["Median reply time", d.kpis.median_reply_minutes != null ? `${d.kpis.median_reply_minutes} min` : "–", ""],
               ["Sold through NeedProof", d.kpis.units_sold, d.kpis.revenue ?? ""],

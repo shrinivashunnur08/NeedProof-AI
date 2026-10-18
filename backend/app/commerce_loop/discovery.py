@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 import time
 
 import httpx
@@ -155,6 +156,16 @@ out center 40;"""
     return shops
 
 
+def _area_from_address(address: str | None) -> str:
+    """A readable locality from a Google address: skip house/shop numbers ('676', 'Shop No 36')."""
+    parts = [x.strip() for x in (address or "").split(",") if x.strip()]
+    for part in parts[:-2] or parts:
+        letters = sum(ch.isalpha() for ch in part)
+        if letters >= 4 and not re.match(r"(?i)^(shop|unit|flat|plot|room|gala|block|bldg|building|no\.?)\b", part):
+            return part
+    return parts[0] if parts else ""
+
+
 def _google_shops(lat: float, lng: float, radius_m: int, category: str = "general") -> list[dict]:
     from app.commerce_loop.categories import places_types, shop_kind_from_places
 
@@ -170,7 +181,7 @@ def _google_shops(lat: float, lng: float, radius_m: int, category: str = "genera
         places = r.json().get("places", [])
     return [{"id": f"gpl-{p['id']}", "name": p.get("displayName", {}).get("text", "Shop"),
              "lat": p.get("location", {}).get("latitude"), "lng": p.get("location", {}).get("longitude"),
-             "area": (p.get("formattedAddress") or "").split(",")[0], "address": p.get("formattedAddress"),
+             "area": _area_from_address(p.get("formattedAddress")), "address": p.get("formattedAddress"),
              "phone": p.get("internationalPhoneNumber"), "source": "google_places",
              "kind": shop_kind_from_places(p.get("types"), p.get("primaryType")),
              "maps_url": p.get("googleMapsUri"), "rating": p.get("rating"), "rating_count": p.get("userRatingCount")}

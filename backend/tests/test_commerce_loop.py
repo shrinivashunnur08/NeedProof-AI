@@ -642,3 +642,15 @@ def test_routing_summary_counts_requests_per_shop_and_category(client):
     assert r["shops"]["sg-marina"]["by_category"] == {"electronics": 1}
     shops = {s["id"]: s for s in client.get("/api/v2/loop/cities/singapore/shops").json()}
     assert shops["gpl-cotton2"]["maps_url"] and shops["gpl-cotton2"]["rating"] == 4.5
+
+
+def test_shop_dashboard_counts_only_requests_for_its_kind_of_shop(client):
+    client.post("/api/v2/loop/agent/chat", json={"city": "singapore", "history": [
+        {"role": "user", "text": "65W USB-C PD charger under S$60"}]})
+    client.post("/api/v2/loop/agent/chat", json={"city": "singapore", "history": [
+        {"role": "user", "text": "2 kg rice and fresh fruit"}]})
+    d = client.get("/api/v2/loop/shops/sg-marina/dashboard").json()
+    products = [r["product"] for r in d["requests"]] + [m["product"] for m in d["missed_sales"]]
+    assert products and not any("rice" in p or "fruit" in p for p in products)
+    assert d["shop"]["kind"] == "electronics"
+    assert {"category": "grocery", "requests": 1} in d["routing"]["routed_elsewhere"]

@@ -10,14 +10,16 @@ Built for the **Google AI Builder Cup 2026 — Retail & Commerce** challenge, th
 
 **Live app on Google Cloud Run (Singapore): https://needproof-822406860102.asia-southeast1.run.app**
 
-Two minutes:
-1. **Shopper** tab: type *"65W USB-C PD charger under S$60 today"* (or the same in Chinese, Portuguese or Hindi). Gemini extracts the need, checks shops with the NeedProof decision engine, and sends the request to nearby shops.
-2. **Shop** tab (or *Open shop view in a new window*): **Load sample inventory**. The request appears live with an **AI draft from the shop's inventory** (Vertex AI Search + Gemini). Edit if needed, then **Approve & send**. Gemini Vision checks the photo; the shopper sees the result within about a second.
-3. Ask again later with *"I need a laptop charger again"*: NeedProof remembers the wattage and budget (**Forget me** deletes it).
-4. **Business** tab: sales forecast, stock risk, customer segments and basket rules for a shop, plus the **BigQuery ML** forecast and a brief written by Gemini **inside BigQuery**.
-5. **Trust report** tab: how each answer is decided, live model test results (19/19 on AI Studio and on Vertex AI), safeguards and seeded benchmarks.
+Three minutes:
+1. **Shopper** tab: type *"65W USB-C PD charger under S$60 today"* (or the same in Chinese, Portuguese or Hindi). Gemini extracts the need, checks shops with the NeedProof decision engine, shows them on a Google map with directions, ranks **who is worth asking for proof** (EVSI), and sends the request to nearby shops.
+2. **Shop** tab → **My shop** → **Load sample inventory**, then **Requests inbox**: the request has an **AI draft from the shop's own stock** (Vertex AI Search + Gemini). Approve & send; Gemini Vision checks the photo; the shopper sees it within about a second. **Shopper bought it** records the sale.
+3. **My shop** shows that shop's own numbers: requests near it, answered / missed / out of stock / not stocked, missed sales ("9 people asked for a 100W charger"), editable price and stock, and advice from Gemini.
+4. Ask for several items at once: *"a 65W charger, a USB-C cable and a power bank, S$120 total"*: the OR-Tools basket planner picks the cheapest mix of shops.
+5. Ask again later with *"I need a laptop charger again"*: NeedProof remembers the wattage and budget (**Forget me** deletes it).
+6. **Business** tab: forecast, stock risk, customer groups, bought-together rules and review priorities for the selected shop, plus the **BigQuery ML** forecast and a brief written by Gemini **inside BigQuery**.
+7. **Trust report** and **Engine room**: how each answer is decided, live model tests, safeguards, and every NeedProof engine with a **Run** button on live data.
 
-*Reset demo* clears the shared demo data. Shops in Singapore, São Paulo and Mumbai are fictional; *Detect* switches to your real location and real nearby shops from OpenStreetMap.
+*Reset data* clears the shared data. Shops in Singapore, São Paulo and Mumbai are fictional; *Detect* switches to your real location and real nearby shops from OpenStreetMap.
 
 ## What it does
 
@@ -47,7 +49,7 @@ Not done yet: the live app keeps shop and request data in SQLite on a single Clo
 ## Evidence that it works
 
 - Live model tests: [`docs/EVAL_REPORT.md`](docs/EVAL_REPORT.md) (AI Studio) and [`docs/EVAL_REPORT_VERTEX.md`](docs/EVAL_REPORT_VERTEX.md) (Vertex AI): intent extraction in 5 languages including a prompt-injection attempt, 5 photo checks (correct charger, wrong wattage, fake brand, mixer grinder, cable), 4 inventory drafts. Run with `python backend/scripts/eval_live.py`.
-- 37 automated tests for the commerce loop (`backend/tests/test_commerce_loop.py`), run in CI with a mock model.
+- 43 automated tests for the commerce loop (`backend/tests/test_commerce_loop.py`), run in CI with a mock model.
 - Limits: 19 hand-written cases and 5 synthetic label photos, not real shop photos; demo shops and demand history are fictional.
 
 ## Run locally
@@ -60,7 +62,7 @@ cd frontend && npm install && npm run dev         # http://127.0.0.1:5173
 ```
 Without a key the app runs with a mock model. More: [`docs/COMMERCE_LOOP.md`](docs/COMMERCE_LOOP.md).
 
-The original Firebase showcase is still available: **[Live Firebase Showcase](https://needproof-ai-showcase.web.app)**; in the app it is under *Engine lab*.
+The original Firebase showcase is still available: **[Live Firebase Showcase](https://needproof-ai-showcase.web.app)**; its engines now run inside the app under *Engine room*.
 
 ## The Problem
 

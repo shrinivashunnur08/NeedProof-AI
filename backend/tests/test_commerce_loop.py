@@ -484,3 +484,34 @@ def test_proof_plan_ranks_who_to_ask(client):
     lion = next(r for r in pp["ranked"] if r["shop"] == "Lion City Mobiles")
     assert lion["p_has_it"] < top["p_has_it"] and lion["net_value"] < top["net_value"]
     assert "Harbour Tech" in pp["advice"]
+
+
+def test_engine_room_runs_every_engine(client):
+    cat = client.get("/api/v2/loop/engines").json()
+    assert len(cat["engines"]) == 9 and cat["retired"]
+    for e in cat["engines"]:
+        r = client.post(f"/api/v2/loop/engines/{e['id']}/run")
+        assert r.status_code == 200, (e["id"], r.text)
+        assert r.json()["result"], e["id"]
+    research = client.post("/api/v2/loop/engines/research/run").json()["result"]
+    assert research["cited_facts"]
+    assert client.post("/api/v2/loop/engines/nope/run").status_code == 404
+    a = client.get("/api/v2/loop/cities/singapore/analytics", params={"shop_id": "sg-harbour"}).json()
+    assert a["command_center"]["queue"]
+
+
+def test_invalid_model_json_falls_back_instead_of_500(client, monkeypatch):
+    from app.commerce_loop import gemini as g
+    from app.commerce_loop.intent import ShopperIntent, extract_intent
+
+    class Resp:
+        parsed = None
+        text = '{"item": "power bank", "clarifying_question": "Which device do you intend to charge with'
+        usage_metadata = None
+
+    gem = g.Gemini()
+    monkeypatch.setattr(type(gem), "is_mock", property(lambda self: False))
+    monkeypatch.setattr(gem, "_client", lambda: object())
+    monkeypatch.setattr(gem, "_generate", lambda client, **kw: Resp())
+    intent, meta = extract_intent([{"role": "user", "text": "power bank 20000mAh under S$50"}], "singapore", gem)
+    assert isinstance(intent, ShopperIntent) and meta["mode"] != "gemini"

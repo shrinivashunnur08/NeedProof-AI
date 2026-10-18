@@ -105,7 +105,23 @@ class Gemini:
         except Exception as exc:  # noqa: BLE001 - surface a clean error, never customer text
             logger.warning("Gemini JSON call failed (%s)", type(exc).__name__)
             raise GeminiUnavailable(f"Gemini call failed: {_describe(exc)}") from exc
-        parsed = resp.parsed if isinstance(resp.parsed, schema) else schema.model_validate_json(resp.text or "{}")
+        parsed = resp.parsed if isinstance(resp.parsed, schema) else None
+        if parsed is None:
+            try:
+                parsed = schema.model_validate_json(resp.text or "{}")
+            except ValueError:
+                # Rare runaway/truncated JSON from the model: retry once deterministically, then fail cleanly.
+                logger.warning("Gemini returned invalid JSON for %s; retrying once", schema.__name__)
+                try:
+                    resp = self._generate(client, model=self.p.gemini_model, contents=parts,
+                                          config=types.GenerateContentConfig(
+                                              system_instruction=system + "\nKeep every text field short (under 200 characters).",
+                                              response_mime_type="application/json", response_schema=schema,
+                                              temperature=0.0, max_output_tokens=2048,
+                                              thinking_config=self._thinking()))
+                    parsed = resp.parsed if isinstance(resp.parsed, schema) else schema.model_validate_json(resp.text or "{}")
+                except Exception as exc:  # noqa: BLE001
+                    raise GeminiUnavailable(f"Gemini returned invalid JSON ({type(exc).__name__})") from exc
         return parsed, self._meta(resp, started)
 
     def run_agent(self, *, system: str, history: list[dict], tools: list[Callable],

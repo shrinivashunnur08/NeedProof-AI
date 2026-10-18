@@ -362,6 +362,24 @@ def request_draft(request_id: int, shop_id: str):
     return draft_reply(req, shop_id)
 
 
+@router.get("/engines")
+def engines_catalog():
+    from app.commerce_loop.engines import catalog
+
+    return catalog()
+
+
+@router.post("/engines/{engine_id}/run")
+def engines_run(engine_id: str):
+    """Run one engine on the app's live data and return a short result."""
+    from app.commerce_loop.engines import run
+
+    try:
+        return run(engine_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="Unknown engine") from exc
+
+
 @router.get("/trust")
 def trust_report():
     """How decisions are made, live test results, seeded benchmarks and live outcome counts."""

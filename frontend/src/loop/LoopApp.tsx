@@ -5,9 +5,10 @@ import {
   type Brief, type ChatResult, type City, type Insights, type Intent, type LoopRequest, type NearbyShop, type Offer,
   type PhotoCheck, type ShopResponse, type ShopperLocation,
   type Providers, type Shop, type Analytics, type Profile, type BqForecast, type TrustReport, type ShopDashboard, type Basket, type ProofPlan,
+  type EngineCatalog, type EngineRun,
 } from "./api";
 
-type Role = "shopper" | "shop" | "business" | "trust";
+type Role = "shopper" | "shop" | "business" | "trust" | "engines";
 type Turn = { role: "user" | "assistant"; text: string; result?: ChatResult };
 
 const SAMPLE_PROMPTS: Record<string, string[]> = {
@@ -74,7 +75,7 @@ function useCityVersion(cityId: string): number {
 function readParams() {
   const q = new URLSearchParams(window.location.search);
   const role = (q.get("role") as Role) || "shopper";
-  return { role: ["shopper", "shop", "business", "trust"].includes(role) ? role : "shopper", city: q.get("city") || "singapore", shop: q.get("shop") || "" };
+  return { role: ["shopper", "shop", "business", "trust", "engines"].includes(role) ? role : "shopper", city: q.get("city") || "singapore", shop: q.get("shop") || "" };
 }
 
 function writeParams(role: Role, city: string, shop?: string) {
@@ -1259,6 +1260,16 @@ function ShopAnalytics({ city, initialShop }: { city: City; initialShop?: string
               <p className="mt-2 text-[11px] text-slate-500">{a.baskets.method} · {a.baskets.basket_count} baskets</p>
             </div>
           </div>
+          {a.command_center && a.command_center.queue.length > 0 && (
+            <div className="rounded-lg border border-slate-700 p-3">
+              <p className="text-xs uppercase tracking-wide text-slate-400">Review priorities</p>
+              <ol className="mt-2 space-y-1.5 text-sm">{a.command_center.queue.map((q) => (
+                <li key={q.title} className="flex gap-2"><span className="font-mono text-teal-300">{q.priority}.</span>
+                  <span><span className="text-slate-100">{q.title}</span> <span className="text-xs text-slate-400">· {q.reason} ({q.source_module})</span></span></li>
+              ))}</ol>
+              <p className="mt-2 text-[11px] text-slate-500">{a.command_center.method}</p>
+            </div>
+          )}
           <p className="text-xs text-amber-200/80">{a.data_note}</p>
         </>
       )}
@@ -1381,6 +1392,87 @@ function BusinessView({ city, bigquery, shopId }: { city: City; bigquery?: boole
           <p className="mt-1 text-xs text-slate-500">{brief.brief.caution} · {brief.mode === "gemini" ? `Gemini, ${brief.model.latency_ms} ms` : brief.mode}</p>
         </article>
       )}
+    </section>
+  );
+}
+
+/* ------------------------------ Engine room ------------------------------ */
+
+function ResultView({ value, depth = 0 }: { value: unknown; depth?: number }) {
+  if (value == null) return <span className="text-slate-500">–</span>;
+  if (Array.isArray(value)) {
+    return <ul className="list-disc space-y-0.5 pl-4">{value.map((v, i) => <li key={i}><ResultView value={v} depth={depth + 1} /></li>)}</ul>;
+  }
+  if (typeof value === "object") {
+    return (
+      <dl className={depth ? "pl-2" : ""}>
+        {Object.entries(value as Record<string, unknown>).map(([k, v]) => (
+          <div key={k} className="grid grid-cols-[minmax(7rem,auto)_1fr] gap-2">
+            <dt className="text-slate-400">{k.replaceAll("_", " ")}</dt><dd className="min-w-0 break-words text-slate-200"><ResultView value={v} depth={depth + 1} /></dd>
+          </div>
+        ))}
+      </dl>
+    );
+  }
+  return <span className="font-mono">{String(value)}</span>;
+}
+
+function EngineRoom() {
+  const [cat, setCat] = useState<EngineCatalog | null>(null);
+  const [runs, setRuns] = useState<Record<string, EngineRun | string>>({});
+  const [busy, setBusy] = useState("");
+  useEffect(() => {
+    let alive = true;
+    api.engines().then((x) => { if (alive) setCat(x); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, []);
+  async function run(id: string) {
+    setBusy(id);
+    try { const r = await api.runEngine(id); setRuns((x) => ({ ...x, [id]: r })); }
+    catch (e) { setRuns((x) => ({ ...x, [id]: e instanceof Error ? e.message : "Failed" })); }
+    finally { setBusy(""); }
+  }
+  if (!cat) return <p className="text-sm text-slate-400">Loading engines…</p>;
+  return (
+    <section aria-label="Engine room" className="flex flex-col gap-4">
+      <div>
+        <h1 className="text-xl font-semibold text-slate-50">Engine room</h1>
+        <p className="mt-1 text-sm text-slate-400">The NeedProof engines built before this app, what each one decides, and where it runs in the Shopper, Shop and Business screens. <b>Run</b> executes the engine now on the app's live data.</p>
+      </div>
+      <ul className="grid gap-3 md:grid-cols-2">
+        {cat.engines.map((e) => {
+          const r = runs[e.id];
+          return (
+            <li key={e.id} className="rounded-xl border border-slate-700 bg-slate-900/40 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-semibold text-slate-100"><span className="mr-2 rounded bg-slate-800 px-1.5 py-0.5 font-mono text-[11px] text-slate-300">{e.chunk}</span>{e.name}</p>
+                {e.status === "live" ? <Chip tone="green">Live in the app</Chip> : <Chip tone="amber">Available</Chip>}
+              </div>
+              <p className="mt-1 text-sm text-slate-300">{e.what}</p>
+              <p className="mt-1 text-xs text-slate-400">Where: <span className="text-slate-200">{e.used_in}</span></p>
+              <button type="button" disabled={busy === e.id} onClick={() => void run(e.id)} className="mt-2 rounded-lg bg-teal-500 px-3 py-1 text-sm font-semibold text-slate-950 disabled:opacity-40">{busy === e.id ? "Running…" : "Run"}</button>
+              {typeof r === "string" && <ErrorNote message={r} />}
+              {r && typeof r !== "string" && (
+                <div className="mt-2 rounded-lg border border-slate-700 bg-slate-950 p-2 text-xs">
+                  <p className="text-slate-400">Input: <span className="text-slate-200">{r.input}</span> · {r.ms} ms</p>
+                  <div className="mt-1"><ResultView value={r.result} /></div>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <div className="rounded-xl border border-slate-700 bg-slate-900/40 p-4">
+        <p className="text-sm font-semibold text-slate-100">Earlier showcase panels, now part of the app</p>
+        <table className="mt-2 w-full text-sm">
+          <tbody>{cat.retired.map((x) => (
+            <tr key={x.name} className="border-t border-slate-800">
+              <td className="py-1.5 pr-2 font-mono text-xs text-slate-400">{x.chunk}</td>
+              <td className="pr-2 text-slate-200">{x.name}</td>
+              <td className="text-slate-400">→ {x.replaced_by}</td>
+            </tr>))}</tbody>
+        </table>
+      </div>
     </section>
   );
 }
@@ -1565,6 +1657,7 @@ export default function LoopApp() {
     { id: "shop", label: "Shop", hint: "Reply with photo proof" },
     { id: "business", label: "Business", hint: "Unmet demand" },
     { id: "trust", label: "Trust report", hint: "How it decides" },
+    { id: "engines", label: "Engine room", hint: "The engines behind each screen" },
   ];
   const otherWindow = `${window.location.pathname}?role=${role === "shop" ? "shopper" : "shop"}&city=${cityId}`;
 
@@ -1614,6 +1707,7 @@ export default function LoopApp() {
           onMoved={(c, lat, lng, label) => applyLocation(c, lat ?? c.lat ?? 0, lng ?? c.lng ?? 0, label ?? c.name, loc?.source ?? "openstreetmap", loc?.shopsFound ?? 0, false)} />}
         {city && role === "shop" && <ShopView city={city} shopId={shopId} setShopId={setShopId} onOpenBusiness={() => setRole("business")} />}
         {role === "trust" && <TrustView />}
+        {role === "engines" && <EngineRoom />}
         {city && role === "business" && <BusinessView city={city} shopId={shopId} bigquery={providers?.analytics?.backend === "bigquery"} />}
         <p className="mt-10 text-xs text-slate-500">Onboarded shops in Singapore, São Paulo and Mumbai are sample businesses with seeded history. Real shops come from public map data and are never contacted by NeedProof. The app never buys anything; listings are shop claims until a photo is checked.</p>
       </main>

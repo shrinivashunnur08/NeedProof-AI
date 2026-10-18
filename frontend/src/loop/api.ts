@@ -53,7 +53,8 @@ export type Profile = {
   language: string | null; needs: { item: string; wattage_w?: number | null; connector?: string | null; at?: string }[];
 };
 export type Analytics = {
-  shop: { id: string; name: string }; currency: string; data_note: string;
+  shop: { id: string; name: string }; currency: string; data_note: string; stock_source?: string;
+  command_center?: { summary: string; queue: { priority: number; title: string; reason: string; source_module: string }[]; method: string } | null;
   forecast: { product: string; selected_model: string; models: { model: string; mae: number; wape_pct: number | null }[];
     next_7_days_units: number; daily: { day: string; units: number; low: number; high: number }[]; history: number[];
     shortfall_before_restock: number | null; method: string };
@@ -102,6 +103,11 @@ export type ShopDashboard = {
   sales: { product: string; qty: number; price: string | null; at: string }[];
   note: string;
 };
+export type EngineCatalog = {
+  engines: { id: string; chunk: string; name: string; what: string; used_in: string; status: string }[];
+  retired: { chunk: string; name: string; replaced_by: string }[];
+};
+export type EngineRun = { id: string; ms: number; input: string; result: Record<string, unknown> };
 export type InventoryItem = {
   id: number; shop_id: string; sku: string | null; product: string; brand: string | null; specs: Record<string, unknown>;
   price: number; currency: string; stock: number; image_file: string | null; image_url: string | null;
@@ -191,6 +197,8 @@ export const api = {
     call<InventoryItem>(`/shops/${shopId}/inventory/${itemId}`, { method: "POST", body: JSON.stringify(body) }),
   sell: (shopId: string, body: { inventory_id?: number; request_id?: number; qty: number }) =>
     call<{ sale_id: number; product: string; qty: number; stock_left: number | null }>(`/shops/${shopId}/sales`, { method: "POST", body: JSON.stringify(body) }),
+  engines: () => call<EngineCatalog>("/engines"),
+  runEngine: (id: string) => call<EngineRun>(`/engines/${id}/run`, { method: "POST" }),
   reset: () => call<{ reset: boolean }>("/demo/reset", { method: "POST" }),
   exportBq: () => call<{ rows: number; next: string }>("/analytics/export", { method: "POST" }),
 };

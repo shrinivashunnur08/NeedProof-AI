@@ -155,7 +155,9 @@ def shop_analytics(city: str, shop_id: str | None = None) -> dict:
               for m in forecast["model_comparison"]]
     preds = forecast["predictions"]
     scenario = forecast.get("inventory_exposure_scenario") or {}
+    command_center = _command_center(shop["id"], forecast, inventory, scenario, insights, models, on_hand)
     return {
+        "command_center": command_center,
         "shop": {"id": shop["id"], "name": shop["name"]},
         "currency": currency,
         "forecast": {
@@ -185,6 +187,43 @@ def shop_analytics(city: str, shop_id: str | None = None) -> dict:
         "data_note": ("Stock on hand comes from this shop's uploaded inventory. " if uploaded is not None else "")
                      + "Sales history and customers are seeded for onboarded shops and scale with this city's live requests.",
     }
+
+
+def _command_center(shop_id, forecast, inventory, scenario, insights, models, on_hand) -> dict | None:
+    """14B.4: turn this shop's forecast, stock, customer groups and request outcomes into review priorities."""
+    from app.bi_command_center_14b4 import BIInput14B4, evaluate_bi_command_center_14b4
+
+    try:
+        from app.commerce_loop.myshop import dashboard
+
+        dash = dashboard(shop_id)
+        out = dash["outcomes"]
+        verification = {"candidates_considered": min(100, dash["kpis"]["requests_reached"]),
+                        "unresolved_evidence_items": min(100, out.get("missed", 0) + out.get("out_of_stock", 0)),
+                        "provisional_candidates": min(100, out.get("answered", 0))}
+        lead = (inventory.get("lead_time_scenario") or {}).get("forecast_shortfall_scenario_units")
+        review = inventory.get("inventory_review") or {}
+        wapes = [m["wape_pct"] for m in models if m["wape_pct"] is not None]
+        segs = insights["segmentation"].get("segments", [])
+        result = evaluate_bi_command_center_14b4(BIInput14B4(
+            as_of=date.today(), synthetic_demo=True,
+            forecast={"sku_code": "CHG65", "projected_sales_units": float(sum(p["expected_units"] for p in forecast["predictions"])),
+                      "horizon_days": 7, "backtest_wape_pct": min(wapes) if wapes else None,
+                      "reported_stockout_days": int(inventory["observed_stockout_days"])},
+            inventory={"sku_code": "CHG65", "reported_on_hand_units": int(on_hand),
+                       "balance_mismatches": int(review.get("balance_mismatches", 0) or 0),
+                       "cross_day_gaps": int(review.get("cross_day_gaps", 0) or 0),
+                       "unusual_sales_days": int(review.get("unusual_sales_days", 0) or 0),
+                       "modeled_lead_time_shortfall_units": float(lead) if lead is not None else None},
+            cohorts={"anonymous_profile_count": 72, "aggregate_cohort_count": max(1, min(4, len(segs))),
+                     "minimum_cohort_size": 5,
+                     "association_rule_count": min(12, len(insights["basket_analysis"].get("rules", [])))},
+            verification=verification if verification["provisional_candidates"] <= verification["candidates_considered"] else None))
+        return {"summary": result["executive_summary"],
+                "queue": [{k: q[k] for k in ("priority", "title", "reason", "source_module")} for q in result["review_queue"]],
+                "method": "14B.4: review priorities from this shop's forecast, stock, customer groups and request outcomes"}
+    except Exception:  # noqa: BLE001 - advisory panel; never break analytics
+        return None
 
 
 def addon_suggestion(city: str, product: str) -> dict | None:

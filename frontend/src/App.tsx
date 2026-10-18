@@ -36,6 +36,11 @@ export default function NeedProofRouter() {
   if (/^\/app\/?$/.test(path) || (path === "/" && !hostedShowcase)) {
     return <Suspense fallback={<RouteLoading />}><LoopApp /></Suspense>;
   }
+  // The old engine lab now lives inside the app as the Engine room.
+  if (path.startsWith("/classic") && !hostedShowcase) {
+    window.location.replace("/?role=engines");
+    return null;
+  }
   if (path.startsWith("/classic")) {
     return (
       <>

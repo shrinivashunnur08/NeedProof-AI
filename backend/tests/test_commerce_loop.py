@@ -701,3 +701,21 @@ def test_sales_upload_turns_on_forecast_segments_and_baskets(client):
     assert a["segments"]["items"] and a["baskets"]["rules"]
     assert all(r["ready"] for r in a["readiness"] if r["module"] != "Stock cover")
     assert "98000" not in str(store.rows("SELECT customer_ref FROM sales WHERE shop_id=?", (sid,)))
+
+
+def test_request_routed_to_two_kinds_of_shop(client):
+    from app.commerce_loop.categories import shop_serves
+
+    assert shop_serves("electronics", "home|electronics") and shop_serves("home", "home|electronics")
+    assert not shop_serves("clothing", "home|electronics")
+    store.upsert_shops("singapore", [{"id": "gpl-homey", "name": "Homey", "lat": 1.3, "lng": 103.85, "area": "Bugis",
+                                      "source": "google_places", "kind": "home"}])
+    store.create_request("singapore", "mixer grinder 750W", {}, 80, "SGD", "en", "mixer grinder",
+                         category="home|electronics")
+    r = client.get("/api/v2/loop/cities/singapore/routing").json()
+    cats = {c["category"]: c["requests"] for c in r["categories"]}
+    assert cats == {"home": 1, "electronics": 1}
+    assert r["shops"]["gpl-homey"]["by_category"] == {"home": 1}
+    assert r["shops"]["sg-marina"]["by_category"] == {"electronics": 1}
+    inbox = client.get("/api/v2/loop/cities/singapore/requests?shop_id=sg-marina").json()
+    assert any("mixer" in q["product"] for q in inbox)

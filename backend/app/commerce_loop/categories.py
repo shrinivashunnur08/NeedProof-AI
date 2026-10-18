@@ -107,8 +107,14 @@ def osm_pattern(category: str) -> str:
     return CATEGORIES.get(category, {}).get("osm") or GENERAL_OSM
 
 
+def route_categories(request_category: str | None) -> list[str]:
+    """A request's route: one category, or two joined by '|' (e.g. 'home|electronics' for a mixer grinder)."""
+    return [c for c in (request_category or "general").split("|") if c] or ["general"]
+
+
 def shop_serves(shop_kind: str | None, request_category: str | None) -> bool:
-    """Which inboxes see a request: same category, or a general/department store, or a general request."""
+    """Which inboxes see a request: a shop of a routed category, a general/department store, or any shop for a
+    general request."""
     kind = shop_kind or "general"
-    cat = request_category or "general"
-    return kind == cat or kind == "general" or cat == "general"
+    cats = route_categories(request_category)
+    return kind in cats or kind == "general" or "general" in cats

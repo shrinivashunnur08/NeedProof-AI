@@ -11,6 +11,7 @@ Two profiles share one codebase. `free` (default) runs on a laptop with a Gemini
 | Shop brief | Gemini in the backend | plus **BigQuery AI** `AI.GENERATE` over the `unmet_demand` view |
 | Inventory search | Local rules | **Vertex AI Search** (data store `needproof-inventory`), then the same rules |
 | Shop photos | Local disk | **Cloud Storage** bucket (private, served by the backend) |
+| App state (requests, replies, shops) | Local SQLite file | Same SQLite file, restored from **Cloud Storage** (`state/commerce_loop.db`) when an instance starts and snapshotted 5 s after each change, so redeploys and restarts keep the data |
 | Hosting | `uvicorn` + Vite | **Cloud Run** `needproof` in `asia-southeast1`, built by **Cloud Build** |
 | Real nearby shops | OpenStreetMap | **Places API (New)** by product category (clothing, electronics, shoes...) with phone numbers, OSM fallback |
 | Place names ("near Bugis") | Nominatim | **Geocoding API** (same server key, restricted to Places + Geocoding), Nominatim fallback |

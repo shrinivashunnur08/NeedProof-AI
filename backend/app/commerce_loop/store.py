@@ -125,6 +125,9 @@ def conn() -> sqlite3.Connection:
     with _LOCK:
         path = db_path()
         if _CONN is None or _CONN_PATH != path:
+            from app.commerce_loop import persist
+
+            persist.restore(path)
             _CONN = sqlite3.connect(path, check_same_thread=False)
             _CONN.row_factory = sqlite3.Row
             _CONN.executescript(SCHEMA)
@@ -330,7 +333,7 @@ def ref_image_url(name: str | None) -> str | None:
 
 def routing_summary(city: str) -> dict:
     """How requests were routed: per category (requests, shops reached, answered) and per shop (received by category)."""
-    from app.commerce_loop.categories import shop_serves
+    from app.commerce_loop.categories import route_categories, shop_serves
 
     reqs = rows("SELECT id, category, status FROM requests WHERE city=?", (city,))
     shops = shops_in_city(city)
@@ -339,13 +342,16 @@ def routing_summary(city: str) -> dict:
     by_cat: dict[str, dict] = {}
     by_shop: dict[str, dict] = {s["id"]: {"received": 0, "answered": 0, "by_category": {}} for s in shops}
     for r in reqs:
-        cat = r["category"] or "general"
-        c = by_cat.setdefault(cat, {"category": cat, "requests": 0, "answered": 0, "shops_reached": 0})
-        c["requests"] += 1
-        c["answered"] += r["status"] == "ANSWERED"
-        reached = [s for s in shops if shop_serves(s.get("kind"), cat)]
-        c["shops_reached"] = max(c["shops_reached"], len(reached))
-        for s in reached:
+        cats = route_categories(r["category"])
+        for cat in cats:  # a request routed to two kinds of shop counts once in each
+            c = by_cat.setdefault(cat, {"category": cat, "requests": 0, "answered": 0, "shops_reached": 0})
+            c["requests"] += 1
+            c["answered"] += r["status"] == "ANSWERED"
+            c["shops_reached"] = max(c["shops_reached"], sum(shop_serves(s.get("kind"), cat) for s in shops))
+        for s in shops:
+            if not shop_serves(s.get("kind"), r["category"]):
+                continue
+            cat = s.get("kind") if s.get("kind") in cats else cats[0]
             b = by_shop[s["id"]]
             b["received"] += 1
             b["by_category"][cat] = b["by_category"].get(cat, 0) + 1

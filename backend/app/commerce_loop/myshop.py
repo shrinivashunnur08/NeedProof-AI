@@ -62,7 +62,8 @@ def dashboard(shop_id: str, days: int = 28) -> dict:
     # Only requests routed to this kind of shop (Gemini's shop_category vs the shop's Google Places type):
     # an electronics shop's demand and missed sales never include potatoes or shirts.
     reqs = [r for r in all_reqs if shop_serves(kind, r.get("category"))]
-    elsewhere = Counter(r.get("category") or "general" for r in all_reqs if not shop_serves(kind, r.get("category")))
+    elsewhere = Counter((r.get("category") or "general").replace("|", " + ") for r in all_reqs
+                        if not shop_serves(kind, r.get("category")))
     mine = {r["request_id"]: r for r in store.rows(
         "SELECT request_id, MIN(created_at) AS created_at, MAX(status) AS status FROM responses WHERE shop_id=?"
         " GROUP BY request_id", (shop_id,))}

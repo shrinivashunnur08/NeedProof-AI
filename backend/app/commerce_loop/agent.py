@@ -99,6 +99,7 @@ class ShopperAgent:
         self.ref_image_file: str | None = None
         self.ref_reading: dict | None = None
         self.category: str = "general"
+        self.route: str = "general"
         self.category_source: str = "keywords"
         self.shopper_id = shopper_id
         self.shopper_name = shopper_name
@@ -128,23 +129,25 @@ class ShopperAgent:
             connector: Required connector such as "USB-C", or empty.
             budget_amount: Maximum price in the city's local currency, or 0 if not given.
         """
-        from app.commerce_loop.categories import category_of, item_noun, shop_serves
+        from app.commerce_loop.categories import item_noun, route_categories, shop_serves
         from app.commerce_loop.discovery import discover
 
         city_id = resolve_city(city) or self.city
         category = self._route_category(product)
+        cats = route_categories(self.route)
         required = {k: v for k, v in {"wattage_w": required_wattage_w or None,
                                       "connector": connector or None}.items() if v}
         required.update({k: v for k, v in required_specs_from_text(product).items() if k not in required})
         if category != "electronics":
             required = {}
-        try:  # real shops of this kind around the shopper (or the city centre)
-            origin = self.origin if self.origin.get("lat") is not None else {}
-            found = discover(city_id, category, origin.get("lat"), origin.get("lng"))
-            self._log("discover_shops", {"category": category}, f"{found['shops_found']} real {category} shops "
-                                                                 f"from {found['source']}")
-        except Exception as exc:  # noqa: BLE001
-            self._log("discover_shops", {"category": category}, f"unavailable ({type(exc).__name__})")
+        origin = self.origin if self.origin.get("lat") is not None else {}
+        for cat in cats:  # real shops of each routed kind around the shopper (or the city centre)
+            try:
+                found = discover(city_id, cat, origin.get("lat"), origin.get("lng"))
+                self._log("discover_shops", {"category": cat}, f"{found['shops_found']} real {cat} shops "
+                                                               f"from {found['source']}")
+            except Exception as exc:  # noqa: BLE001
+                self._log("discover_shops", {"category": cat}, f"unavailable ({type(exc).__name__})")
         offers = []
         key = store.product_key(product, required)
         noun = item_noun(product)
@@ -177,8 +180,8 @@ class ShopperAgent:
                    "rating": s.get("rating"), "rating_count": s.get("rating_count"), "address": s.get("address"),
                    "source": s["source"], "photo_proof": self._photo_proof(city_id, s["id"], product)}
                   for s in store.shops_in_city(city_id)
-                  if s["id"] not in listed and s["source"] != "demo" and shop_serves(s.get("kind"), category)
-                  and (s.get("kind") in (category, None) or category == "general")]
+                  if s["id"] not in listed and s["source"] != "demo" and shop_serves(s.get("kind"), self.route)
+                  and (s.get("kind") in (*cats, None) or "general" in cats)]
         nearby.sort(key=lambda x: x["distance_km"] if x["distance_km"] is not None else 99)
         self.nearby = nearby[:12]
         result = {"city": CITIES[city_id]["name"], "currency": CITIES[city_id]["currency"],
@@ -232,10 +235,10 @@ class ShopperAgent:
                                        "material": i.material if i else None}.items() if v}
         currency = CITIES[self.city]["currency"]
         rid = store.create_request(self.city, product, specs, budget_amount or None, currency, language, product,
-                                   shopper_id=self.shopper_id, category=category, ref_image=self.ref_image_file)
-        shops = store.shops_serving(self.city, category)
-        self._log("route_request", {"category": category, "decided_by": self.category_source},
-                  f"request #{rid} routed to {len(shops)} {category} shops")
+                                   shopper_id=self.shopper_id, category=self.route, ref_image=self.ref_image_file)
+        shops = store.shops_serving(self.city, self.route)
+        self._log("route_request", {"category": self.route, "decided_by": self.category_source},
+                  f"request #{rid} routed to {len(shops)} {self.route.replace('|', ' + ')} shops")
         self.request = {"id": rid, "shops_notified": len(shops), "product": product, "specs": specs,
                         "budget": budget_amount or None, "currency": currency, "category": category,
                         "ref_image_url": store.ref_image_url(self.ref_image_file)}
@@ -488,6 +491,8 @@ class ShopperAgent:
             self.category, self.category_source = ai, "gemini"
         else:
             self.category, self.category_source = keyword, "keywords"
+        also = self.intent.also_sold_at if self.intent and self.category_source == "gemini" else None
+        self.route = f"{self.category}|{also}" if also in CATEGORIES and also != self.category else self.category
         return self.category
 
     def _read_reference_photo(self) -> None:

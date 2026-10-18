@@ -25,6 +25,8 @@ exactly as the shopper said them (e.g. color "navy blue", size "M", pattern_or_d
 Electronics fields (wattage_w, connector, usb_pd, device_model) only for electronics.
 shop_category: the kind of shop that sells this item; requests are routed to shops of that kind. Pick one of
 electronics, clothing, shoes, books, pharmacy, hardware, home, sports, jewelry, grocery, or general if unsure.
+also_sold_at: a second kind of shop that commonly sells it, or null. Example: a mixer grinder is sold at home goods
+and electronics/appliance shops (shop_category home, also_sold_at electronics); a phone charger has none.
 missing_info: what is still needed to find the right item (e.g. "wattage", "device model"). Leave empty if enough.
 clarifying_question: ONE short question in the shopper's language, only if the item itself is unclear or a
 missing detail would change which product fits. Otherwise null.
@@ -37,6 +39,7 @@ class ShopperIntent(BaseModel):
     item: str | None = None
     category: str | None = None
     shop_category: ShopCategory | None = Field(default=None, description="Kind of shop that sells this item; used for routing")
+    also_sold_at: ShopCategory | None = Field(default=None, description="A second kind of shop that commonly sells it")
     wattage_w: int | None = None
     connector: str | None = None
     usb_pd: bool | None = None

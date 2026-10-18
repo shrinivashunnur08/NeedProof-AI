@@ -48,10 +48,13 @@ def status():
     store.conn()
     from app.commerce_loop.guard import usage
 
-    return {"providers": get_providers().public_status(), "limits": usage(),
+    from app.commerce_loop.persist import status as state_status
+
+    return {"providers": get_providers().public_status(), "limits": usage(), "state": state_status(),
             # Browser key for the Maps Static API, restricted by HTTP referrer to this site.
             "maps_key": setting("MAPS_BROWSER_KEY", ""),
-            "cities": [c for c in CITIES.values() if c.get("demo")],
+            # Onboarded cities plus places shoppers have located (kept in the store), so links like ?city=kalyan work.
+            "cities": [c for c in CITIES.values() if c.get("demo")] + [c for c in CITIES.values() if not c.get("demo")][-12:],
             "discovery": setting("DISCOVERY", "osm").lower(),
             "data_note": "Shops and listings are fictional demo data."}
 

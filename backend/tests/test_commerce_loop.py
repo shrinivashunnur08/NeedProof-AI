@@ -654,3 +654,50 @@ def test_shop_dashboard_counts_only_requests_for_its_kind_of_shop(client):
     assert products and not any("rice" in p or "fruit" in p for p in products)
     assert d["shop"]["kind"] == "electronics"
     assert {"category": "grocery", "requests": 1} in d["routing"]["routed_elsewhere"]
+
+
+def _real_shop():
+    store.upsert_shops("singapore", [{"id": "gpl-realtech", "name": "Real Tech", "lat": 1.30, "lng": 103.85,
+                                      "area": "Bugis", "source": "google_places", "kind": "electronics"}])
+    return "gpl-realtech"
+
+
+def test_real_shop_analytics_never_uses_generated_data(client):
+    sid = _real_shop()
+    a = client.get(f"/api/v2/loop/cities/singapore/analytics?shop_id={sid}").json()
+    assert a["mode"] == "real" and a["forecast"] is None and a["segments"] is None and a["baskets"] is None
+    assert a["sales_summary"]["rows"] == 0
+    assert any(not r["ready"] and "42" in r["detail"] for r in a["readiness"])
+    sample = client.get("/api/v2/loop/cities/singapore/analytics?shop_id=sg-marina").json()
+    assert sample["mode"] == "sample" and "Sample data" in sample["data_note"]
+
+
+def test_sales_upload_turns_on_forecast_segments_and_baskets(client):
+    import base64
+    import random
+    from datetime import date, timedelta
+
+    sid = _real_shop()
+    rng = random.Random(7)
+    lines = ["Date,Bill no,Product,Qty,Price,Customer phone"]
+    bill = 0
+    for d in range(60, 0, -1):
+        day = (date.today() - timedelta(days=d)).isoformat()
+        for _ in range(3):
+            bill += 1
+            cust = f"9800000{rng.randint(0, 39):03d}"
+            if rng.random() < 0.5:
+                lines.append(f"{day},B{bill},USB-C charger,1,900,{cust}")
+                if rng.random() < 0.8:
+                    lines.append(f"{day},B{bill},USB-C cable,1,300,{cust}")
+            else:
+                lines.append(f"{day},B{bill},Phone case,1,250,{cust}")
+                lines.append(f"{day},B{bill},{rng.choice(['Earphones', 'Screen guard'])},1,400,{cust}")
+    data = base64.b64encode("\n".join(lines).encode()).decode()
+    r = client.post(f"/api/v2/loop/shops/{sid}/sales/upload", json={"filename": "sales.csv", "sheet_base64": data}).json()
+    assert r["imported"] > 180 and r["customers"] >= 24
+    a = client.get(f"/api/v2/loop/cities/singapore/analytics?shop_id={sid}").json()
+    assert a["forecast"]["product"] in {"USB-C charger", "Phone case"} and a["forecast"]["next_7_days_units"] > 0
+    assert a["segments"]["items"] and a["baskets"]["rules"]
+    assert all(r["ready"] for r in a["readiness"] if r["module"] != "Stock cover")
+    assert "98000" not in str(store.rows("SELECT customer_ref FROM sales WHERE shop_id=?", (sid,)))

@@ -5,7 +5,7 @@ import {
   type Brief, type ChatResult, type City, type Insights, type Intent, type LoopRequest, type NearbyShop, type Offer,
   type PhotoCheck, type ShopResponse, type ShopperLocation,
   type Providers, type Shop, type Analytics, type Profile, type BqForecast, type TrustReport, type ShopDashboard, type Basket, type ProofPlan,
-  type EngineCatalog, type EngineRun, type Routing,
+  type EngineCatalog, type EngineRun, type Routing, type ForecastData, type SegmentsData, type BasketsData, type SalesUpload,
 } from "./api";
 
 type Role = "shopper" | "shop" | "business" | "trust" | "engines";
@@ -1383,7 +1383,7 @@ function Sparkline({ values }: { values: number[] }) {
   );
 }
 
-function Bands({ a }: { a: Analytics["forecast"] }) {
+function Bands({ a }: { a: ForecastData }) {
   const all = [...a.history, ...a.daily.map((d) => d.high)];
   const max = Math.max(1, ...all);
   const n = a.history.length + a.daily.length;
@@ -1404,11 +1404,141 @@ function Bands({ a }: { a: Analytics["forecast"] }) {
   );
 }
 
+function ForecastCard({ f }: { f: ForecastData }) {
+  return (
+    <div className="rounded-lg border border-slate-700 p-3">
+      <p className="text-xs uppercase tracking-wide text-slate-400">Sales forecast · {f.product}</p>
+      <p className="mt-1 text-2xl font-semibold text-slate-50">{f.next_7_days_units} units <span className="text-sm font-normal text-slate-400">next 7 days</span></p>
+      <Bands a={f} />
+      <table className="mt-1 w-full text-xs">
+        <thead className="text-left text-slate-500"><tr><th>Model (backtested)</th><th>MAE</th><th>WAPE</th></tr></thead>
+        <tbody>{f.models.map((m) => (
+          <tr key={m.model} className={m.model === f.selected_model ? "text-teal-200" : "text-slate-400"}>
+            <td>{m.model}{m.model === f.selected_model ? " ✓ selected" : ""}</td><td className="font-mono">{m.mae}</td><td className="font-mono">{m.wape_pct ?? "–"}%</td>
+          </tr>))}</tbody>
+      </table>
+      <p className="mt-1 text-[11px] text-slate-500">{f.method}</p>
+    </div>
+  );
+}
+
+function SegmentsCard({ g: data }: { g: SegmentsData }) {
+  return (
+    <div className="rounded-lg border border-slate-700 p-3">
+      <p className="text-xs uppercase tracking-wide text-slate-400">Customer segments</p>
+      <ul className="mt-2 space-y-2">{data.items.map((g) => (
+        <li key={g.name + g.count} className="text-sm">
+          <div className="flex justify-between text-slate-200"><span>{g.name}</span><span className="font-mono">{g.share_pct}%</span></div>
+          <div className="h-1.5 rounded bg-slate-800"><div className="h-1.5 rounded bg-teal-400/70" style={{ width: `${g.share_pct}%` }} /></div>
+          <p className="text-xs text-slate-500">{g.count} customers · last visit ~{g.recency_days} d · {g.orders_90d} orders/90 d · {g.spend_90d}</p>
+        </li>))}</ul>
+      <p className="mt-2 text-[11px] text-slate-500">{data.method}</p>
+    </div>
+  );
+}
+
+function BasketsCard({ b }: { b: BasketsData }) {
+  return (
+    <div className="rounded-lg border border-slate-700 p-3">
+      <p className="text-xs uppercase tracking-wide text-slate-400">Basket analysis · bought together</p>
+      {b.rules.length === 0 ? <p className="mt-2 text-sm text-slate-400">No product pair is bought together often enough yet.</p> : (
+        <ul className="mt-2 space-y-1.5 text-sm">{b.rules.map((r) => (
+          <li key={r.if_bought + r.also_bought} className="flex flex-wrap justify-between gap-2 text-slate-300">
+            <span>{r.if_bought} → <span className="text-slate-100">{r.also_bought}</span></span>
+            <span className="font-mono text-xs text-slate-400">{Math.round(r.confidence_pct)}% · lift {r.lift}</span>
+          </li>))}</ul>)}
+      <p className="mt-2 text-[11px] text-slate-500">{b.method} · {b.basket_count} baskets</p>
+    </div>
+  );
+}
+
+function SalesUploader({ shopId, onUploaded }: { shopId: string; onUploaded: () => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState<SalesUpload | null>(null);
+  const [error, setError] = useState("");
+  async function upload() {
+    if (!file) return;
+    setBusy(true); setError("");
+    try {
+      const r = await api.uploadSales(shopId, { filename: file.name, sheet_base64: await fileToBase64(file) });
+      setRes(r); if (r.imported > 0) onUploaded();
+    } catch (e) { setError(e instanceof Error ? e.message : "Upload failed"); } finally { setBusy(false); }
+  }
+  return (
+    <div className="rounded-lg border border-slate-700 p-3">
+      <p className="text-xs uppercase tracking-wide text-slate-400">Your sales history</p>
+      <p className="mt-1 text-sm text-slate-300">Upload a POS export or your bill book typed into Excel: Date, Product, Qty, Price, and optionally Bill no and Customer phone (turned into an anonymous code, never stored).</p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <input type="file" accept=".xlsx,.csv" aria-label="Sales file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="text-sm text-slate-300" />
+        <button type="button" disabled={!file || busy} onClick={() => void upload()} className="rounded-full bg-teal-500 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-40">{busy ? "Reading…" : "Upload sales"}</button>
+        <a href={api.salesTemplateUrl} className="text-sm text-teal-300 hover:underline">Download template</a>
+      </div>
+      <ErrorNote message={error} />
+      {res && <p className={`mt-2 text-xs ${res.imported ? "text-emerald-300" : "text-amber-200"}`}>
+        {res.imported ? `Imported ${res.imported} sales lines (${res.first_day} to ${res.last_day}) · ${res.bills ?? 0} bills · ${res.customers ?? 0} customers.` : "Nothing imported."}
+        {res.errors.length > 0 && ` ${res.errors.join(" · ")}`}</p>}
+    </div>
+  );
+}
+
+function RealShopAnalytics({ a, locked, onUploaded }: { a: Analytics; locked: boolean; onUploaded: () => void }) {
+  const s = a.sales_summary;
+  const d = a.demand;
+  return (
+    <>
+      <p className="rounded-lg border border-teal-500/40 bg-teal-500/10 px-3 py-2 text-sm text-teal-100">
+        <strong>Real shop{a.shop.kind_label ? ` · ${a.shop.kind_label}` : ""}.</strong> Only this shop's own data: shopper requests for its category,
+        its uploaded sales and stock, and sales confirmed in the app. Nothing is generated; each analysis switches on when there is enough data.
+      </p>
+      <div className="grid gap-3 md:grid-cols-2">
+        {d && (
+          <div className="rounded-lg border border-slate-700 p-3">
+            <p className="text-xs uppercase tracking-wide text-slate-400">Shopper demand for your category (this app)</p>
+            <p className="mt-1 text-2xl font-semibold text-slate-50">{d.requests} requests <span className="text-sm font-normal text-slate-400">· {d.answered} answered by you</span></p>
+            {d.top_asked.length > 0 ? (
+              <ul className="mt-2 space-y-1 text-sm text-slate-300">{d.top_asked.map((t) => (
+                <li key={t.product} className="flex justify-between gap-2"><span>{t.product}</span><span className="font-mono text-xs text-slate-400">{t.asks} asked{t.answered ? ` · ${t.answered} answered` : ""}</span></li>))}</ul>
+            ) : <p className="mt-2 text-sm text-slate-400">No shopper has asked for your category yet.</p>}
+            {d.missed.length > 0 && <p className="mt-2 text-xs text-amber-200">Not in your stock: {d.missed.map((m) => `${m.product} (${m.asks}${m.median_budget ? `, ~${m.median_budget}` : ""})`).join(" · ")}</p>}
+            {d.routed_elsewhere.length > 0 && <p className="mt-1 text-[11px] text-slate-500">Not counted: {d.routed_elsewhere.map((x) => `${x.requests} ${x.category}`).join(", ")} (other kinds of shop)</p>}
+          </div>
+        )}
+        <div className="rounded-lg border border-slate-700 p-3">
+          <p className="text-xs uppercase tracking-wide text-slate-400">What can be analysed with your data</p>
+          <ul className="mt-2 space-y-1.5 text-sm">{(a.readiness ?? []).map((r) => (
+            <li key={r.module} className="flex gap-2"><span className={r.ready ? "text-emerald-300" : "text-slate-500"}>{r.ready ? "✓" : "○"}</span>
+              <span><span className="text-slate-100">{r.module}</span> <span className="text-xs text-slate-400">· {r.detail}</span></span></li>))}</ul>
+          {s && s.rows > 0 && <p className="mt-2 text-xs text-slate-400">Sales on file: {s.rows} lines · {s.units} units{s.revenue ? ` · ${s.revenue}` : ""} · {s.first_day} to {s.last_day}</p>}
+        </div>
+        {locked && <SalesUploader shopId={a.shop.id} onUploaded={onUploaded} />}
+        {a.forecast && <ForecastCard f={a.forecast} />}
+        {a.stock_cover && (
+          <div className="rounded-lg border border-slate-700 p-3">
+            <p className="text-xs uppercase tracking-wide text-slate-400">Stock cover {a.stock_cover.low > 0 && <Chip tone="amber">{a.stock_cover.low} to reorder</Chip>}</p>
+            <table className="mt-2 w-full text-xs">
+              <thead className="text-left text-slate-500"><tr><th>Product</th><th>On hand</th><th>Sold/day</th><th>Days of cover</th></tr></thead>
+              <tbody>{a.stock_cover.items.map((r) => (
+                <tr key={r.product} className="text-slate-300"><td className="py-0.5">{r.product}</td><td className="font-mono">{r.on_hand}</td>
+                  <td className="font-mono">{r.per_day}</td><td className={`font-mono ${r.coverage_days != null && r.coverage_days < 5 ? "text-amber-200" : ""}`}>{r.coverage_days ?? "–"}</td></tr>))}</tbody>
+            </table>
+            <p className="mt-2 text-[11px] text-slate-500">{a.stock_cover.method}</p>
+          </div>
+        )}
+        {a.segments && <SegmentsCard g={a.segments} />}
+        {a.baskets && <BasketsCard b={a.baskets} />}
+      </div>
+      <p className="text-xs text-slate-400">{a.data_note}</p>
+    </>
+  );
+}
+
 function ShopAnalytics({ city, initialShop, locked = false }: { city: City; initialShop?: string; locked?: boolean }) {
   const [shops, setShops] = useState<Shop[]>([]);
   const [shopId, setShopId] = useState(initialShop ?? "");
   const [a, setA] = useState<Analytics | null>(null);
   const [error, setError] = useState("");
+  const [reload, setReload] = useState(0);
   useEffect(() => {
     let alive = true;
     api.shops(city.id).then((x) => { if (alive) setShops(x.filter((s) => s.source === "demo")); }).catch(() => undefined);
@@ -1419,8 +1549,8 @@ function ShopAnalytics({ city, initialShop, locked = false }: { city: City; init
     api.analytics(city.id, shopId || undefined).then((x) => { if (alive) { setA(x); setError(""); } })
       .catch((e) => { if (alive) setError(e instanceof Error ? e.message : "Analytics failed"); });
     return () => { alive = false; };
-  }, [city.id, shopId]);
-  const status = a?.inventory.status ?? "";
+  }, [city.id, shopId, reload]);
+  const status = a?.inventory?.status ?? "";
   return (
     <section aria-label="Shop analytics" className="flex flex-col gap-3 rounded-xl border border-slate-700 bg-slate-900/40 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1434,23 +1564,16 @@ function ShopAnalytics({ city, initialShop, locked = false }: { city: City; init
         )}
       </div>
       <ErrorNote message={error} />
-      {a && (
+      {a?.mode === "real" && <RealShopAnalytics a={a} locked={locked} onUploaded={() => setReload((n) => n + 1)} />}
+      {a && a.mode !== "real" && (
         <>
+          <p className="rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+            <strong>Sample data · fictional shop.</strong> {a.shop.name} is a made-up shop; its sales, stock and customers are generated
+            to show how the analytics work. Real shops (from Google Places) see only their own data.
+          </p>
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-lg border border-slate-700 p-3">
-              <p className="text-xs uppercase tracking-wide text-slate-400">Sales forecast · {a.forecast.product}</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-50">{a.forecast.next_7_days_units} units <span className="text-sm font-normal text-slate-400">next 7 days</span></p>
-              <Bands a={a.forecast} />
-              <table className="mt-1 w-full text-xs">
-                <thead className="text-left text-slate-500"><tr><th>Model (backtested)</th><th>MAE</th><th>WAPE</th></tr></thead>
-                <tbody>{a.forecast.models.map((m) => (
-                  <tr key={m.model} className={m.model === a.forecast.selected_model ? "text-teal-200" : "text-slate-400"}>
-                    <td>{m.model}{m.model === a.forecast.selected_model ? " ✓ selected" : ""}</td><td className="font-mono">{m.mae}</td><td className="font-mono">{m.wape_pct ?? "–"}%</td>
-                  </tr>))}</tbody>
-              </table>
-              <p className="mt-1 text-[11px] text-slate-500">{a.forecast.method}</p>
-            </div>
-            <div className="rounded-lg border border-slate-700 p-3">
+            {a.forecast && <ForecastCard f={a.forecast} />}
+            {a.inventory && <div className="rounded-lg border border-slate-700 p-3">
               <p className="text-xs uppercase tracking-wide text-slate-400">Inventory risk · {a.inventory.sku}</p>
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <span className="text-2xl font-semibold text-slate-50">{a.inventory.on_hand} on hand</span>
@@ -1463,26 +1586,9 @@ function ShopAnalytics({ city, initialShop, locked = false }: { city: City; init
                 {a.inventory.review_signals != null && <li>Stock records to review: <span className="font-mono">{a.inventory.review_signals}</span></li>}
               </ul>
               <p className="mt-2 text-[11px] text-slate-500">{a.inventory.method}</p>
-            </div>
-            <div className="rounded-lg border border-slate-700 p-3">
-              <p className="text-xs uppercase tracking-wide text-slate-400">Customer segments</p>
-              <ul className="mt-2 space-y-2">{a.segments.items.map((g) => (
-                <li key={g.name + g.count} className="text-sm">
-                  <div className="flex justify-between text-slate-200"><span>{g.name}</span><span className="font-mono">{g.share_pct}%</span></div>
-                  <div className="h-1.5 rounded bg-slate-800"><div className="h-1.5 rounded bg-teal-400/70" style={{ width: `${g.share_pct}%` }} /></div>
-                  <p className="text-xs text-slate-500">{g.count} customers · last visit ~{g.recency_days} d · {g.orders_90d} orders/90 d · {g.spend_90d}</p>
-                </li>))}</ul>
-              <p className="mt-2 text-[11px] text-slate-500">{a.segments.method}</p>
-            </div>
-            <div className="rounded-lg border border-slate-700 p-3">
-              <p className="text-xs uppercase tracking-wide text-slate-400">Basket analysis · bought together</p>
-              <ul className="mt-2 space-y-1.5 text-sm">{a.baskets.rules.map((r) => (
-                <li key={r.if_bought + r.also_bought} className="flex flex-wrap justify-between gap-2 text-slate-300">
-                  <span>{r.if_bought} → <span className="text-slate-100">{r.also_bought}</span></span>
-                  <span className="font-mono text-xs text-slate-400">{Math.round(r.confidence_pct)}% · lift {r.lift}</span>
-                </li>))}</ul>
-              <p className="mt-2 text-[11px] text-slate-500">{a.baskets.method} · {a.baskets.basket_count} baskets</p>
-            </div>
+            </div>}
+            {a.segments && <SegmentsCard g={a.segments} />}
+            {a.baskets && <BasketsCard b={a.baskets} />}
           </div>
           {a.command_center && a.command_center.queue.length > 0 && (
             <div className="rounded-lg border border-slate-700 p-3">

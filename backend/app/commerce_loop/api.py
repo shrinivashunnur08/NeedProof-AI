@@ -413,6 +413,37 @@ def record_sale(shop_id: str, body: SaleIn, request: Request):
     return store.record_sale(shop_id, body.inventory_id, body.qty, body.request_id, body.unit_price)
 
 
+class SalesUploadIn(BaseModel):
+    filename: str = Field(max_length=120)
+    sheet_base64: str = Field(max_length=8_000_000)
+
+
+@router.post("/shops/{shop_id}/sales/upload")
+def upload_sales(shop_id: str, body: SalesUploadIn, request: Request):
+    """The shop's own sales history (date, product, qty, price, bill no, customer). Replaces the previous upload."""
+    require(request, "shopkeeper", shop_id=shop_id)
+    from app.commerce_loop.sales_upload import import_sales
+
+    _shop_or_404(shop_id)
+    try:
+        data = base64.b64decode(body.sheet_base64.split(",")[-1], validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="File is not valid base64") from exc
+    try:
+        result = import_sales(shop_id, data, body.filename)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return result
+
+
+@router.get("/sales/template.xlsx")
+def sales_template():
+    from app.commerce_loop.sales_upload import template_xlsx
+
+    return Response(template_xlsx(), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": 'attachment; filename="needproof_sales_template.xlsx"'})
+
+
 @router.get("/inventory/template.xlsx")
 def inventory_template():
     from app.commerce_loop.inventory import template_xlsx

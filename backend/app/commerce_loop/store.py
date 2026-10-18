@@ -155,6 +155,10 @@ def _migrate(c: sqlite3.Connection) -> None:
     for col in ("category", "ref_image"):
         if col not in have_req:
             c.execute(f"ALTER TABLE requests ADD COLUMN {col} TEXT")
+    have_sales = {r[1] for r in c.execute("PRAGMA table_info(sales)").fetchall()}
+    for col, ddl in (("bill_id", "TEXT"), ("customer_ref", "TEXT"), ("source", "TEXT NOT NULL DEFAULT 'app'")):
+        if col not in have_sales:
+            c.execute(f"ALTER TABLE sales ADD COLUMN {col} {ddl}")
     c.execute("UPDATE shops SET kind='electronics' WHERE source='demo' AND kind IS NULL")
     for shop_id, (lat, lng) in _SHOP_COORDS.items():
         c.execute("UPDATE shops SET lat=?, lng=? WHERE id=? AND lat IS NULL", (lat, lng, shop_id))

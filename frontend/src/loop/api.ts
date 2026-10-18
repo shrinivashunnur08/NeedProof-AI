@@ -55,19 +55,31 @@ export type Profile = {
   id: string; name: string; city: string; device: string | null; budget: number | null; currency: string | null;
   language: string | null; needs: { item: string; wattage_w?: number | null; connector?: string | null; at?: string }[];
 };
+export type ForecastData = { product: string; selected_model: string; models: { model: string; mae: number; wape_pct: number | null }[];
+  next_7_days_units: number; daily: { day: string; units: number; low: number; high: number }[]; history: number[];
+  shortfall_before_restock: number | null; method: string };
+export type SegmentsData = { items: { name: string; share_pct: number; count: number; recency_days: number; orders_90d: number; spend_90d: string }[];
+  silhouette: number | null; method: string };
+export type BasketsData = { rules: { if_bought: string; also_bought: string; confidence_pct: number; lift: number; orders: number }[];
+  basket_count: number; method: string };
 export type Analytics = {
-  shop: { id: string; name: string }; currency: string; data_note: string; stock_source?: string;
+  mode?: "sample" | "real";
+  shop: { id: string; name: string; source?: string; kind_label?: string }; currency: string; data_note: string; stock_source?: string | null;
   command_center?: { summary: string; queue: { priority: number; title: string; reason: string; source_module: string }[]; method: string } | null;
-  forecast: { product: string; selected_model: string; models: { model: string; mae: number; wape_pct: number | null }[];
-    next_7_days_units: number; daily: { day: string; units: number; low: number; high: number }[]; history: number[];
-    shortfall_before_restock: number | null; method: string };
+  forecast: ForecastData | null;
   inventory: { sku: string; on_hand: number; stockout_days_56: number; coverage_days: number | null; status: string | null;
-    shortfall_units: number | null; review_signals: number | null; actions: unknown[]; method: string };
-  segments: { items: { name: string; share_pct: number; count: number; recency_days: number; orders_90d: number; spend_90d: string }[];
-    silhouette: number | null; method: string };
-  baskets: { rules: { if_bought: string; also_bought: string; confidence_pct: number; lift: number; orders: number }[];
-    basket_count: number; method: string };
+    shortfall_units: number | null; review_signals: number | null; actions: unknown[]; method: string } | null;
+  segments: SegmentsData | null;
+  baskets: BasketsData | null;
+  demand?: { requests: number; answered: number; top_asked: { product: string; asks: number; answered: number }[];
+    missed: { product: string; asks: number; median_budget: string | null }[]; routed_elsewhere: { category: string; requests: number }[] };
+  sales_summary?: { rows: number; units: number; revenue: string | null; first_day: string | null; last_day: string | null;
+    days_with_sales: number; bills: number; customers: number; uploaded_rows: number; top_products: { product: string; units: number }[] };
+  readiness?: { module: string; ready: boolean; detail: string }[];
+  stock_cover?: { items: { product: string; on_hand: number; per_day: number; coverage_days: number | null }[]; low: number; method: string } | null;
 };
+export type SalesUpload = { imported: number; skipped?: number; errors: string[]; first_day?: string | null; last_day?: string | null;
+  customers?: number; bills?: number; note?: string };
 export type PhotoCheck = { status: string; issues: string[]; missing: string[]; matches: string[]; cautions?: string[] };
 export type ShopResponse = {
   id: number; shop_id: string; shop_name: string; price: number | null; status: string;
@@ -204,6 +216,9 @@ export const api = {
   sampleInventory: (shopId: string) => call<InventoryUpload>(`/shops/${shopId}/inventory/sample`, { method: "POST" }),
   draft: (requestId: number, shopId: string) => call<Draft>(`/requests/${requestId}/draft?shop_id=${encodeURIComponent(shopId)}`),
   templateUrl: `${BASE}/inventory/template.xlsx`,
+  salesTemplateUrl: `${BASE}/sales/template.xlsx`,
+  uploadSales: (shopId: string, body: { filename: string; sheet_base64: string }) =>
+    call<SalesUpload>(`/shops/${shopId}/sales/upload`, { method: "POST", body: JSON.stringify(body) }),
   bqSync: () => call<{ rows: number; seconds: number; console_url: string; location: string }>("/analytics/bigquery/sync", { method: "POST" }),
   bqForecast: (city: string) => call<BqForecast>(`/cities/${city}/bigquery/forecast`),
   bqBrief: (city: string) => call<{ bullets: string[]; engine: string; seconds: number; console_url: string }>(`/cities/${city}/bigquery/brief`, { method: "POST" }),

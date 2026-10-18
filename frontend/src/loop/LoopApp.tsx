@@ -3,10 +3,10 @@ import {
   api, photoToBase64, fileToBase64, type Draft, type InventoryItem, type InventoryUpload,
   type Brief, type ChatResult, type City, type Insights, type Intent, type LoopRequest, type NearbyShop, type Offer,
   type PhotoCheck, type ShopResponse, type ShopperLocation,
-  type Providers, type Shop, type Analytics, type Profile, type BqForecast,
+  type Providers, type Shop, type Analytics, type Profile, type BqForecast, type TrustReport,
 } from "./api";
 
-type Role = "shopper" | "shop" | "business";
+type Role = "shopper" | "shop" | "business" | "trust";
 type Turn = { role: "user" | "assistant"; text: string; result?: ChatResult };
 
 const SAMPLE_PROMPTS: Record<string, string[]> = {
@@ -72,7 +72,7 @@ function useCityVersion(cityId: string): number {
 function readParams() {
   const q = new URLSearchParams(window.location.search);
   const role = (q.get("role") as Role) || "shopper";
-  return { role: ["shopper", "shop", "business"].includes(role) ? role : "shopper", city: q.get("city") || "singapore", shop: q.get("shop") || "" };
+  return { role: ["shopper", "shop", "business", "trust"].includes(role) ? role : "shopper", city: q.get("city") || "singapore", shop: q.get("shop") || "" };
 }
 
 function writeParams(role: Role, city: string, shop?: string) {
@@ -1056,6 +1056,126 @@ function BusinessView({ city, bigquery }: { city: City; bigquery?: boolean }) {
   );
 }
 
+/* ------------------------------ Trust ------------------------------ */
+
+const STRATEGY: Record<string, string> = {
+  EVSI_ONE_STEP: "NeedProof: verify only when worth it", VERIFY_EVERYTHING: "Verify everything", NO_VERIFICATION: "Trust every listing",
+  NEEDPROOF_ORTOOLS: "NeedProof optimiser (OR-Tools)", CHEAPEST_FIRST: "Cheapest item first", SINGLE_MERCHANT: "One shop only",
+};
+
+function TrustView() {
+  const [t, setT] = useState<TrustReport | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let alive = true;
+    api.trust().then((x) => { if (alive) setT(x); }).catch((e) => { if (alive) setError(e instanceof Error ? e.message : "Could not load"); });
+    return () => { alive = false; };
+  }, []);
+  if (error) return <ErrorNote message={error} />;
+  if (!t) return <p className="text-sm text-slate-400">Loading the trust report…</p>;
+  const card = "rounded-xl border border-slate-700 bg-slate-900/40 p-4";
+  return (
+    <section aria-label="Trust report" className="flex flex-col gap-5">
+      <div>
+        <h1 className="text-xl font-semibold text-slate-50">Why you can trust a NeedProof answer</h1>
+        <p className="mt-1 text-sm text-slate-400">Gemini understands, reads and explains. Code and the NeedProof decision engine decide. Every number on this page is produced live by the running app or by its test scripts.</p>
+      </div>
+
+      <div className={card}>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">How an answer is made</h2>
+        <ol className="mt-3 grid gap-2 md:grid-cols-3">
+          {t.pipeline.map((p, i) => (
+            <li key={p.step} className="rounded-lg border border-slate-700 p-3">
+              <p className="text-sm font-semibold text-slate-100">{i + 1}. {p.step} <span className="ml-1 text-xs font-normal text-teal-300">{p.who}</span></p>
+              <p className="mt-1 text-xs text-slate-400">{p.what}</p>
+            </li>))}
+        </ol>
+      </div>
+
+      <div className={card}>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Live model tests</h2>
+        <p className="mt-1 text-xs text-slate-500">backend/scripts/eval_live.py runs real Gemini calls; code scores each answer against expectations written before the run.</p>
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          {t.evals.map((e) => (
+            <div key={e.backend} className="rounded-lg border border-slate-700 p-3">
+              <p className="text-sm font-semibold text-slate-100">{e.backend === "vertex" ? "Vertex AI" : "Gemini API (AI Studio)"} · <span className="font-mono text-xs text-slate-400">{e.model}</span></p>
+              <table className="mt-2 w-full text-sm">
+                <tbody>{e.tasks.map((x) => (
+                  <tr key={x.task} className="border-t border-slate-800">
+                    <td className="py-1 text-slate-300">{x.task}</td>
+                    <td className={`font-mono ${x.passed === x.total ? "text-emerald-300" : "text-amber-300"}`}>{x.passed}/{x.total}</td>
+                    <td className="font-mono text-xs text-slate-500">{x.median_ms} ms</td>
+                  </tr>))}</tbody>
+              </table>
+              <p className="mt-1 text-[11px] text-slate-500">Run {e.run_at.replace("T", " ").replace("+00:00", " UTC")}</p>
+            </div>))}
+        </div>
+        {t.evals[0] && (
+          <ul className="mt-3 grid gap-2 md:grid-cols-5">
+            {t.evals[0].photos.map((p) => (
+              <li key={p.photo} className="rounded-lg border border-slate-700 p-2 text-xs">
+                <img src={`/samples/${p.photo}`} alt={p.photo} className="mb-1 h-16 w-full rounded object-cover" />
+                <StatusChip status={p.got} />
+                <p className="mt-1 text-slate-400">{(p.summary ?? "").slice(0, 110)}</p>
+              </li>))}
+          </ul>
+        )}
+      </div>
+
+      <div className={card}>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Safeguards and where they are tested</h2>
+        <ul className="mt-2 space-y-1.5 text-sm">
+          {t.safeguards.map((g) => (
+            <li key={g.rule} className="flex flex-wrap gap-x-2 border-t border-slate-800 pt-1.5">
+              <span className="text-emerald-300" aria-hidden="true">✓</span><span className="text-slate-200">{g.rule}</span>
+              <span className="ml-auto font-mono text-[11px] text-slate-500">{g.tested}</span>
+            </li>))}
+        </ul>
+      </div>
+
+      {t.benchmarks.evidence && t.benchmarks.basket && (
+        <div className={card}>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Decision engine benchmarks <span className="font-normal normal-case text-slate-500">· run live in {t.benchmarks.seconds}s, seeded simulation</span></h2>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-slate-500"><tr><th>When to ask for proof</th><th>Net value</th><th>Checks</th><th>Wrong pick</th></tr></thead>
+              <tbody>{Object.entries(t.benchmarks.evidence).map(([k, v]) => (
+                <tr key={k} className={`border-t border-slate-800 ${k === "EVSI_ONE_STEP" ? "text-teal-200" : "text-slate-300"}`}>
+                  <td className="py-1">{STRATEGY[k] ?? k}</td><td className="font-mono">₹{v.average_realized_net_utility_inr}</td>
+                  <td className="font-mono">{v.average_checks}</td><td className="font-mono">{v.failed_selection_rate_pct}%</td>
+                </tr>))}</tbody>
+            </table>
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-slate-500"><tr><th>Building a basket</th><th>Feasible</th><th>Extra cost</th></tr></thead>
+              <tbody>{Object.entries(t.benchmarks.basket).map(([k, v]) => (
+                <tr key={k} className={`border-t border-slate-800 ${k === "NEEDPROOF_ORTOOLS" ? "text-teal-200" : "text-slate-300"}`}>
+                  <td className="py-1">{STRATEGY[k] ?? k}</td><td className="font-mono">{v.feasibility_rate_pct}%</td>
+                  <td className="font-mono">₹{v.mean_extra_cost_vs_needproof_inr}</td>
+                </tr>))}</tbody>
+            </table>
+          </div>
+          <p className="mt-2 text-[11px] text-slate-500">{(t.benchmarks.notes ?? []).join(" ")}</p>
+        </div>
+      )}
+
+      <div className={card}>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">This running app, right now</h2>
+        <div className="mt-2 flex flex-wrap gap-4 text-sm text-slate-300">
+          <span><span className="font-mono text-lg text-slate-50">{t.live.requests}</span> shopper requests</span>
+          <span><span className="font-mono text-lg text-slate-50">{t.live.answered}</span> answered with a matching photo</span>
+          <span><span className="font-mono text-lg text-slate-50">{t.live.drafts_approved}</span> AI drafts approved by shopkeepers</span>
+          {Object.entries(t.live.replies_by_status).map(([k, v]) => <span key={k}><StatusChip status={k} /> <span className="font-mono">{v}</span></span>)}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-amber-400/30 bg-amber-500/5 p-4 text-sm text-amber-100">
+        <p className="font-semibold">Limits, stated plainly</p>
+        <ul className="mt-1 list-disc space-y-1 pl-5 text-amber-100/90">{t.limits.map((l) => <li key={l}>{l}</li>)}</ul>
+      </div>
+    </section>
+  );
+}
+
 /* ------------------------------ Shell ------------------------------ */
 
 export default function LoopApp() {
@@ -1115,6 +1235,7 @@ export default function LoopApp() {
     { id: "shopper", label: "Shopper", hint: "Ask in any language" },
     { id: "shop", label: "Shop", hint: "Reply with photo proof" },
     { id: "business", label: "Business", hint: "Unmet demand" },
+    { id: "trust", label: "Trust report", hint: "How it decides" },
   ];
   const otherWindow = `${window.location.pathname}?role=${role === "shop" ? "shopper" : "shop"}&city=${cityId}`;
 
@@ -1142,18 +1263,18 @@ export default function LoopApp() {
               </span>
             )}
             <button type="button" onClick={() => api.reset().then(() => setResetKey((k) => k + 1))} className="text-xs text-slate-400 underline hover:text-slate-200">Reset demo</button>
-            <a href="/classic" className="text-xs text-slate-400 underline hover:text-slate-200" title="The decision engine, Evidence Passport and benchmarks">Evidence lab</a>
+            <a href="/classic" className="text-xs text-slate-400 underline hover:text-slate-200" title="The original decision-engine showcase">Engine lab</a>
           </div>
         </div>
         <div className="mx-auto max-w-5xl px-4 pb-2">
           <LocationBar loc={loc && loc.cityId === cityId ? loc : null} busy={locBusy} error={locError}
             demo={!!city?.demo} onDetect={detect} onSearch={(q) => void locateBy({ query: q }, false)} />
         </div>
-        <nav aria-label="Role" className="mx-auto flex max-w-5xl gap-1 px-4">
+        <nav aria-label="Role" className="mx-auto flex max-w-5xl flex-wrap gap-1 overflow-x-auto px-4">
           {tabs.map((t) => (
             <button key={t.id} type="button" onClick={() => setRole(t.id)} aria-current={role === t.id ? "page" : undefined}
-              className={`border-b-2 px-3 pb-2 pt-1 text-sm ${role === t.id ? "border-teal-400 text-white" : "border-transparent text-slate-400 hover:text-slate-200"}`}>
-              {t.label} <span className="hidden text-xs text-slate-500 sm:inline">· {t.hint}</span>
+              className={`whitespace-nowrap border-b-2 px-3 pb-2 pt-1 text-sm ${role === t.id ? "border-teal-400 text-white" : "border-transparent text-slate-400 hover:text-slate-200"}`}>
+              {t.label} <span className="hidden text-xs text-slate-500 xl:inline">· {t.hint}</span>
             </button>
           ))}
           <a href={otherWindow} target="_blank" rel="noreferrer" className="ml-auto self-center pb-2 text-xs text-teal-300 hover:underline">Open {role === "shop" ? "shopper" : "shop"} view in a new window ↗</a>
@@ -1164,6 +1285,7 @@ export default function LoopApp() {
         {city && role === "shopper" && <ShopperView city={city} loc={loc && loc.cityId === city.id ? loc : null}
           onMoved={(c, lat, lng, label) => applyLocation(c, lat ?? c.lat ?? 0, lng ?? c.lng ?? 0, label ?? c.name, loc?.source ?? "openstreetmap", loc?.shopsFound ?? 0, false)} />}
         {city && role === "shop" && <ShopView city={city} shopId={shopId} setShopId={setShopId} />}
+        {role === "trust" && <TrustView />}
         {city && role === "business" && <BusinessView city={city} bigquery={providers?.analytics?.backend === "bigquery"} />}
         <p className="mt-10 text-xs text-slate-500">Demo cities use fictional shops and demand history. Real shops come from public map data and are never contacted by this demo. The app never buys anything; listings are shop claims until a photo is checked.</p>
       </main>

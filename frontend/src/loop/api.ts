@@ -61,6 +61,18 @@ export type BqForecast = {
   city: string; engine: string; model: string; console_url: string;
   rows: { product_key: string; next_7_days: number; low: number; high: number }[];
 };
+export type TrustReport = {
+  pipeline: { step: string; who: string; what: string }[];
+  safeguards: { rule: string; where: string; tested: string }[];
+  evals: { model: string; backend: string; run_at: string;
+    tasks: { task: string; passed: number; total: number; median_ms: number | null }[];
+    photos: { photo: string; got: string; ok: boolean; summary: string | null }[] }[];
+  benchmarks: { seconds?: number; mode?: string; error?: string; notes?: string[];
+    evidence?: Record<string, { average_realized_net_utility_inr: number; average_verification_cost_inr: number; average_checks: number; failed_selection_rate_pct: number }>;
+    basket?: Record<string, { feasibility_rate_pct: number; mean_extra_cost_vs_needproof_inr: number; missed_feasible_cases: number }> };
+  live: { requests: number; answered: number; drafts_approved: number; replies_by_status: Record<string, number> };
+  limits: string[];
+};
 export type InventoryItem = {
   id: number; shop_id: string; sku: string | null; product: string; brand: string | null; specs: Record<string, unknown>;
   price: number; currency: string; stock: number; image_file: string | null; image_url: string | null;
@@ -141,6 +153,7 @@ export const api = {
   bqSync: () => call<{ rows: number; seconds: number; console_url: string; location: string }>("/analytics/bigquery/sync", { method: "POST" }),
   bqForecast: (city: string) => call<BqForecast>(`/cities/${city}/bigquery/forecast`),
   bqBrief: (city: string) => call<{ bullets: string[]; engine: string; seconds: number; console_url: string }>(`/cities/${city}/bigquery/brief`, { method: "POST" }),
+  trust: () => call<TrustReport>("/trust"),
   reset: () => call<{ reset: boolean }>("/demo/reset", { method: "POST" }),
   exportBq: () => call<{ rows: number; next: string }>("/analytics/export", { method: "POST" }),
 };

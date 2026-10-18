@@ -293,6 +293,14 @@ def request_draft(request_id: int, shop_id: str):
     return draft_reply(req, shop_id)
 
 
+@router.get("/trust")
+def trust_report():
+    """How decisions are made, live test results, seeded benchmarks and live outcome counts."""
+    from app.commerce_loop.trust import report
+
+    return report()
+
+
 @router.get("/shoppers/{shopper_id}")
 def shopper_profile(shopper_id: str):
     return {"profile": store.get_profile(shopper_id)}

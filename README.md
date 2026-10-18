@@ -6,19 +6,61 @@
 
 Built for the **Google AI Builder Cup 2026 — Retail & Commerce** challenge, the project combines live Gemini-powered customer understanding with a full-stack merchant investigation workflow and a clearly labeled, interactive decision simulation.
 
-**[Live Firebase Showcase](https://needproof-ai-showcase.web.app)** · **[GitHub Repository](https://github.com/shrinivashunnur08/NeedProof-AI)**
+## Try it (for judges)
 
-> **Important:** The live Firebase website is a standalone showcase, not the complete FastAPI-backed system. It uses live Gemini for intent extraction and fictional merchant offers for decision demonstrations. No real stock, merchant identity, delivery promise, or purchase is verified by the public demo.
+**Live app on Google Cloud Run (Singapore): https://needproof-822406860102.asia-southeast1.run.app**
 
-## New: the Gemini commerce loop (`/app`)
+Two minutes:
+1. **Shopper** tab: type *"65W USB-C PD charger under S$60 today"* (or the same in Chinese, Portuguese or Hindi). Gemini extracts the need, checks shops with the NeedProof decision engine, and sends the request to nearby shops.
+2. **Shop** tab (or *Open shop view in a new window*): **Load sample inventory**. The request appears live with an **AI draft from the shop's inventory** (Vertex AI Search + Gemini). Edit if needed, then **Approve & send**. Gemini Vision checks the photo; the shopper sees the result within about a second.
+3. Ask again later with *"I need a laptop charger again"*: NeedProof remembers the wattage and budget (**Forget me** deletes it).
+4. **Business** tab: sales forecast, stock risk, customer segments and basket rules for a shop, plus the **BigQuery ML** forecast and a brief written by Gemini **inside BigQuery**.
+5. **Trust report** tab: how each answer is decided, live model test results (19/19 on AI Studio and on Vertex AI), safeguards and seeded benchmarks.
 
-**Shopper asks in any language → a Gemini agent checks nearby shops with the NeedProof decision engine → if nothing is confirmed, the need goes to shops → a shop replies with a photo that Gemini Vision checks → unanswered needs become demand insights for shops.**
+*Reset demo* clears the shared demo data. Shops in Singapore, São Paulo and Mumbai are fictional; *Detect* switches to your real location and real nearby shops from OpenStreetMap.
 
-- **Shopper agent:** Gemini function calling over the existing 17C–17E engine (orchestration, Evidence Passport, Next-Best-Proof). Works in English, Chinese, Portuguese, Hindi and more; budgets in any currency.
-- **Shop photo proof:** Gemini Vision reads the box or label; code checks wattage, connector, USB PD, price and authenticity cues against the request.
-- **Demand intelligence:** unmet demand by city and product, a 7-day estimate, a Gemini-written weekly brief, and BigQuery export with BigQuery ML `ARIMA_PLUS` and BigQuery AI SQL in `infra/bigquery/`.
-- **One switch for cost:** `NEEDPROOF_PROFILE=free` (Gemini API key, local analytics) or `google_full` (Vertex AI, BigQuery). `GEMINI_BACKEND=mock` runs offline.
-- Demo cities: **Singapore**, São Paulo and Mumbai. Details: [`docs/COMMERCE_LOOP.md`](docs/COMMERCE_LOOP.md).
+## What it does
+
+**A shopper says what they need in any language. NeedProof finds which nearby shop can prove it has it, before the shopper travels.**
+
+| | |
+|---|---|
+| **Shoppers** | Gemini agent with function calling over the 17C–17E decision engine (Evidence Passport, Next-Best-Proof); one follow-up question when a deciding spec is missing; any currency and language; remembers device, wattage and budget |
+| **Shops** | Upload stock as Excel/CSV with photos; each request gets an AI-drafted reply from their own inventory that the shopkeeper approves; Gemini Vision checks every photo |
+| **Business** | Unmet demand by city and product, backtested sales forecast, inventory risk, RFM customer segments, basket rules, Gemini weekly brief; BigQuery ML `ARIMA_PLUS` and BigQuery AI `AI.GENERATE` |
+| **Trust** | Gemini reads and explains; code and the decision engine decide. A photo never counts as a match unless a model read it; drafts can only use real inventory rows; nothing is sent without the shopkeeper's approval |
+
+## Google Cloud and Gemini
+
+| Google technology | Used for |
+|---|---|
+| **Gemini on Vertex AI** (`gemini-2.5-flash-lite`) | Intent extraction, agent with function calling, Gemini Vision photo checks, inventory reply drafts |
+| **BigQuery** (asia-southeast1) | Demand events and views; **BigQuery ML ARIMA_PLUS** forecast; **BigQuery AI** `AI.GENERATE` brief |
+| **Vertex AI Search** | Natural-language search over each shop's uploaded inventory |
+| **Cloud Storage** | Private storage for shop product photos |
+| **Cloud Run + Cloud Build** | Hosting the FastAPI backend and React app in Singapore |
+| **Looker Studio** | Dashboard on the BigQuery views (link in `docs/GOOGLE_CLOUD.md`) |
+| **Gemini API (AI Studio)** | Free local profile; one switch (`NEEDPROOF_PROFILE=free | google_full`) |
+
+Not done yet: the live app keeps shop and request data in SQLite on a single Cloud Run instance; moving it to **Cloud SQL** is the next step. Details, costs and teardown: [`docs/GOOGLE_CLOUD.md`](docs/GOOGLE_CLOUD.md).
+
+## Evidence that it works
+
+- Live model tests: [`docs/EVAL_REPORT.md`](docs/EVAL_REPORT.md) (AI Studio) and [`docs/EVAL_REPORT_VERTEX.md`](docs/EVAL_REPORT_VERTEX.md) (Vertex AI): intent extraction in 5 languages including a prompt-injection attempt, 5 photo checks (correct charger, wrong wattage, fake brand, mixer grinder, cable), 4 inventory drafts. Run with `python backend/scripts/eval_live.py`.
+- 37 automated tests for the commerce loop (`backend/tests/test_commerce_loop.py`), run in CI with a mock model.
+- Limits: 19 hand-written cases and 5 synthetic label photos, not real shop photos; demo shops and demand history are fictional.
+
+## Run locally
+
+```
+cd backend && pip install -r requirements.txt   # Python 3.12
+cp .env.example .env                              # add GEMINI_API_KEY (free profile)
+uvicorn app.main:app --host 127.0.0.1 --port 8000
+cd frontend && npm install && npm run dev         # http://127.0.0.1:5173
+```
+Without a key the app runs with a mock model. More: [`docs/COMMERCE_LOOP.md`](docs/COMMERCE_LOOP.md).
+
+The original Firebase showcase is still available: **[Live Firebase Showcase](https://needproof-ai-showcase.web.app)**; in the app it is under *Engine lab*.
 
 ## The Problem
 

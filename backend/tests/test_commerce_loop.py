@@ -400,3 +400,11 @@ def test_photo_proof_is_per_product_not_per_shop(client):
     marina = {o["listing"]: o["photo_proof"] for o in offers if o["shop_id"] == "sg-marina"}
     assert marina["VoltPro 65W USB-C PD laptop charger"] == "PHOTO_MATCHES_REQUEST"
     assert marina["VoltPro 45W USB-C PD charger"] == "NONE"
+
+
+def test_trust_report(client):
+    t = client.get("/api/v2/loop/trust").json()
+    assert len(t["pipeline"]) == 6 and len(t["safeguards"]) >= 10
+    assert t["evals"] and all(x["passed"] == x["total"] for e in t["evals"] for x in e["tasks"])
+    assert "EVSI_ONE_STEP" in t["benchmarks"]["evidence"]
+    assert t["live"]["requests"] == 0

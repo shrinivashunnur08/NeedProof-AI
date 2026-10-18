@@ -259,7 +259,10 @@ def search(request: dict, shop_id: str, limit: int = 3) -> list[dict]:
         words = set(re.findall(r"[a-z0-9]+", text.casefold()))
         score = 3.0 * (want_kind is not None and kind == want_kind) + 2.0 * specs["ok"] - 1.5 * len(specs["issues"])
         score += 1.0 * (it["stock"] > 0) + 1.0 * (not budget or it["price"] <= budget)
-        score += 0.4 * len(want_words & words)
+        shared = want_words & words - {"usb", "c", "w", "the", "for", "a"}
+        if want_kind is None and not shared:
+            continue  # unknown item type: only rows that share a real word with the request
+        score += 0.4 * len(shared)
         if score <= 0:
             continue
         scored.append({**it, "score": round(score, 2), "spec_check": specs,
@@ -293,6 +296,12 @@ def draft_reply(request: dict, shop_id: str, gemini: Gemini | None = None) -> di
     if not candidates:
         return {**base, "draft": None, "mode": "search", "reason": (
             "No inventory row matches this request." if has_inventory else "Upload your inventory to get drafts.")}
+    if not any(c["spec_check"]["ok"] for c in candidates):
+        # Never pre-fill a reply with an item that fails a required spec; the shopkeeper can still pick one.
+        best = candidates[0]
+        return {**base, "draft": None, "mode": "search",
+                "reason": f"Closest item {best['product']} does not fit: {best['spec_check']['issues'][0]}."}
+    candidates = [c for c in candidates if c["spec_check"]["ok"]]
     gemini = gemini or Gemini()
     pick, mode, meta = candidates[0], "search", {}
     reason = _auto_reason(pick, request)

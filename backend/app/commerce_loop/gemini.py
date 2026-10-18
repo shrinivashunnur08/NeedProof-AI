@@ -65,15 +65,22 @@ class Gemini:
         return types.ThinkingConfig(thinking_budget=0 if level in {"low", "minimal"} else -1)
 
     def _generate(self, client, **kwargs):
-        """Call Gemini; if the model rejects the thinking setting, retry once without it."""
-        try:
-            return client.models.generate_content(**kwargs)
-        except Exception as exc:  # noqa: BLE001
-            config = kwargs.get("config")
-            if getattr(exc, "code", None) == 400 and getattr(config, "thinking_config", None) is not None:
-                kwargs["config"] = config.model_copy(update={"thinking_config": None})
+        """Call Gemini. Retry without the thinking setting if the model rejects it (400), and back off
+        briefly on rate limits or transient errors (429/500/503), which free-tier keys hit in bursts."""
+        for attempt in range(3):
+            try:
                 return client.models.generate_content(**kwargs)
-            raise
+            except Exception as exc:  # noqa: BLE001
+                code = getattr(exc, "code", None)
+                config = kwargs.get("config")
+                if code == 400 and getattr(config, "thinking_config", None) is not None:
+                    kwargs["config"] = config.model_copy(update={"thinking_config": None})
+                    continue
+                if code in (429, 500, 503) and attempt < 2:
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+                raise
+        return client.models.generate_content(**kwargs)
 
     def generate_json(self, prompt: str, schema: type[BaseModel], *, system: str,
                       image: tuple[bytes, str] | None = None) -> tuple[BaseModel, dict]:

@@ -348,3 +348,16 @@ def test_inventory_xlsx_upload_maps_headers(client):
     assert bad.status_code == 422
     assert client.get("/api/v2/loop/inventory/template.xlsx").status_code == 200
     assert client.get("/api/v2/loop/media/sg-harbour/..%2F..%2Fsecret").status_code == 404
+
+
+def test_draft_never_offers_wrong_item_or_spec(client):
+    client.post("/api/v2/loop/shops/sg-marina/inventory/sample")
+    for text in ("100W USB-C charger under S$120", "mixer grinder under S$100"):
+        body = client.post("/api/v2/loop/agent/chat", json={
+            "city": "singapore", "history": [{"role": "user", "text": text}]}).json()
+        rid = body["request"]["id"] if body.get("request") else None
+        if rid is None:
+            from app.commerce_loop import store
+            rid = store.create_request("singapore", text, {}, None, "SGD", "en", text)
+        d = client.get(f"/api/v2/loop/requests/{rid}/draft", params={"shop_id": "sg-marina"}).json()
+        assert d["draft"] is None, (text, d)

@@ -1,9 +1,58 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------------------
+   Typography tokens: Google Workspace style (Gmail, Docs, Sheets).
+   Google Sans is loaded from Google Fonts in index.html; Roboto, then Arial,
+   are the fallbacks. Tailwind's font-sans / text-* utilities read these tokens,
+   so every component (including form controls) picks them up.
+   --------------------------------------------------------------------------- */
+@theme {
+  --font-sans: "Google Sans", Roboto, Arial, sans-serif;
+  --font-mono: "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-document: Arial, Roboto, sans-serif;
+
+  /* Workspace type scale */
+  --text-xs: 12px;            /* small labels, metadata */
+  --text-xs--line-height: 16px;
+  --text-sm: 14px;            /* body, navigation, buttons */
+  --text-sm--line-height: 20px;
+  --text-base: 16px;          /* section headings (small) */
+  --text-base--line-height: 24px;
+  --text-lg: 18px;            /* section headings */
+  --text-lg--line-height: 24px;
+  --text-xl: 20px;            /* section headings (large) */
+  --text-xl--line-height: 28px;
+  --text-2xl: 24px;           /* page titles */
+  --text-2xl--line-height: 32px;
+  --text-3xl: 28px;           /* page titles (top level) */
+  --text-3xl--line-height: 36px;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+}
+
+:root {
+  --np-font-ui: "Google Sans", Roboto, Arial, sans-serif;
+  --np-text-body: 14px;
+  --np-leading-body: 20px;
+  --np-tracking-body: 0.2px;
+  --np-text-meta: 12px;
+  --np-leading-meta: 16px;
+  --np-tracking-meta: 0.3px;
+  --np-text-title: 22px;
+  --np-leading-title: 28px;
+  --np-text-section: 18px;
+  --np-leading-section: 24px;
+}
+
 /* NeedProof AI — Global foundation */
 
 :root {
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--np-font-ui);
+  font-size: var(--np-text-body);
+  line-height: var(--np-leading-body);
+  letter-spacing: var(--np-tracking-body);
   color: #f1f5f9;
   background: #080b12;
 
@@ -31,6 +80,26 @@ body {
   width: 100%;
   min-height: 100dvh;
 }
+
+/* Form controls, placeholders and dialogs use the UI font (no browser defaults). */
+button, input, select, textarea, optgroup, option, dialog, [role="tooltip"] {
+  font-family: inherit;
+  letter-spacing: inherit;
+}
+
+input::placeholder, textarea::placeholder {
+  font-family: inherit;
+}
+
+/* Headings: page titles 22px, section headings 18px, weights from the components. */
+h1 { font-size: var(--np-text-title); line-height: var(--np-leading-title); letter-spacing: 0; }
+h2 { letter-spacing: 0.1px; }
+
+/* Document-like content keeps a document font. */
+.np-document, .np-document * { font-family: var(--font-document); }
+
+/* Code stays monospaced. */
+code, pre, kbd, samp { font-family: var(--font-mono); }
 
 /* Buttons */
 

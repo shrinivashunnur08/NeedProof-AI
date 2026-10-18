@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 import os
 from pathlib import Path
 from fastapi import Request
@@ -22,11 +23,23 @@ from app.api.merchant_onboarding import router as onboarding_router
 from app.api.transactions import router as transactions_router
 from app.api.benchmarks import router as benchmarks_router
 from app.api.journey import router as journey_router
+from app.commerce_loop.api import router as commerce_loop_router
 from app.fresh_journey_17c import FreshJourney17C, evaluate_fresh_journey_17c
+@asynccontextmanager
+async def lifespan(_app):
+    """Restore app state from Cloud Storage on start, snapshot it on change, flush it on shutdown."""
+    from app.commerce_loop import persist
+
+    persist.start()
+    yield
+    persist.flush()
+
+
 app = FastAPI(
     title="NeedProof AI API",
     description="Evidence-driven commerce intelligence",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 CLOUD_PREVIEW_ALLOWED_API_PATHS = {
@@ -93,6 +106,8 @@ app.include_router(onboarding_router)
 app.include_router(transactions_router)
 app.include_router(benchmarks_router)
 app.include_router(journey_router)
+app.include_router(commerce_loop_router)
+
 
 app.add_middleware(
     CORSMiddleware,

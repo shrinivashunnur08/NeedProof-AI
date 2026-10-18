@@ -1,0 +1,106 @@
+/* Google-style light theme for the NeedProof app (scoped to .np-google).
+   Re-maps the Tailwind palette used by the app to Google's Material colours, so
+   the rest of the site (classic showcase) keeps its own look. */
+.np-google {
+  /* neutrals: dark-theme slate scale -> Google light greys */
+  --color-slate-50: #202124;
+  --color-slate-100: #202124;
+  --color-slate-200: #3c4043;
+  --color-slate-300: #5f6368;
+  --color-slate-400: #5f6368;
+  --color-slate-500: #80868b;
+  --color-slate-600: #dadce0;
+  --color-slate-700: #dadce0;
+  --color-slate-800: #eceff1;
+  --color-slate-900: #f8f9fa;
+  --color-slate-950: #ffffff;
+  /* primary -> Google Blue */
+  --color-teal-100: #174ea6;
+  --color-teal-200: #1967d2;
+  --color-teal-300: #1a73e8;
+  --color-teal-400: #1a73e8;
+  --color-teal-500: #1a73e8;
+  --color-teal-600: #1967d2;
+  --color-sky-200: #1967d2;
+  --color-sky-300: #1a73e8;
+  --color-sky-400: #1a73e8;
+  --color-sky-500: #1a73e8;
+  --color-indigo-100: #174ea6;
+  --color-indigo-200: #1967d2;
+  --color-indigo-300: #1a73e8;
+  --color-indigo-400: #4285f4;
+  /* success -> Google Green */
+  --color-emerald-200: #137333;
+  --color-emerald-300: #188038;
+  --color-emerald-400: #1e8e3e;
+  --color-emerald-500: #34a853;
+  /* error -> Google Red */
+  --color-rose-100: #a50e0e;
+  --color-rose-200: #c5221f;
+  --color-rose-300: #d93025;
+  --color-rose-400: #ea4335;
+  --color-rose-500: #ea4335;
+  /* warning -> Google Yellow (dark text for contrast) */
+  --color-amber-100: #8a4b00;
+  --color-amber-200: #b06000;
+  --color-amber-300: #b06000;
+  --color-amber-400: #f9ab00;
+  --color-amber-500: #fbbc04;
+  /* accent (memory, drafts) -> Google purple */
+  --color-violet-100: #681da8;
+  --color-violet-200: #8430ce;
+  --color-violet-400: #a142f4;
+  --color-violet-500: #a142f4;
+
+  font-family: var(--np-font-ui);
+  font-size: var(--np-text-body);
+  line-height: var(--np-leading-body);
+  letter-spacing: var(--np-tracking-body);
+  color: #202124;
+  background: #ffffff;
+}
+
+/* Workspace typography inside the app.
+   Numbers use the UI font with tabular figures (as in Sheets); code-like text keeps Roboto Mono. */
+.np-google .font-mono { font-family: var(--np-font-ui); font-variant-numeric: tabular-nums; letter-spacing: 0.2px; }
+.np-google .font-mono.text-teal-200, .np-google code { font-family: var(--font-mono); }
+.np-google h1 { font-size: var(--np-text-title); line-height: var(--np-leading-title); }
+.np-google h2.text-lg, .np-google h2.text-base { font-size: var(--np-text-section); line-height: var(--np-leading-section); }
+.np-google .np-apptitle { font-size: var(--np-text-title); line-height: var(--np-leading-title); letter-spacing: 0; }
+.np-google .text-xs { letter-spacing: var(--np-tracking-meta); }
+/* Odd pixel sizes collapse onto the scale: metadata is 12px, message text is 14px. */
+.np-google [class~="text-[11px]"], .np-google [class~="text-[10px]"], .np-google [class~="text-[9px]"] {
+  font-size: var(--np-text-meta); line-height: var(--np-leading-meta); letter-spacing: var(--np-tracking-meta);
+}
+.np-google [class~="text-[15px]"] { font-size: var(--np-text-body); line-height: 22px; }
+.np-google .font-bold { font-weight: 600; }
+.np-google button, .np-google [role="tab"] { font-weight: 500; }
+.np-google select, .np-google input, .np-google textarea { font-size: var(--np-text-body); }
+
+/* Material-style surfaces: subtle elevation instead of dark panels */
+.np-google li.rounded-xl,
+.np-google section > .rounded-xl,
+.np-google figure.rounded-xl {
+  box-shadow: 0 1px 2px rgba(60, 64, 67, 0.15), 0 1px 3px 1px rgba(60, 64, 67, 0.08);
+}
+
+/* Filled buttons become Google pill buttons */
+.np-google button[class*="bg-teal-500"]:not([class*="bg-teal-500/"]),
+.np-google button[class*="bg-sky-500"]:not([class*="bg-sky-500/"]) {
+  border-radius: 9999px;
+  color: #ffffff;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+.np-google button[class*="bg-teal-500"]:not([class*="bg-teal-500/"]):hover:not(:disabled) { background-color: #1765cc; box-shadow: 0 1px 3px rgba(60, 64, 67, 0.3); }
+
+/* Outlined buttons */
+.np-google button[class*="border-slate-600"],
+.np-google a[class*="border-slate-600"] { border-radius: 9999px; color: #1a73e8; }
+
+/* Inputs: Google field style */
+.np-google input, .np-google select, .np-google textarea { color: #202124; }
+.np-google input:focus, .np-google select:focus, .np-google textarea:focus { outline: 2px solid #1a73e8; outline-offset: 0; }
+
+/* Header brand line */
+.np-google header { box-shadow: 0 1px 2px rgba(60, 64, 67, 0.12); }

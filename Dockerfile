@@ -22,6 +22,8 @@ WORKDIR /srv/backend
 COPY backend/requirements.txt ./
 
 RUN pip install --no-cache-dir -r requirements.txt
+# Google Cloud clients used by the google_full profile (BigQuery analytics, Cloud Storage photos).
+RUN pip install --no-cache-dir "google-cloud-bigquery>=3.25,<4" "google-cloud-storage>=2.18,<4"
 
 COPY backend/ ./
 

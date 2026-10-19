@@ -9,7 +9,7 @@ Built on Google Cloud for the **Google AI Builder Cup 2026** (Retail & Commerce)
 | | |
 |---|---|
 | **Live app** (Cloud Run, Singapore) | https://needproof-822406860102.asia-southeast1.run.app |
-| **Demo video** | *‹add link›* |
+| **Demo video** | https://www.youtube.com/watch?v=H9QkBXVM89k |
 | **Pitch deck** | [`docs/submission/NeedProof_AI_Builder_Cup.pdf`](docs/submission/NeedProof_AI_Builder_Cup.pdf) |
 | **Architecture** | [`docs/submission/architecture.png`](docs/submission/architecture.png) |
 
@@ -234,7 +234,7 @@ Other folders under `backend/app/` and `frontend/src/components/` hold the earli
 
 ## Team
 
-| Name | Role |
-|---|---|
-| ‹Name› | ‹Role› |
-| ‹Name› | ‹Role› |
+| Name | Role | Contact |
+|---|---|---|
+| **Vishnuraj Yadav** | Team leader | yadavvishnuraj@gmail.com |
+| **Shrinivas Hunnur** | Team member | yashhunnur7@gmail.com |
